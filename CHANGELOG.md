@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+No unreleased changes.
+
 ## [0.1.0] - 2026-09-17
 
 - Added Windows x64 local-first backup, restore, and offline migration flows.
