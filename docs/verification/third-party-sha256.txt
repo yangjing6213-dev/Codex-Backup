@@ -1,0 +1,8 @@
+# Official release archive SHA-256 records
+# URLs are pinned in scripts/bootstrap.ps1.
+da948ad707ed690426473aaba2046cd61f8f90f6f0e7dab6be0d5796531de67d  restic_0.19.1_windows_amd64.zip
+200eb602c126d82aa38b51e0f6b9ae837473ff99b51278d3f6f837574c494d6e  rclone-v1.75.1-windows-amd64.zip
+
+# SHA-256 of the extracted executables bundled under desktop/src-tauri/resources.
+b0dd1fd21eea5d8fe1325f55f7118213c21f36de8a261e04c0624a5ab9fd7830  desktop/src-tauri/resources/restic.exe
+033eee51c9ad47c2de2624b6674d355274bcd6cf0027a5f85db4437ba24ae81c  desktop/src-tauri/resources/rclone.exe

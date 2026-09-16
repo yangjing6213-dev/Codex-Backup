@@ -1,0 +1,43 @@
+name: ENHE Codex Backup CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-checks:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.14.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - working-directory: desktop
+        run: pnpm install --frozen-lockfile
+      - working-directory: desktop
+        run: pnpm exec tsc -b
+      - working-directory: desktop
+        run: pnpm exec vitest --run
+      - working-directory: desktop
+        run: pnpm run build
+      - run: cargo fmt --manifest-path desktop/src-tauri/Cargo.toml --check
+      - run: cargo test --manifest-path desktop/src-tauri/Cargo.toml
+      - shell: pwsh
+        run: ./tests/readme_language_test.ps1

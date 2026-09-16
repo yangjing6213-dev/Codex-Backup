@@ -1,0 +1,15 @@
+.toolchain/
+node_modules/
+desktop/node_modules/
+desktop/dist/
+desktop/*.tsbuildinfo
+desktop/vite.config.js
+desktop/vite.config.d.ts
+desktop/src-tauri/target/
+desktop/src-tauri/resources/*.partial
+desktop/src-tauri/resources/*.exe
+docs/verification/verify-latest.md
+.env
+.env.*
+!.env.example
+.local-audit/
