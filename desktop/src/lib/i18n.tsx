@@ -27,7 +27,7 @@ const english: Record<string, string> = {
   "候选项目数量": "Project candidates",
   "扫描提示": "Scan notes",
   "取消扫描": "Cancel scan",
-  "本地优先的 Codex 备份": "Local-first Codex backup",
+  "Codex 数据备份&迁移": "Codex Data Backup & Migration",
   "没有云端也能备份、查看和恢复资料。": "Back up, inspect and restore your data without a cloud account.",
   "云端备份已关闭": "Cloud backup is off",
   "云端关闭时不会启动远端连接，也不会上传资料。": "When cloud backup is off, no remote connection starts and no data is uploaded.",

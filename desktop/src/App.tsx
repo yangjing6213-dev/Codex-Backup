@@ -419,7 +419,7 @@ function OverviewPage({ headingRef, inventory, localConversationCount, config, s
     <div className="page">
       <header className="page-header">
         <p className="eyebrow">ENHE CODEX BACKUP</p>
-        <h1 ref={headingRef} tabIndex={-1}>{t("本地优先的 Codex 备份")}</h1>
+        <h1 ref={headingRef} tabIndex={-1}>{t("Codex 数据备份&迁移")}</h1>
         <p className="page-description">{t("没有云端也能备份、查看和恢复资料。")}</p>
       </header>
 

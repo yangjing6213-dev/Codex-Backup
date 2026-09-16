@@ -107,6 +107,7 @@ describe("ENHE Codex Backup shell", () => {
     expect(screen.getByRole("button", { name: "前往备份与迁移" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "前往设置" })).toBeInTheDocument();
     expect(screen.getAllByText("云端备份已关闭").length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "Codex 数据备份&迁移" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "开始本地备份" })).toBeInTheDocument();
   });
 
@@ -120,6 +121,7 @@ describe("ENHE Codex Backup shell", () => {
     expect(screen.getByRole("button", { name: "Go to Overview" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Go to Backups & Migration" })).toBeInTheDocument();
     expect(screen.getAllByText("Cloud backup is off").length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "Codex Data Backup & Migration" })).toBeInTheDocument();
   });
 
   it("keeps the projects and settings workflows reachable", async () => {
