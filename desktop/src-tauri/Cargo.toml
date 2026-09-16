@@ -1,6 +1,6 @@
 [package]
 name = "enhe-codex-backup"
-version = "0.1.0"
+version = "0.1.1"
 description = "ENHE Codex Backup local backup and migration utility"
 authors = ["ENHE Codex Backup contributors"]
 edition = "2021"

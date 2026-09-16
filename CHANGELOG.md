@@ -4,6 +4,11 @@
 
 No unreleased changes.
 
+## [0.1.1] - 2026-09-17
+
+- Renamed the bilingual home-page product title to “Codex 数据备份&迁移” / “Codex Data Backup & Migration”.
+- Updated the application version metadata and published Windows x64 installer links for this release.
+
 ## [0.1.0] - 2026-09-17
 
 - Added Windows x64 local-first backup, restore, and offline migration flows.

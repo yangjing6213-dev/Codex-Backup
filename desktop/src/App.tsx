@@ -886,7 +886,7 @@ function SettingsPage({ headingRef, config, scheduler, onSave, onConfigChange, o
         </div>}
       </section>
 
-      <section className="settings-footer"><button className="primary-button" type="button" onClick={() => { onConfigChange(draft); void onSave(draft); }}>{t("保存设置")}</button><span>{t("当前版本")} 0.1.0</span></section>
+      <section className="settings-footer"><button className="primary-button" type="button" onClick={() => { onConfigChange(draft); void onSave(draft); }}>{t("保存设置")}</button><span>{t("当前版本")} 0.1.1</span></section>
     </div>
   );
 }

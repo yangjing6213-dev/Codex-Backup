@@ -52,7 +52,7 @@ Codex 数据位置：C:\Users\<用户>\.codex
 
 ## 六、安装方法
 
-1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases)，或直接下载 [Windows x64 安装包](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.0_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.0_x64-setup.exe.sha256)；如果页面暂时没有 Release，请按下面的本地构建方式生成安装包。
+1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases)，或直接下载 [Windows x64 安装包](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.1_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.1_x64-setup.exe.sha256)；如果页面暂时没有 Release，请按下面的本地构建方式生成安装包。
 2. 使用 PowerShell 计算安装包 SHA-256，并与校验文件比对。
 3. 运行安装包，按 Windows 当前用户范围完成安装。
 4. 首次启动后确认本机数据位置；云端保持关闭即可完成本地备份。
@@ -105,7 +105,7 @@ tests/                      隔离测试与文档契约测试
 
 ## 十一、版本说明
 
-当前版本：`0.1.0`。本版本重点是 Windows x64 本地备份、恢复、离线迁移、自动发现和双语设置流程。真实 OneDrive、第二设备、真实会话续接和干净用户配置文件验证不在已完成证据范围内，详见 [STATUS](docs/STATUS.md) 与 [ACCEPTANCE](docs/ACCEPTANCE.md)。
+当前版本：`0.1.1`。本版本在 Windows x64 本地备份、恢复、离线迁移、自动发现和双语设置流程基础上，将首页产品标题统一为“Codex 数据备份&迁移”，并提供新的安装包下载。真实 OneDrive、第二设备、真实会话续接和干净用户配置文件验证不在已完成证据范围内，详见 [STATUS](docs/STATUS.md) 与 [ACCEPTANCE](docs/ACCEPTANCE.md)。
 
 ## 十二、相关项目
 

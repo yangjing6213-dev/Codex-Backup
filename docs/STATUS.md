@@ -12,11 +12,11 @@ Verified in this environment:
 - Real restic 0.19.1 temporary encrypted repository init/backup/check/list/restore with Git/worktree/Codex fixture: PASS for the CLI storage engine; see `verification/local-restic-acceptance.md`.
 - Official restic/rclone Windows amd64 archive hashes and executable version output: PASS.
 - `scripts/verify.ps1` completed the frontend, bilingual, source-scan, Rust formatting, Rust tests, and isolated-restic checks: PASS. The Rust run covered 56 library tests plus all project integration suites; the one explicitly environment-dependent restore test and two local Windows acceptance tests remained ignored.
-- `scripts/package.ps1 -SkipBootstrap` completed the Windows x64 release build and NSIS bundling: PASS. The generated installer is `desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/ENHE Codex Backup_0.1.0_x64-setup.exe` (32,838,095 bytes), with matching SHA-256 `ff3e2e8d003250fa8b4e89fc37707522b86590f821a15b36c6991a543691836a` in the adjacent `.sha256` file.
+- `scripts/package.ps1 -SkipBootstrap` completed the Windows x64 release build and NSIS bundling for 0.1.1: PASS. The generated installer is `desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/ENHE Codex Backup_0.1.1_x64-setup.exe` (32,824,356 bytes), with matching SHA-256 `947c400e7e365428064bb71a8dde829a92c8353eef464643f5de824a80f04450` in the adjacent `.sha256` file.
 
 Not verified:
 
-- Current-user installation and installed application startup: PASS; the newly generated installer exited with code 0, and the installed process exposed the `ENHE Codex Backup` window and remained responsive with no TCP connections at the time of inspection. Clean-profile WebView2 flow, full UI actions, native dialog click-through, and real Task Scheduler worker remain NOT_RUN.
+- The previous 0.1.0 current-user installation and startup check was PASS. Current-user installation and startup for the newly generated 0.1.1 installer: NOT_RUN; this task did not authorize system-level installation. Clean-profile WebView2 flow, full UI actions, native dialog click-through, and real Task Scheduler worker remain NOT_RUN.
 - OneDrive authorization/upload/download, second physical device, real Codex account/session visibility, and thread continuation: NOT_RUN by scope and authorization.
 
 Overall release decision: `RELEASE_READY: NO`.

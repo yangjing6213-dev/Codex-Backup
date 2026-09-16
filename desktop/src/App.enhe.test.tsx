@@ -254,7 +254,7 @@ describe("ENHE Codex Backup shell", () => {
         logical_backup_id: "33333333-3333-3333-3333-333333333333",
         batch_id: "44444444-4444-4444-4444-444444444444",
         created_at: "2026-09-16T00:00:00Z",
-        app_version: "0.1.0",
+        app_version: "0.1.1",
         restic_version: "restic 0.19.1",
         source_device_id: inventory.source_device_id,
         source_codex_home: inventory.codex_home,
