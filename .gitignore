@@ -13,3 +13,6 @@ docs/verification/verify-latest.md
 .env.*
 !.env.example
 .local-audit/
+ENHE-Codex-Backup-完整开发执行指令.md
+docs/exec-plans/
+docs/superpowers/
