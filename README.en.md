@@ -129,6 +129,8 @@ ReHome: this project includes its applicable offline migration capability, while
 
 ### 1. Enhe - Product Designer - One-person Company Practitioner - AI Builder
 
+![About Enhe](docs/assets/about-author.png)
+
 Building a one-person company with AI.
 
 - GitHub: [yangjing6213-dev](https://github.com/yangjing6213-dev)

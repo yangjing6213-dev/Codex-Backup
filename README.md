@@ -121,6 +121,8 @@ ReHome：本项目内置其适用的离线迁移能力，但完整本地备份�
 
 ### 1、Enhe（恩禾）- 产品设计师 - 一人公司实践者 - AI Builder
 
+![Enhe（恩禾）作者介绍](docs/assets/about-author.png)
+
 用AI打造一个人公司。
 
 - GitHub: [yangjing6213-dev](https://github.com/yangjing6213-dev)
