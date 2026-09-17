@@ -38,7 +38,7 @@ ENHE Codex Backup 是一个独立的 Windows x64 本地优先备份、恢复和�
 
 ## 五、示例效果
 
-启动后应用会先读取已保存设置，自动尝试 Codex 数据位置，并显示项目与对话统计。之后在本机固定磁盘后台发现项目候选：
+启动后应用会先读取已保存设置，自动尝试 Codex 数据位置，并显示项目与对话统计。之后在本机固定磁盘后台发现项目候选；无权限目录会安全跳过并汇总：
 
 ```text
 Codex 数据位置：C:\Users\<用户>\.codex
@@ -50,9 +50,11 @@ Codex 数据位置：C:\Users\<用户>\.codex
 
 候选项目只会展示并等待用户勾选，不会把整个磁盘内容自动纳入备份。路径字段旁的文件夹按钮会打开 Windows 原生选择窗口；取消不会改变原值。
 
+项目页提供“扫描受限目录时申请管理员权限”选项。只有用户勾选并点击“以管理员权限重新扫描”时才会弹出 Windows UAC；普通扫描不会被中断。
+
 ## 六、安装方法
 
-1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases)，或直接下载 [Windows x64 安装包](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.1_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.1_x64-setup.exe.sha256)；如果页面暂时没有 Release，请按下面的本地构建方式生成安装包。
+1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases)，或直接下载 [Windows x64 安装包](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.2_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.2_x64-setup.exe.sha256)；如果页面暂时没有 Release，请按下面的本地构建方式生成安装包。
 2. 使用 PowerShell 计算安装包 SHA-256，并与校验文件比对。
 3. 运行安装包，按 Windows 当前用户范围完成安装。
 4. 首次启动后确认本机数据位置；云端保持关闭即可完成本地备份。
@@ -73,11 +75,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
 4. 使用“刷新本地备份”查看快照，选择一个全新的恢复目标目录后恢复。
 5. 需要计划任务时，启用当前用户计划任务并选择记住密码；密码只通过当前 Windows 用户 DPAPI 保护。
 
+首次使用也可以打开“操作说明”，按流程图逐步完成上述操作。
+
 ## 八、项目工作流程
 
 ```text
 读取配置 → 快速发现 Codex → 自动填充本地设置 →
-后台扫描固定磁盘项目候选 → 用户确认备份范围 →
+后台扫描固定磁盘项目候选 → 汇总跳过的无权限目录 → 用户确认备份范围 →
 restic 加密快照 → 校验/列出 → 独立目录恢复
 ```
 
@@ -88,6 +92,7 @@ restic 加密快照 → 校验/列出 → 独立目录恢复
 ```text
 desktop/                    Tauri + React 桌面应用
 desktop/src/                双语界面、设置、备份和迁移流程
+desktop/src/App.tsx         主导航、自动扫描权限提示和操作说明流程图
 desktop/src-tauri/src/      Rust 命令、发现、restic、恢复与迁移核心
 desktop/src-tauri/resources/ 内置 restic/rclone 运行时
 docs/                       规格、验收、兼容性、用户指南和验证证据
@@ -99,13 +104,14 @@ tests/                      隔离测试与文档契约测试
 
 - 完整备份不会照搬 ReHome 对 `.git` 的排除规则，会保留 Git 数据和相关 worktree 资料。
 - 自动项目扫描只读取目录元数据和项目标记，不读取无关源文件正文；跳过系统目录、依赖目录、构建缓存、网络盘和 OneDrive 同步目录。
-- 扫描有明确上限并可取消；部分结果会标记为部分完成，不能当作完整全盘扫描。
+- 扫描有明确上限并可取消；无权限目录只显示聚合数量，其他提示最多显示少量摘要；部分结果会标记为部分完成，不能当作完整全盘扫描。
+- Windows 内部使用 `\\?\` 长路径形式是正常的；配置和界面会显示普通盘符或 UNC 形式。管理员扫描只有用户明确操作时才请求 UAC。
 - 恢复目标和现有资料默认不覆盖；失败或冲突会保留记录并提供回滚边界。
 - 不把恢复密码、Cookie、私钥、Token、`.env` 或真实个人资料提交到仓库。
 
 ## 十一、版本说明
 
-当前版本：`0.1.1`。本版本在 Windows x64 本地备份、恢复、离线迁移、自动发现和双语设置流程基础上，将首页产品标题统一为“Codex 数据备份&迁移”，并提供新的安装包下载。真实 OneDrive、第二设备、真实会话续接和干净用户配置文件验证不在已完成证据范围内，详见 [STATUS](docs/STATUS.md) 与 [ACCEPTANCE](docs/ACCEPTANCE.md)。
+当前版本：`0.1.2`。本版本在 Windows x64 本地备份、恢复、离线迁移、自动发现和双语设置流程基础上，修复用户可见的 `\\?\` 路径、聚合全盘扫描权限提示，并新增管理员重扫选项和“操作说明”流程图。真实 OneDrive、第二设备、真实会话续接和干净用户配置文件验证不在已完成证据范围内，详见 [STATUS](docs/STATUS.md) 与 [ACCEPTANCE](docs/ACCEPTANCE.md)。
 
 ## 十二、相关项目
 

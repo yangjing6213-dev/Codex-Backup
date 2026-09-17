@@ -7,6 +7,7 @@ import App from "./App";
 const api = vi.hoisted(() => ({
   discoverCodex: vi.fn(),
   discoverLocalCandidates: vi.fn(),
+  requestAdminLocalDiscovery: vi.fn(),
   getAppConfig: vi.fn(),
   getSchedulerStatus: vi.fn(),
   listLocalBackups: vi.fn(),
@@ -86,6 +87,8 @@ beforeEach(() => {
     scanned_roots: ["C:\\"],
     skipped_roots: [],
     warnings: [],
+    permission_denied_count: 0,
+    other_warning_count: 0,
     cancelled: false,
   });
   api.getAppConfig.mockResolvedValue(config);
@@ -93,12 +96,16 @@ beforeEach(() => {
   api.listLocalBackups.mockResolvedValue([]);
   api.saveAppConfig.mockResolvedValue(config);
   api.pickDirectory.mockResolvedValue(null);
+  api.requestAdminLocalDiscovery.mockResolvedValue({
+    candidates: [], codex_homes: [], conversation_count: 0, scanned_roots: [], skipped_roots: [],
+    warnings: [], permission_denied_count: 0, other_warning_count: 0, cancelled: false,
+  });
   api.startCloudConfiguration.mockReset();
   api.continueCloudConfiguration.mockReset();
 });
 
 describe("ENHE Codex Backup shell", () => {
-  it("exposes exactly the four primary navigation areas and a local-only state", async () => {
+  it("exposes the primary navigation areas and a local-only state", async () => {
     render(<App />);
 
     expect(await screen.findByRole("navigation", { name: "主导航" })).toBeInTheDocument();
@@ -106,9 +113,42 @@ describe("ENHE Codex Backup shell", () => {
     expect(screen.getByRole("button", { name: "前往项目" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "前往备份与迁移" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "前往设置" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "前往操作说明" })).toBeInTheDocument();
     expect(screen.getAllByText("云端备份已关闭").length).toBeGreaterThan(0);
+    expect(screen.getByText("v0.1.2")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Codex 数据备份&迁移" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "开始本地备份" })).toBeInTheDocument();
+  });
+
+  it("opens a bilingual operation guide with an accessible flow", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "前往操作说明" }));
+
+    expect(screen.getByRole("heading", { name: "操作说明" })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "操作流程" })).toBeInTheDocument();
+    expect(screen.getByText("自动扫描并确认路径")).toBeInTheDocument();
+    expect(screen.getByText("选择项目")).toBeInTheDocument();
+    expect(screen.getByText("恢复或离线迁移")).toBeInTheDocument();
+  });
+
+  it("summarizes skipped permission directories and lets the user request an elevated scan", async () => {
+    const user = userEvent.setup();
+    api.discoverLocalCandidates.mockResolvedValue({
+      candidates: [{ path: "F:\\Projects\\found", name: "found", markers: [".git"] }],
+      codex_homes: [], conversation_count: 0, scanned_roots: ["C:\\", "F:\\"], skipped_roots: [],
+      warnings: [], permission_denied_count: 37, other_warning_count: 0, cancelled: false,
+    });
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "前往项目" }));
+    expect(await screen.findByText(/37/)).toBeInTheDocument();
+    expect(screen.queryByText(/os error 5/)).not.toBeInTheDocument();
+    expect(screen.getByText("found")).toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "扫描受限目录时申请管理员权限" }));
+    await user.click(screen.getByRole("button", { name: "以管理员权限重新扫描" }));
+    expect(api.requestAdminLocalDiscovery).toHaveBeenCalledTimes(1);
   });
 
   it("switches the complete primary flow to English", async () => {
@@ -254,7 +294,7 @@ describe("ENHE Codex Backup shell", () => {
         logical_backup_id: "33333333-3333-3333-3333-333333333333",
         batch_id: "44444444-4444-4444-4444-444444444444",
         created_at: "2026-09-16T00:00:00Z",
-        app_version: "0.1.1",
+        app_version: "0.1.2",
         restic_version: "restic 0.19.1",
         source_device_id: inventory.source_device_id,
         source_codex_home: inventory.codex_home,

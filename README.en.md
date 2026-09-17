@@ -42,11 +42,13 @@ Conversations: counted from Codex sessions / archived_sessions
 Cloud: off; no remote call
 ```
 
-Candidates are shown for user confirmation and are not automatically added to the backup scope. The folder button beside a path opens the Windows native folder picker; canceling leaves the old value unchanged.
+Candidates are shown for user confirmation and are not automatically added to the backup scope. The folder button beside a path opens the Windows native folder picker; canceling leaves the old value unchanged. Inaccessible folders are safely skipped and summarized.
+
+Projects includes a Request administrator permission for restricted folders option. Windows UAC appears only after the user checks it and clicks Rescan as administrator; the normal scan is not interrupted.
 
 ## 6. Installation
 
-1. Open the [GitHub Releases installer download page](https://github.com/yangjing6213-dev/Codex-Backup/releases), or directly download the [Windows x64 installer](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.1_x64-setup.exe) and [SHA-256 checksum](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.1_x64-setup.exe.sha256). If the page has no Release yet, use the local build steps below to create the installer.
+1. Open the [GitHub Releases installer download page](https://github.com/yangjing6213-dev/Codex-Backup/releases), or directly download the [Windows x64 installer](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.2_x64-setup.exe) and [SHA-256 checksum](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.2_x64-setup.exe.sha256). If the page has no Release yet, use the local build steps below to create the installer.
 2. Compare the installer SHA-256 with the sidecar in PowerShell.
 3. Run the installer for the Windows current user.
 4. Confirm the local data location on first launch; cloud may remain off.
@@ -61,11 +63,14 @@ powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
 
 ## 7. How to use it
 
-The primary navigation is fixed to Overview, Projects, Backups & Migration, and Settings. For a first run:
+The primary navigation includes Overview, Projects, Backups & Migration, Settings, and How it works. For a first run:
 
 1. Select the projects that belong in a complete backup; regular non-Git folders can be added manually.
-2. Enter a local repository directory and recovery password in Backups & Migration, then run a local backup.
-3. Restore through Restore target folder; an existing target is reported as a conflict and is not overwritten.
+2. If needed, check Request administrator permission for restricted folders in Projects and click Rescan as administrator. If UAC is canceled, the normal results remain available.
+3. Enter a local repository directory and recovery password in Backups & Migration, then run a local backup.
+4. Restore through Restore target folder; an existing target is reported as a conflict and is not overwritten.
+
+The How it works page presents the same flow as an accessible visual guide.
 
 See the [English user guide](docs/USER_GUIDE.en.md) and [offline restore guide](docs/OFFLINE_RESTORE.en.md).
 
@@ -73,7 +78,7 @@ See the [English user guide](docs/USER_GUIDE.en.md) and [offline restore guide](
 
 ```text
 Load config -> discover Codex -> fill safe local defaults ->
-scan fixed-drive project candidates -> user confirms scope ->
+scan fixed-drive project candidates -> summarize inaccessible folders -> user confirms scope ->
 restic snapshot -> verify/list -> restore to an independent directory
 ```
 
@@ -84,6 +89,7 @@ ReHome export/import is a separate migration entry point. Cloud does not partici
 ```text
 desktop/                    Tauri + React desktop application
 desktop/src/                bilingual UI, settings, backup, and migration flows
+desktop/src/App.tsx         main navigation, scan permission summary, and operation guide
 desktop/src-tauri/src/      Rust commands, discovery, restic, restore, and migration core
 desktop/src-tauri/resources/ bundled restic/rclone runtimes
 docs/                       specifications, acceptance, compatibility, guides, evidence
@@ -96,6 +102,8 @@ tests/                      isolated tests and documentation contract tests
 Credentials, cookies, private keys, `.env` files (except `.env.example`), dependency/cache directories, and runtime lock files are excluded from complete backups; `.git` is preserved and is not inherited from the migration tool's exclusion defaults. Restored payloads are treated as untrusted files: scripts, hooks, and MCP configuration are not executed. Remembered passwords use DPAPI scoped to the current Windows user; otherwise no password is stored.
 
 Cloud connection, real OneDrive authorization, real-data upload, overwriting real Codex data, and system installation require explicit user action. Development acceptance uses synthetic data and temporary directories only.
+
+Windows may use the internal `\\?\` long-path form; configuration and UI normalize it to an ordinary drive or UNC path. Administrator scanning is an explicit UAC action, not an automatic elevation.
 
 ## Verification and status
 
@@ -111,7 +119,7 @@ See [COMPATIBILITY](docs/COMPATIBILITY.md), [UPSTREAM](docs/UPSTREAM.md), and [A
 
 ## 11. Version
 
-Current version: `0.1.1`. This version focuses on Windows x64 local backup, restore, offline migration, automatic discovery, and bilingual settings. It also standardizes the home-page product title to “Codex Data Backup & Migration” and provides a new installer download. Real OneDrive, second-device, live conversation continuation, and clean-profile verification remain outside the completed evidence boundary; see [STATUS](docs/STATUS.md) and [ACCEPTANCE](docs/ACCEPTANCE.md).
+Current version: `0.1.2`. This version focuses on Windows x64 local backup, restore, offline migration, automatic discovery, and bilingual settings. It normalizes user-facing `\\?\` paths, aggregates inaccessible scan folders, adds an explicit administrator rescan option, and provides the How it works flowchart. Real OneDrive, second-device, live conversation continuation, and clean-profile verification remain outside the completed evidence boundary; see [STATUS](docs/STATUS.md) and [ACCEPTANCE](docs/ACCEPTANCE.md).
 
 ## 12. Related projects
 

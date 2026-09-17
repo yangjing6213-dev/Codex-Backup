@@ -3,6 +3,7 @@ use crate::core::{
     backup::managed_backup_root,
     cloud::{self, CloudConfig, CloudConfigStart, CloudOperationResult},
     error::{ErrorCode, RehomeError},
+    paths::user_facing_path,
     restic::{self, LocalBackupRequest, LocalRestoreReport, LocalSnapshot, LocalSnapshotSummary},
     scheduler::{self, SchedulerStatus},
 };
@@ -74,20 +75,35 @@ pub struct CloudUploadCommandRequest {
 #[tauri::command]
 pub fn get_app_config() -> Result<AppConfig, RehomeError> {
     let path = app_config::default_config_path()?;
-    let mut config = app_config::load_config(&path)?;
+    let original = app_config::load_config(&path)?;
+    let mut config = normalize_user_paths(original.clone());
     if config.local_repository.is_none() {
         if let Ok(default_repository) = managed_backup_root() {
-            config.local_repository = Some(default_repository);
-            app_config::save_config(&path, &config)?;
+            config.local_repository = Some(user_facing_path(&default_repository));
         }
+    }
+    if config != original {
+        app_config::save_config(&path, &config)?;
     }
     Ok(config)
 }
 
 #[tauri::command]
 pub fn save_app_config(config: AppConfig) -> Result<AppConfig, RehomeError> {
+    let config = normalize_user_paths(config);
     app_config::save_config(&app_config::default_config_path()?, &config)?;
     Ok(config)
+}
+
+fn normalize_user_paths(mut config: AppConfig) -> AppConfig {
+    config.codex_home = config.codex_home.as_deref().map(user_facing_path);
+    config.local_repository = config.local_repository.as_deref().map(user_facing_path);
+    config.selected_project_paths = config
+        .selected_project_paths
+        .iter()
+        .map(|path| user_facing_path(path))
+        .collect();
+    config
 }
 
 #[tauri::command]

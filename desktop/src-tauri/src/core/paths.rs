@@ -26,6 +26,29 @@ pub fn codex_project_path(path: &Path) -> Result<String, RehomeError> {
     Ok(text.to_owned())
 }
 
+/// Convert Windows verbatim paths to the ordinary spelling suitable for user
+/// configuration and UI. Keep volume GUID paths verbatim because they have no
+/// safe drive-letter equivalent.
+pub fn user_facing_path(path: &Path) -> PathBuf {
+    let Some(text) = path.to_str() else {
+        return path.to_path_buf();
+    };
+    if let Some(unc) = text.strip_prefix(r"\\?\UNC\") {
+        return PathBuf::from(format!(r"\\{unc}"));
+    }
+    if let Some(drive) = text.strip_prefix(r"\\?\") {
+        let bytes = drive.as_bytes();
+        if bytes.len() >= 3
+            && bytes[0].is_ascii_alphabetic()
+            && bytes[1] == b':'
+            && bytes[2] == b'\\'
+        {
+            return PathBuf::from(drive);
+        }
+    }
+    path.to_path_buf()
+}
+
 pub(crate) fn agents_skills_root(codex_home: &Path) -> Result<PathBuf, RehomeError> {
     codex_home
         .parent()
@@ -198,6 +221,18 @@ mod tests {
             (r"\\?\Volume{test}\project", r"\\?\Volume{test}\project"),
         ] {
             assert_eq!(codex_project_path(Path::new(input)).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn user_facing_paths_remove_verbatim_prefixes_without_touching_volume_paths() {
+        for (input, expected) in [
+            (r"\\?\C:\Users\Me\backups", r"C:\Users\Me\backups"),
+            (r"\\?\UNC\server\share\backups", r"\\server\share\backups"),
+            (r"C:\Users\Me\backups", r"C:\Users\Me\backups"),
+            (r"\\?\Volume{test}\backups", r"\\?\Volume{test}\backups"),
+        ] {
+            assert_eq!(user_facing_path(Path::new(input)), PathBuf::from(expected));
         }
     }
 }

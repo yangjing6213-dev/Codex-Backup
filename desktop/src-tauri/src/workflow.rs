@@ -16,6 +16,7 @@ use crate::core::{
         create_package_replacing as core_create_package_replacing,
         inspect_package as core_inspect_package,
     },
+    paths::user_facing_path,
     planner::build_restore_plan_with_conflict_resolution as core_build_restore_plan,
     restore::{
         apply_restore_by_id, list_transaction_history as core_list_transaction_history,
@@ -487,7 +488,9 @@ pub async fn pick_directory(
             return Ok(None);
         };
         let path = selected_path(selected)?;
-        Ok(Some(canonical_existing_directory(&path)?))
+        Ok(Some(user_facing_path(&canonical_existing_directory(
+            &path,
+        )?)))
     })
     .await
 }
@@ -505,8 +508,97 @@ pub async fn discover_local_candidates(
 }
 
 #[tauri::command]
+pub async fn request_admin_local_discovery() -> Result<LocalDiscoveryResult, RehomeError> {
+    run_blocking(
+        ErrorCode::AdminScanUnavailable,
+        request_admin_local_discovery_sync,
+    )
+    .await
+}
+
+#[tauri::command]
 pub fn cancel_local_discovery(state: State<'_, WorkflowState>) {
     state.local_discovery_cancel.store(true, Ordering::Relaxed);
+}
+
+#[cfg(windows)]
+fn request_admin_local_discovery_sync() -> Result<LocalDiscoveryResult, RehomeError> {
+    use std::{ffi::OsStr, os::windows::ffi::OsStrExt, thread};
+    use windows_sys::Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_HIDE};
+
+    let output_path = env::temp_dir().join(format!(
+        "enhe-codex-backup-admin-scan-{}.json",
+        Uuid::new_v4()
+    ));
+    let executable = env::current_exe().map_err(|error| {
+        RehomeError::new(
+            ErrorCode::AdminScanUnavailable,
+            format!("could not locate the application for administrator scan: {error}"),
+        )
+    })?;
+    let arguments = format!("--admin-local-scan \"{}\"", output_path.display());
+    let wide = |value: &OsStr| {
+        value
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect::<Vec<_>>()
+    };
+    let verb = wide(OsStr::new("runas"));
+    let executable = wide(executable.as_os_str());
+    let arguments = wide(OsStr::new(&arguments));
+    let launched = unsafe {
+        ShellExecuteW(
+            std::ptr::null_mut(),
+            verb.as_ptr(),
+            executable.as_ptr(),
+            arguments.as_ptr(),
+            std::ptr::null(),
+            SW_HIDE,
+        )
+    };
+    if (launched as usize) <= 32 {
+        return Err(RehomeError::new(
+            ErrorCode::AdminScanUnavailable,
+            "administrator scan was cancelled or Windows denied the request",
+        ));
+    }
+
+    let deadline = Instant::now() + Duration::from_secs(90);
+    loop {
+        if output_path.is_file() {
+            let bytes = fs::read(&output_path).map_err(|error| {
+                RehomeError::new(
+                    ErrorCode::AdminScanUnavailable,
+                    format!("could not read administrator scan result: {error}"),
+                )
+            });
+            let _ = fs::remove_file(&output_path);
+            return bytes.and_then(|bytes| {
+                serde_json::from_slice(&bytes).map_err(|error| {
+                    RehomeError::new(
+                        ErrorCode::AdminScanUnavailable,
+                        format!("administrator scan returned invalid data: {error}"),
+                    )
+                })
+            });
+        }
+        if Instant::now() >= deadline {
+            let _ = fs::remove_file(&output_path);
+            return Err(RehomeError::new(
+                ErrorCode::AdminScanUnavailable,
+                "administrator scan timed out; the normal scan result is still safe to use",
+            ));
+        }
+        thread::sleep(Duration::from_millis(250));
+    }
+}
+
+#[cfg(not(windows))]
+fn request_admin_local_discovery_sync() -> Result<LocalDiscoveryResult, RehomeError> {
+    Err(RehomeError::new(
+        ErrorCode::AdminScanUnavailable,
+        "administrator scan is only available on Windows",
+    ))
 }
 
 #[tauri::command]

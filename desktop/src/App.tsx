@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   Archive,
+  ArrowDown,
+  BookOpen,
   CheckCircle2,
   CloudOff,
   CloudUpload,
@@ -16,6 +18,7 @@ import {
   RefreshCw,
   RotateCcw,
   Settings2,
+  ShieldCheck,
   Sun,
   TriangleAlert,
 } from "lucide-react";
@@ -35,6 +38,7 @@ import {
   continueCloudConfiguration,
   discoverLocalCandidates,
   cancelLocalDiscovery,
+  requestAdminLocalDiscovery,
   pickDirectory,
   testCloudConnection,
   uploadLocalSnapshot,
@@ -55,7 +59,7 @@ import {
 } from "./lib/types";
 import "./App.css";
 
-export type View = "overview" | "projects" | "backups" | "settings";
+export type View = "overview" | "projects" | "backups" | "settings" | "guide";
 type BackupView = "local" | "export" | "import";
 type LocalScanState = "idle" | "running" | "complete" | "partial" | "failed";
 
@@ -69,6 +73,7 @@ const views: Array<{
   { id: "projects", label: "项目", accessibleLabel: "前往项目", icon: FolderKanban },
   { id: "backups", label: "备份与迁移", accessibleLabel: "前往备份与迁移", icon: Archive },
   { id: "settings", label: "设置", accessibleLabel: "前往设置", icon: Settings2 },
+  { id: "guide", label: "操作说明", accessibleLabel: "前往操作说明", icon: BookOpen },
 ];
 
 const viewTitles: Record<View, string> = {
@@ -76,6 +81,7 @@ const viewTitles: Record<View, string> = {
   projects: "项目",
   backups: "备份与迁移",
   settings: "设置",
+  guide: "操作说明",
 };
 
 function defaultConfig(): AppConfig {
@@ -175,7 +181,7 @@ function AppContent() {
         const result = await discoverLocalCandidates();
         if (active) {
           setLocalDiscovery(result);
-          setLocalScanState(result.cancelled || result.warnings.length > 0 ? "partial" : "complete");
+          setLocalScanState(localScanStateFor(result));
 
           if (!fastDiscoverySucceeded && result.codex_homes.length > 0) {
             try {
@@ -272,6 +278,21 @@ function AppContent() {
     }
   }
 
+  async function runAdminScan() {
+    setError(null);
+    setNotice(null);
+    setLocalScanState("running");
+    try {
+      const result = await requestAdminLocalDiscovery();
+      setLocalDiscovery(result);
+      setLocalScanState(localScanStateFor(result));
+      setNotice(t("管理员扫描已完成"));
+    } catch (caught) {
+      setLocalScanState("partial");
+      setError(errorMessage(caught, t));
+    }
+  }
+
   function operationStarted() {
     setActiveOperations((current) => current + 1);
   }
@@ -285,7 +306,7 @@ function AppContent() {
       <aside className="sidebar">
         <button className="brand" type="button" onClick={() => setView("overview")} aria-label={t("ENHE Codex Backup")}>
           <span className="brand-mark" aria-hidden="true">E</span>
-          <span className="brand-copy"><strong>ENHE</strong><small>Codex Backup</small></span>
+          <span className="brand-copy"><small className="brand-version">v0.1.2</small><strong>ENHE</strong><small>Codex Backup</small></span>
         </button>
 
         <nav className="navigation" aria-label={t("主导航")}>
@@ -349,9 +370,13 @@ function AppContent() {
             inventory={inventory}
             localCandidates={localDiscovery?.candidates ?? []}
             localWarnings={localDiscovery?.warnings ?? []}
+            permissionDeniedCount={localDiscovery?.permission_denied_count ?? 0}
+            otherWarningCount={localDiscovery?.other_warning_count ?? 0}
             scannedRootCount={localDiscovery?.scanned_roots.length ?? 0}
             localScanState={localScanState}
             onCancelLocalScan={() => { void cancelLocalDiscovery(); }}
+            onAdminScan={() => void runAdminScan()}
+            adminScanBusy={localScanState === "running"}
             config={config}
             onSave={async (next) => {
               try {
@@ -398,6 +423,7 @@ function AppContent() {
             onError={setError}
           />
         )}
+        {view === "guide" && <GuidePage headingRef={headingRef} />}
       </main>
     </div>
   );
@@ -460,23 +486,70 @@ function Metric({ label, value, text = false }: { label: string; value: number |
   return <div className="metric"><span>{label}</span><strong className={text ? "metric-text" : undefined}>{value}</strong></div>;
 }
 
+function localScanStateFor(result: LocalDiscoveryResult): LocalScanState {
+  return result.cancelled || result.permission_denied_count > 0 || result.other_warning_count > 0 || result.warnings.length > 0
+    ? "partial"
+    : "complete";
+}
+
+function GuidePage({ headingRef }: { headingRef: RefObject<HTMLHeadingElement | null> }) {
+  const { t } = useI18n();
+  const steps = [
+    ["自动扫描并确认路径", "启动后自动发现可访问的 Codex 数据、对话和项目；无权限目录会安全跳过并汇总。"],
+    ["选择项目", "在项目页勾选要备份的项目，也可以用文件夹按钮加入普通目录。"],
+    ["设置备份目录和密码", "在备份与迁移页选择本地目录并设置恢复密码；云端默认关闭。"],
+    ["开始本地备份并检查", "应用用 restic 创建加密快照，完成后可以刷新列表查看文件数量和状态。"],
+    ["恢复或离线迁移", "恢复到新的独立目录；跨设备时携带仓库目录和密码，或使用 ReHome 迁移包。"],
+  ] as const;
+
+  return (
+    <div className="page">
+      <header className="page-header">
+        <p className="eyebrow">HOW IT WORKS</p>
+        <h1 ref={headingRef} tabIndex={-1}>{t("操作说明")}</h1>
+        <p className="page-description">{t("按流程完成本地扫描、备份、检查和恢复；每一步都由你确认。")}</p>
+      </header>
+      <section className="card guide-card" aria-label={t("操作流程")}>
+        <ol className="flowchart-list" aria-label={t("操作流程")}>
+          {steps.map(([title, description], index) => (
+            <li className="flowchart-step" key={title}>
+              <div className="flowchart-node" aria-hidden="true">{index + 1}</div>
+              <div className="flowchart-copy"><h2>{t(title)}</h2><p>{t(description)}</p></div>
+              {index < steps.length - 1 && <ArrowDown className="flowchart-arrow" aria-hidden="true" />}
+            </li>
+          ))}
+        </ol>
+      </section>
+      <section className="card guide-safety">
+        <div className="section-heading"><ShieldCheck aria-hidden="true" /><h2>{t("安全提示")}</h2></div>
+        <p>{t("本地优先模式不需要登录或云端配置；管理员权限只有在你勾选并点击重新扫描时才会请求。")}</p>
+      </section>
+    </div>
+  );
+}
+
 interface ProjectsPageProps {
   headingRef: RefObject<HTMLHeadingElement | null>;
   inventory: CodexInventory | null;
   localCandidates: LocalProjectCandidate[];
   localWarnings: string[];
+  permissionDeniedCount: number;
+  otherWarningCount: number;
   scannedRootCount: number;
   localScanState: LocalScanState;
   onCancelLocalScan: () => void;
+  onAdminScan: () => void;
+  adminScanBusy: boolean;
   config: AppConfig;
   onSave: (config: AppConfig) => Promise<void>;
   onError: (message: string | null) => void;
 }
 
-function ProjectsPage({ headingRef, inventory, localCandidates, localWarnings, scannedRootCount, localScanState, onCancelLocalScan, config, onSave, onError }: ProjectsPageProps) {
+function ProjectsPage({ headingRef, inventory, localCandidates, localWarnings, permissionDeniedCount, otherWarningCount, scannedRootCount, localScanState, onCancelLocalScan, onAdminScan, adminScanBusy, config, onSave, onError }: ProjectsPageProps) {
   const { t } = useI18n();
   const [selected, setSelected] = useState(() => new Set(config.selected_project_paths));
   const [manualPath, setManualPath] = useState("");
+  const [requestAdmin, setRequestAdmin] = useState(false);
   const projects = inventory?.projects ?? [];
   const discoveredPaths = useMemo(() => new Set(projects.map((project) => project.source_path)), [projects]);
   const candidatePaths = useMemo(() => new Set(localCandidates.map((candidate) => candidate.path)), [localCandidates]);
@@ -508,7 +581,14 @@ function ProjectsPage({ headingRef, inventory, localCandidates, localWarnings, s
         {localScanState === "partial" && <p className="help-text">{t("本机项目扫描已部分完成")}</p>}
         {localScanState === "failed" && <p className="inline-error" role="alert">{t("本机项目扫描失败")}</p>}
         {localScanState !== "idle" && localScanState !== "running" && <p className="help-text">{t("扫描位置数量")}: {scannedRootCount} · {t("候选项目数量")}: {localCandidates.length}</p>}
-        {localWarnings.length > 0 && <div className="scan-warning" role="status"><TriangleAlert aria-hidden="true" /><span>{t("扫描提示")}: {localWarnings.join(" · ")}</span></div>}
+        <div className="scan-permission card-muted">
+          <label className="checkbox-row">
+            <input type="checkbox" aria-label={t("扫描受限目录时申请管理员权限")} checked={requestAdmin} onChange={(event) => setRequestAdmin(event.target.checked)} disabled={adminScanBusy} />
+            <span><strong>{t("扫描受限目录时申请管理员权限")}</strong><small>{t("仅点击按钮时才会请求 Windows UAC；普通扫描不会被中断。")}</small></span>
+          </label>
+          {requestAdmin && <button className="secondary-button" type="button" onClick={onAdminScan} disabled={adminScanBusy}>{adminScanBusy ? <LoaderCircle className="spin" aria-hidden="true" /> : <ShieldCheck aria-hidden="true" />}{adminScanBusy ? t("正在请求管理员权限") : t("以管理员权限重新扫描")}</button>}
+        </div>
+        {(permissionDeniedCount > 0 || otherWarningCount > 0 || localWarnings.length > 0) && <div className="scan-warning" role="status"><TriangleAlert aria-hidden="true" /><span>{permissionDeniedCount > 0 && <>{t("已跳过 {count} 个无权限目录；可访问项目仍已显示。", { count: permissionDeniedCount })} </>}{otherWarningCount > 0 && <>{t("另有 {count} 条扫描提示。", { count: otherWarningCount })} </>}{localWarnings.length > 0 && <span>{localWarnings.join(" · ")}</span>}</span></div>}
         {projects.length === 0 ? <p className="empty-state">{t("当前没有可扫描的项目。")}</p> : projects.map((project) => (
           <label className="project-row" key={project.project_id}>
             <input type="checkbox" checked={selected.has(project.source_path)} onChange={() => toggleProject(project.source_path)} aria-label={`选择项目 ${project.name}`} disabled={!project.source_available} />
@@ -886,7 +966,7 @@ function SettingsPage({ headingRef, config, scheduler, onSave, onConfigChange, o
         </div>}
       </section>
 
-      <section className="settings-footer"><button className="primary-button" type="button" onClick={() => { onConfigChange(draft); void onSave(draft); }}>{t("保存设置")}</button><span>{t("当前版本")} 0.1.1</span></section>
+      <section className="settings-footer"><button className="primary-button" type="button" onClick={() => { onConfigChange(draft); void onSave(draft); }}>{t("保存设置")}</button><span>{t("当前版本")} 0.1.2</span></section>
     </div>
   );
 }

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     fs,
+    io::{self, ErrorKind},
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -14,6 +15,7 @@ const MAX_SCAN_DEPTH: usize = 8;
 const MAX_ENTRIES_PER_ROOT: usize = 50_000;
 const MAX_SCAN_DURATION: Duration = Duration::from_secs(20);
 const MAX_REPORTED_ITEMS: usize = 100;
+const MAX_VISIBLE_WARNINGS: usize = 3;
 const PROJECT_FILE_MARKERS: &[&str] = &[
     "package.json",
     "Cargo.toml",
@@ -59,11 +61,24 @@ pub struct LocalDiscoveryResult {
     pub scanned_roots: Vec<PathBuf>,
     pub skipped_roots: Vec<PathBuf>,
     pub warnings: Vec<String>,
+    pub permission_denied_count: u32,
+    pub other_warning_count: u32,
     pub cancelled: bool,
 }
 
 pub fn discover_local_candidates(cancel: Arc<AtomicBool>) -> LocalDiscoveryResult {
     discover_from_roots(fixed_drive_roots(), cancel)
+}
+
+/// Entry point used by the explicitly elevated one-shot scanner. The result
+/// is written atomically so the normal UI process never reads a partial JSON.
+pub fn run_admin_local_scan(output_path: &Path) -> io::Result<()> {
+    let result = discover_local_candidates(Arc::new(AtomicBool::new(false)));
+    let bytes = serde_json::to_vec(&result)
+        .map_err(|error| io::Error::new(ErrorKind::InvalidData, error.to_string()))?;
+    let partial_path = output_path.with_extension("json.partial");
+    fs::write(&partial_path, bytes)?;
+    fs::rename(partial_path, output_path)
 }
 
 fn discover_from_roots(roots: Vec<PathBuf>, cancel: Arc<AtomicBool>) -> LocalDiscoveryResult {
@@ -74,6 +89,8 @@ fn discover_from_roots(roots: Vec<PathBuf>, cancel: Arc<AtomicBool>) -> LocalDis
         scanned_roots: Vec::new(),
         skipped_roots: Vec::new(),
         warnings: Vec::new(),
+        permission_denied_count: 0,
+        other_warning_count: 0,
         cancelled: false,
     };
     let mut candidates = HashMap::new();
@@ -112,10 +129,7 @@ fn scan_root(
     result: &mut LocalDiscoveryResult,
 ) {
     if !root.is_dir() {
-        push_limited(
-            &mut result.warnings,
-            format!("Skipped unavailable local scan root: {}", root.display()),
-        );
+        record_scan_warning(result, "Skipped unavailable local scan root");
         return;
     }
 
@@ -130,8 +144,8 @@ fn scan_root(
             return;
         }
         if entries_seen >= MAX_ENTRIES_PER_ROOT || started.elapsed() >= MAX_SCAN_DURATION {
-            push_limited(
-                &mut result.warnings,
+            record_scan_warning(
+                result,
                 format!("Local project scan limit reached at {}", root.display()),
             );
             return;
@@ -146,12 +160,13 @@ fn scan_root(
         let entries = match fs::read_dir(&current) {
             Ok(entries) => entries,
             Err(error) => {
-                push_limited(
-                    &mut result.warnings,
+                record_scan_error(
+                    result,
                     format!(
-                        "Could not read local project directory {}: {error}",
+                        "Could not read local project directory {}",
                         current.display()
                     ),
+                    &error,
                 );
                 continue;
             }
@@ -167,12 +182,10 @@ fn scan_root(
             let entry = match entry {
                 Ok(entry) => entry,
                 Err(error) => {
-                    push_limited(
-                        &mut result.warnings,
-                        format!(
-                            "Could not inspect a child of {}: {error}",
-                            current.display()
-                        ),
+                    record_scan_error(
+                        result,
+                        format!("Could not inspect a child of {}", current.display()),
+                        &error,
                     );
                     continue;
                 }
@@ -180,9 +193,10 @@ fn scan_root(
             let file_type = match entry.file_type() {
                 Ok(file_type) => file_type,
                 Err(error) => {
-                    push_limited(
-                        &mut result.warnings,
-                        format!("Could not inspect {}: {error}", entry.path().display()),
+                    record_scan_error(
+                        result,
+                        format!("Could not inspect {}", entry.path().display()),
+                        &error,
                     );
                     continue;
                 }
@@ -202,12 +216,7 @@ fn scan_root(
                             fs::canonicalize(&codex_home).unwrap_or_else(|_| codex_home.clone());
                         let identity_key = identity.to_string_lossy().to_ascii_lowercase();
                         if codex_home_keys.insert(identity_key) {
-                            count_codex_conversations(
-                                &codex_home,
-                                cancel,
-                                &mut result.conversation_count,
-                                &mut result.warnings,
-                            );
+                            count_codex_conversations(&codex_home, cancel, result);
                             push_limited(&mut result.codex_homes, codex_home);
                             if cancel.load(Ordering::Relaxed) {
                                 result.cancelled = true;
@@ -297,8 +306,7 @@ fn is_real_file(path: &Path) -> bool {
 fn count_codex_conversations(
     codex_home: &Path,
     cancel: &AtomicBool,
-    count: &mut u64,
-    warnings: &mut Vec<String>,
+    result: &mut LocalDiscoveryResult,
 ) {
     let mut stack = ["sessions", "archived_sessions"]
         .into_iter()
@@ -312,8 +320,8 @@ fn count_codex_conversations(
             return;
         }
         if entries_seen >= MAX_ENTRIES_PER_ROOT {
-            push_limited(
-                warnings,
+            record_scan_warning(
+                result,
                 format!(
                     "Codex conversation scan limit reached at {}",
                     codex_home.display()
@@ -324,12 +332,13 @@ fn count_codex_conversations(
         let entries = match fs::read_dir(&current) {
             Ok(entries) => entries,
             Err(error) => {
-                push_limited(
-                    warnings,
+                record_scan_error(
+                    result,
                     format!(
-                        "Could not read Codex conversation directory {}: {error}",
+                        "Could not read Codex conversation directory {}",
                         current.display()
                     ),
+                    &error,
                 );
                 continue;
             }
@@ -342,12 +351,13 @@ fn count_codex_conversations(
             let entry = match entry {
                 Ok(entry) => entry,
                 Err(error) => {
-                    push_limited(
-                        warnings,
+                    record_scan_error(
+                        result,
                         format!(
-                            "Could not inspect a Codex conversation entry in {}: {error}",
+                            "Could not inspect a Codex conversation entry in {}",
                             current.display()
                         ),
+                        &error,
                     );
                     continue;
                 }
@@ -355,9 +365,10 @@ fn count_codex_conversations(
             let file_type = match entry.file_type() {
                 Ok(file_type) => file_type,
                 Err(error) => {
-                    push_limited(
-                        warnings,
-                        format!("Could not inspect {}: {error}", entry.path().display()),
+                    record_scan_error(
+                        result,
+                        format!("Could not inspect {}", entry.path().display()),
+                        &error,
                     );
                     continue;
                 }
@@ -373,7 +384,7 @@ fn count_codex_conversations(
                     .extension()
                     .is_some_and(|extension| extension.eq_ignore_ascii_case("jsonl"))
             {
-                *count += 1;
+                result.conversation_count += 1;
             }
             if cancel.load(Ordering::Relaxed) {
                 return;
@@ -386,6 +397,25 @@ fn push_limited<T>(items: &mut Vec<T>, value: T) {
     if items.len() < MAX_REPORTED_ITEMS {
         items.push(value);
     }
+}
+
+fn record_scan_warning(result: &mut LocalDiscoveryResult, message: impl Into<String>) {
+    result.other_warning_count = result.other_warning_count.saturating_add(1);
+    if result.warnings.len() < MAX_VISIBLE_WARNINGS {
+        result.warnings.push(message.into());
+    }
+}
+
+fn record_scan_error(
+    result: &mut LocalDiscoveryResult,
+    message: impl Into<String>,
+    error: &io::Error,
+) {
+    if error.kind() == ErrorKind::PermissionDenied || error.raw_os_error() == Some(5) {
+        result.permission_denied_count = result.permission_denied_count.saturating_add(1);
+        return;
+    }
+    record_scan_warning(result, message);
 }
 
 #[cfg(windows)]
@@ -494,5 +524,40 @@ mod tests {
 
         assert_eq!(result.codex_homes, vec![codex_home]);
         assert_eq!(result.conversation_count, 2);
+    }
+
+    #[test]
+    fn aggregates_permission_errors_without_retaining_directory_details() {
+        let mut result = LocalDiscoveryResult {
+            candidates: Vec::new(),
+            codex_homes: Vec::new(),
+            conversation_count: 0,
+            scanned_roots: Vec::new(),
+            skipped_roots: Vec::new(),
+            warnings: Vec::new(),
+            permission_denied_count: 0,
+            other_warning_count: 0,
+            cancelled: false,
+        };
+
+        record_scan_error(
+            &mut result,
+            "Could not read local project directory C:\\Windows\\system32: access denied",
+            &std::io::Error::new(std::io::ErrorKind::PermissionDenied, "os error 5"),
+        );
+        record_scan_error(
+            &mut result,
+            "Could not inspect C:\\Windows\\secret: access denied",
+            &std::io::Error::new(std::io::ErrorKind::PermissionDenied, "os error 5"),
+        );
+        record_scan_warning(&mut result, "Local scan limit reached");
+
+        assert_eq!(result.permission_denied_count, 2);
+        assert_eq!(result.other_warning_count, 1);
+        assert_eq!(result.warnings, vec!["Local scan limit reached"]);
+        assert!(result
+            .warnings
+            .iter()
+            .all(|warning| !warning.contains("Windows") && !warning.contains("os error 5")));
     }
 }

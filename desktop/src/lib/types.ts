@@ -241,6 +241,8 @@ export interface LocalDiscoveryResult {
   scanned_roots: string[];
   skipped_roots: string[];
   warnings: string[];
+  permission_denied_count: number;
+  other_warning_count: number;
   cancelled: boolean;
 }
 
@@ -396,6 +398,7 @@ const localizedErrorKeys: Record<string, string> = {
   backup_failed: "本地备份失败，既有版本保持不变。",
   unsafe_path: "路径不安全，请选择互不重叠的本地目录。",
   config_invalid: "设置无效，请检查字段后重试。",
+  admin_scan_unavailable: "管理员扫描未完成，请检查 Windows UAC 提示。",
   scheduler_unavailable: "计划任务不可用，本地手动备份仍可继续。",
   cloud_disabled: "云端备份已关闭，未执行远端操作。",
   cloud_configuration: "云端配置不完整，请完成 OneDrive 配置后重试。",

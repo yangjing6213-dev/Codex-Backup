@@ -11,6 +11,7 @@ pub enum ErrorCode {
     BackupFailed,
     UnsafePath,
     ConfigInvalid,
+    AdminScanUnavailable,
     SchedulerUnavailable,
     CloudDisabled,
     CloudConfiguration,

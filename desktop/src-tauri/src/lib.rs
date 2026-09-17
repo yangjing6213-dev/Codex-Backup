@@ -14,6 +14,7 @@ pub fn run() {
             workflow::discover_codex,
             workflow::pick_directory,
             workflow::discover_local_candidates,
+            workflow::request_admin_local_discovery,
             workflow::cancel_local_discovery,
             workflow::create_package,
             workflow::inspect_package,

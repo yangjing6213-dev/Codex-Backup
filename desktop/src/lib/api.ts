@@ -41,6 +41,10 @@ export function discoverLocalCandidates(): Promise<LocalDiscoveryResult> {
   return invoke("discover_local_candidates");
 }
 
+export function requestAdminLocalDiscovery(): Promise<LocalDiscoveryResult> {
+  return invoke("request_admin_local_discovery");
+}
+
 export function cancelLocalDiscovery(): Promise<void> {
   return invoke("cancel_local_discovery");
 }

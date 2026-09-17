@@ -4,12 +4,15 @@
 
 Open Overview after launch. Seeing cloud marked “off” is the expected default; it does not block local discovery, backup, history, or restore.
 
-At startup the app loads saved configuration before scanning the configured Codex location. If no Codex path is configured, it tries the current Windows user's `.codex`. If that path is missing, the attempted path is shown and Choose Codex data location opens a retry flow. The app then discovers project candidates on local fixed drives in the background. This scan reads directory metadata only; candidates must be checked before they enter the backup scope.
+At startup the app loads saved configuration before scanning the configured Codex location. If no Codex path is configured, it tries the current Windows user's `.codex`. If that path is missing, the attempted path is shown and Choose Codex data location opens a retry flow. The app then discovers project candidates on local fixed drives in the background. This scan reads directory metadata only, safely skips inaccessible folders with an aggregate count, and requires user confirmation before candidates enter the backup scope.
+
+Protected Windows folders are safely skipped and shown as an aggregate inaccessible-folder count instead of flooding the page with “access denied” lines. If needed, check Request administrator permission for restricted folders in Projects, click Rescan as administrator, and respond to UAC.
 
 1. Open Projects, select the projects that belong in a complete backup; add non-Git folders through “Add a local project folder” when needed, then save.
 2. Open Settings and confirm the Codex data location and local backup repository. Use the folder button beside each path to open the Windows picker; manual text entry remains available. Paths may contain Chinese characters, spaces, removable drives, or long names.
 3. Open Backups & Migration, enter a recovery password, and choose Start local backup. The password encrypts the restic repository; losing it makes the repository unrecoverable.
 4. To schedule backups, enable the current-user scheduled task and select Remember password. The password is protected with DPAPI for the current Windows user; without it, the worker reports that no password is available.
+5. If you are new to the workflow, open How it works and follow the visual flow from automatic scan through restore or offline migration.
 
 Turning cloud off during a local backup does not affect the local operation. The app manages only the restic child processes it starts.
 
@@ -51,6 +54,6 @@ Use the sidebar language button to switch between Simplified Chinese and English
 - “Target already exists”: choose a new restore target; the app will not overwrite the old one.
 - “Cloud configuration incomplete”: finish OneDrive setup and save it before enabling cloud.
 - “Scheduled task unavailable”: the current-user task could not be registered or read; manual local backup remains available.
-- “Local project scan partially completed”: some directories were inaccessible, skipped, or canceled. Existing candidates remain usable, but partial results are not a claim of a complete disk scan.
+- “Local project scan partially completed”: some directories were inaccessible, skipped, or canceled. The page shows aggregate counts; existing candidates remain usable, but partial results are not a claim of a complete disk scan.
 
 See [Offline restore](OFFLINE_RESTORE.en.md) for standard restic commands and [STATUS](STATUS.md) for the current verification boundary.
