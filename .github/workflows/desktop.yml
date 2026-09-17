@@ -37,6 +37,9 @@ jobs:
         run: pnpm exec vitest --run
       - working-directory: desktop
         run: pnpm run build
+      - name: Bootstrap verified runtime resources
+        shell: pwsh
+        run: ./scripts/bootstrap.ps1 -SkipNodeInstall
       - run: cargo fmt --manifest-path desktop/src-tauri/Cargo.toml --check
       - run: cargo test --manifest-path desktop/src-tauri/Cargo.toml
       - shell: pwsh
