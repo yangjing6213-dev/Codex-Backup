@@ -403,7 +403,7 @@ const localizedErrorKeys: Record<string, string> = {
   cloud_disabled: "云端备份已关闭，未执行远端操作。",
   cloud_configuration: "云端配置不完整，请完成 OneDrive 配置后重试。",
   cloud_unavailable: "云端操作失败，本地备份不受影响。",
-  codex_not_found: "未找到 Codex 数据，请在设置中选择数据位置。",
+  codex_not_found: "未找到 Codex 数据，请在数据页选择数据位置。",
   project_conflict: "恢复目标已存在，未覆盖任何资料。",
   restore_failed: "本地备份失败，既有版本保持不变。",
   package_invalid: "迁移包无效，请重新选择并预览。",

@@ -111,6 +111,7 @@ describe("ENHE Codex Backup shell", () => {
     expect(await screen.findByRole("navigation", { name: "主导航" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "前往概览" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "前往项目" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "前往数据" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "前往备份与迁移" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "前往设置" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "前往操作说明" })).toBeInTheDocument();
@@ -118,6 +119,37 @@ describe("ENHE Codex Backup shell", () => {
     expect(screen.getByText("v0.1.2")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Codex 数据备份&迁移" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "开始本地备份" })).toBeInTheDocument();
+  });
+
+  it("provides guided backup actions from the overview", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: "项目备份设置" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "数据备份设置" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "项目备份设置" }));
+    expect(screen.getByRole("heading", { name: "项目" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "前往概览" }));
+    await user.click(screen.getByRole("button", { name: "开始本地备份" }));
+    expect(screen.getByRole("heading", { name: "备份与迁移" })).toBeInTheDocument();
+  });
+
+  it("opens data backup settings and saves the Codex data location", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "数据备份设置" }));
+
+    expect(screen.getByRole("heading", { name: "数据" })).toBeInTheDocument();
+    const codexHome = screen.getByRole("textbox", { name: "Codex 数据位置" });
+    expect(codexHome).toHaveValue("C:\\Users\\Me\\.codex");
+    await user.clear(codexHome);
+    await user.type(codexHome, "D:\\CodexData");
+    await user.click(screen.getByRole("button", { name: "保存数据设置" }));
+
+    expect(api.saveAppConfig).toHaveBeenCalledWith(expect.objectContaining({ codex_home: "D:\\CodexData" }));
   });
 
   it("opens a bilingual operation guide with an accessible flow", async () => {
@@ -201,7 +233,7 @@ describe("ENHE Codex Backup shell", () => {
     api.pickDirectory.mockResolvedValueOnce("C:\\Users\\Me\\.codex");
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: "前往设置" }));
+    await user.click(await screen.findByRole("button", { name: "前往数据" }));
     await user.click(screen.getByRole("button", { name: "选择 Codex 数据位置" }));
 
     expect(api.pickDirectory).toHaveBeenCalledWith("选择 Codex 数据位置");

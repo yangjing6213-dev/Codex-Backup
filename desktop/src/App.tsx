@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   CloudOff,
   CloudUpload,
+  Database,
   FolderKanban,
   FolderOpen,
   HardDrive,
@@ -59,7 +60,7 @@ import {
 } from "./lib/types";
 import "./App.css";
 
-export type View = "overview" | "projects" | "backups" | "settings" | "guide";
+export type View = "overview" | "projects" | "data" | "backups" | "settings" | "guide";
 type BackupView = "local" | "export" | "import";
 type LocalScanState = "idle" | "running" | "complete" | "partial" | "failed";
 
@@ -71,6 +72,7 @@ const views: Array<{
 }> = [
   { id: "overview", label: "概览", accessibleLabel: "前往概览", icon: HardDrive },
   { id: "projects", label: "项目", accessibleLabel: "前往项目", icon: FolderKanban },
+  { id: "data", label: "数据", accessibleLabel: "前往数据", icon: Database },
   { id: "backups", label: "备份与迁移", accessibleLabel: "前往备份与迁移", icon: Archive },
   { id: "settings", label: "设置", accessibleLabel: "前往设置", icon: Settings2 },
   { id: "guide", label: "操作说明", accessibleLabel: "前往操作说明", icon: BookOpen },
@@ -79,6 +81,7 @@ const views: Array<{
 const viewTitles: Record<View, string> = {
   overview: "概览",
   projects: "项目",
+  data: "数据",
   backups: "备份与迁移",
   settings: "设置",
   guide: "操作说明",
@@ -388,6 +391,22 @@ function AppContent() {
             onError={setError}
           />
         )}
+        {view === "data" && (
+          <DataPage
+            headingRef={headingRef}
+            inventory={inventory}
+            config={config}
+            onSave={async (next) => {
+              try {
+                await persistConfig(next, t("数据设置已保存"));
+              } catch (caught) {
+                setError(errorMessage(caught, t));
+              }
+            }}
+            onConfigChange={setConfig}
+            onError={setError}
+          />
+        )}
         {view === "backups" && (
           <BackupsPage
             headingRef={headingRef}
@@ -449,10 +468,24 @@ function OverviewPage({ headingRef, inventory, localConversationCount, config, s
         <p className="page-description">{t("没有云端也能备份、查看和恢复资料。")}</p>
       </header>
 
+      <section className="overview-actions" aria-label={t("备份快捷操作")}>
+        <button className="secondary-button overview-action" type="button" aria-label={t("项目备份设置")} onClick={() => onNavigate("projects")}>
+          <FolderKanban aria-hidden="true" />
+          <span className="overview-action-copy"><strong>{t("项目备份设置")}</strong><small>{t("先确认要备份的项目")}</small></span>
+        </button>
+        <button className="secondary-button overview-action" type="button" aria-label={t("数据备份设置")} onClick={() => onNavigate("data")}>
+          <Database aria-hidden="true" />
+          <span className="overview-action-copy"><strong>{t("数据备份设置")}</strong><small>{t("确认 Codex 对话和数据")}</small></span>
+        </button>
+        <button className="primary-button overview-action" type="button" aria-label={t("开始本地备份")} onClick={() => onNavigate("backups")}>
+          <LockKeyhole aria-hidden="true" />
+          <span className="overview-action-copy"><strong>{t("开始本地备份")}</strong><small>{t("完成设置后开始")}</small></span>
+        </button>
+      </section>
+
       <section className="status-banner local-banner">
         <div className="status-icon"><HardDrive aria-hidden="true" /></div>
         <div><strong>{t("云端备份已关闭")}</strong><p>{t("云端关闭时不会启动远端连接，也不会上传资料。")}</p></div>
-        <button className="primary-button" type="button" onClick={() => onNavigate("backups")}>{t("开始本地备份")}</button>
       </section>
 
       <section className="metric-grid" aria-label={t("本机检测")}>
@@ -477,6 +510,52 @@ function OverviewPage({ headingRef, inventory, localConversationCount, config, s
           <p>{t("选择本地目录后，应用用 restic 加密、去重并校验快照。恢复会先进入独立目录，不覆盖现有资料。")}</p>
           <p className="muted">{t("离线恢复")}: {t("把仓库目录和恢复密码带到新设备，安装应用后选择恢复目标即可。")}</p>
         </div>
+      </section>
+    </div>
+  );
+}
+
+interface DataPageProps {
+  headingRef: RefObject<HTMLHeadingElement | null>;
+  inventory: CodexInventory | null;
+  config: AppConfig;
+  onSave: (config: AppConfig) => Promise<void>;
+  onConfigChange: (config: AppConfig) => void;
+  onError: (message: string | null) => void;
+}
+
+function DataPage({ headingRef, inventory, config, onSave, onConfigChange, onError }: DataPageProps) {
+  const { t } = useI18n();
+  const [draft, setDraft] = useState(config);
+
+  useEffect(() => {
+    setDraft(config);
+  }, [config]);
+
+  return (
+    <div className="page">
+      <header className="page-header page-header-with-action">
+        <div><p className="eyebrow">DATA</p><h1 ref={headingRef} tabIndex={-1}>{t("数据")}</h1><p className="page-description">{t("集中管理 Codex 对话、索引和相关数据的备份来源。")}</p></div>
+        <button className="primary-button" type="button" onClick={() => { onConfigChange(draft); void onSave(draft); }}>{t("保存数据设置")}</button>
+      </header>
+
+      <section className="card settings-card">
+        <div className="section-heading"><Database aria-hidden="true" /><h2>{t("Codex 数据")}</h2></div>
+        <p className="help-text">{t("此路径是要读取和备份的 Codex 数据来源，不是备份文件保存目录。")}</p>
+        <PathField label={t("Codex 数据位置")} value={draft.codex_home ?? ""} onChange={(value) => setDraft((current) => ({ ...current, codex_home: value || null }))} title={t("选择 Codex 数据位置")} placeholder="%USERPROFILE%\\.codex" onError={onError} />
+      </section>
+
+      <section className="card settings-card">
+        <div className="section-heading"><HardDrive aria-hidden="true" /><h2>{t("已发现的数据")}</h2></div>
+        <p className="help-text">{t("备份会读取下列 Codex 内容；项目文件请在项目页面选择。")}</p>
+        <div className="metric-grid data-metric-grid">
+          <Metric label={t("对话总数")} value={inventory?.counts.conversations ?? 0} />
+          <Metric label={t("技能")} value={inventory?.counts.skills ?? 0} />
+          <Metric label={t("插件")} value={inventory?.counts.plugins ?? 0} />
+          <Metric label={t("生成图片")} value={inventory?.counts.generated_images ?? 0} />
+        </div>
+        <div className="path-value"><span>{t("会话索引")}</span><code>{inventory?.session_index_path ?? t("未检测")}</code></div>
+        <div className="path-value"><span>{t("状态数据库")}</span><code>{inventory?.state_db_path ?? t("未检测")}</code></div>
       </section>
     </div>
   );
@@ -938,15 +1017,6 @@ function SettingsPage({ headingRef, config, scheduler, onSave, onConfigChange, o
         <label className="checkbox-row"><input type="checkbox" checked={draft.automatic_backup_enabled} onChange={(event) => update("automatic_backup_enabled", event.target.checked)} /><span><strong>{t("启用当前用户计划任务")}</strong><small>{t("仅支持 Windows 11 x64 当前用户任务计划。")}</small></span></label>
         <label className="compact-field"><span>{t("频率（分钟）")}</span><input type="number" min="1" max="10080" value={draft.frequency_minutes} onChange={(event) => update("frequency_minutes", Number(event.target.value))} /></label>
         <div className="scheduler-state"><span>{t("计划任务状态")}</span><strong>{scheduler?.enabled ? t("已启用") : scheduler?.message ? t("无法读取计划任务") : t("未启用")}</strong></div>
-      </section>
-
-      <section className="card settings-card">
-        <div className="section-heading"><HardDrive aria-hidden="true" /><h2>{t("本地数据位置")}</h2></div>
-        <p className="help-text">{t("这些位置只用于本地备份；云端关闭时不会触发任何远端调用。")}</p>
-        <div className="form-grid">
-          <PathField label={t("Codex 数据位置")} value={draft.codex_home ?? ""} onChange={(value) => update("codex_home", value || null)} title={t("选择 Codex 数据位置")} placeholder="%USERPROFILE%\\.codex" onError={onError} />
-          <PathField label={t("备份目录")} value={draft.local_repository ?? ""} onChange={(value) => update("local_repository", value || null)} title={t("选择备份目录")} placeholder="D:\\ENHE\\backups" onError={onError} />
-        </div>
       </section>
 
       <section className="card settings-card">

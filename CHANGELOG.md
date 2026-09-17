@@ -2,7 +2,9 @@
 
 ## [Unreleased]
 
-No unreleased changes.
+- Added guided backup actions to the overview for project settings, data settings, and starting a local backup.
+- Added a dedicated Data page for Codex data backup configuration and clearer navigation between setup and backup tasks.
+- Improved the missing Codex data guidance so users are directed to the Data page.
 
 ## [0.1.2] - 2026-09-17
 

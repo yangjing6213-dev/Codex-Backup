@@ -109,6 +109,12 @@ h2 { margin-bottom: 0; color: var(--text); font-size: 16px; line-height: 1.3; }
 .status-icon svg { width: 21px; height: 21px; }
 .status-banner strong { font-size: 14px; }
 .status-banner p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.overview-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.overview-action { justify-content: flex-start; min-height: 66px; padding: 11px 14px; text-align: left; }
+.overview-action > svg { flex: 0 0 auto; width: 18px; height: 18px; }
+.overview-action-copy { display: grid; gap: 4px; text-align: left; }
+.overview-action-copy small { color: var(--muted); font-size: 10px; font-weight: 500; line-height: 1.35; }
+.overview-action.primary-button .overview-action-copy small { color: rgba(255, 255, 255, .8); }
 .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-bottom: 22px; }
 .metric { display: grid; gap: 9px; min-height: 88px; padding: 16px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); }
 .metric span { color: var(--muted); font-size: 11px; }
@@ -228,13 +234,14 @@ input:not([type="checkbox"]):not([type="radio"]):focus { border-color: var(--acc
   .app-shell { display: block; }
   .sidebar { position: static; height: auto; padding: 12px; }
   .brand { width: auto; }
-  .navigation { grid-template-columns: repeat(5, minmax(0,1fr)); margin-top: 12px; }
+  .navigation { grid-template-columns: repeat(6, minmax(0,1fr)); margin-top: 12px; }
   .nav-item { grid-template-columns: 1fr; justify-items: center; gap: 4px; min-height: 58px; padding: 7px 3px; text-align: center; font-size: 10px; }
   .language-toggle { position: absolute; top: 14px; right: 12px; width: auto; padding-right: 9px; }
   .sidebar-meta { display: none; }
   .page { width: min(100% - 32px, 700px); padding-top: 28px; }
   .notice, .global-error { width: calc(100% - 32px); }
   .two-column { grid-template-columns: 1fr; }
+  .overview-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .how-it-works { padding: 18px 0 0; border-top: 1px solid var(--border); border-left: 0; }
   .scan-permission { display: block; }
   .scan-permission > button { margin-left: 25px; }
@@ -244,6 +251,7 @@ input:not([type="checkbox"]):not([type="radio"]):focus { border-color: var(--acc
   .page-header-with-action, .status-banner { display: block; }
   .page-header-with-action > button, .status-banner > button { margin-top: 15px; }
   .metric-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .overview-actions { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
   .snapshot-row { grid-template-columns: 1fr auto; }
   .snapshot-row > span:not(.tag) { display: none; }
