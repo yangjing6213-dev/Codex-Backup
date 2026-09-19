@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-09-20
+
+- Refresh an existing Windows desktop shortcut during installation so it uses the bundled ENHE blue application icon instead of a stale icon.
+- Preserve the user's no-shortcut choice by updating the desktop shortcut only when one already exists.
+- Keep the application package, window title, visible version label, and documentation aligned at version 0.1.4.
+
 ## [0.1.3] - 2026-09-20
 
 - Scan configured collection directories as direct child folders with their actual names, without promoting nested build/test directories into projects.

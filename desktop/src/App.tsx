@@ -395,7 +395,7 @@ function AppContent() {
       <aside className="sidebar">
         <button className="brand" type="button" onClick={() => setView("overview")} aria-label={t("ENHE Codex Backup")}>
           <img className="brand-mark" src="/app-icon.png" alt="" />
-          <span className="brand-copy"><small className="brand-version">v0.1.3</small><strong>ENHE</strong><small>Codex Backup</small></span>
+          <span className="brand-copy"><small className="brand-version">v0.1.4</small><strong>ENHE</strong><small>Codex Backup</small></span>
         </button>
 
         <nav className="navigation" aria-label={t("主导航")}>
@@ -1234,7 +1234,7 @@ function SettingsPage({ headingRef, config, scheduler, onSave, onConfigChange, o
         </div>}
       </section>
 
-      <section className="settings-footer"><button className="primary-button" type="button" onClick={() => { onConfigChange(draft); void onSave(draft); }}>{t("保存设置")}</button><span>{t("当前版本")} 0.1.3</span></section>
+      <section className="settings-footer"><button className="primary-button" type="button" onClick={() => { onConfigChange(draft); void onSave(draft); }}>{t("保存设置")}</button><span>{t("当前版本")} 0.1.4</span></section>
     </div>
   );
 }

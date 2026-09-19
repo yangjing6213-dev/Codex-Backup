@@ -40,6 +40,14 @@ Invoke-Verification "bilingual documentation contract" {
     & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ProjectRoot "tests\readme_language_test.ps1")
 }
 
+Invoke-Verification "version consistency contract" {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ProjectRoot "tests\version_consistency_test.ps1")
+}
+
+Invoke-Verification "installer desktop icon contract" {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ProjectRoot "tests\installer_icon_test.ps1")
+}
+
 if (-not $SkipRust) {
     $cargo = Get-Command cargo -ErrorAction SilentlyContinue
     if ($cargo) {
