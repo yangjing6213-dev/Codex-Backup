@@ -1,10 +1,13 @@
 use crate::core::{
+    app_config,
     backup::managed_backup_root,
     bridge::register_project_with_detected_cli,
     discovery::discover_codex as core_discover_codex,
     error::{ErrorCode, RehomeError},
     local_discovery::{
+        count_project_files as core_count_project_files,
         discover_local_candidates as core_discover_local_candidates, LocalDiscoveryResult,
+        LocalProjectCandidate, LocalScanRequest,
     },
     models::{
         CodexInventory, CreatePackageReport, CreatePackageRequest, FileConflictResolution,
@@ -498,11 +501,26 @@ pub async fn pick_directory(
 #[tauri::command]
 pub async fn discover_local_candidates(
     state: State<'_, WorkflowState>,
+    roots: Option<Vec<PathBuf>>,
 ) -> Result<LocalDiscoveryResult, RehomeError> {
     state.local_discovery_cancel.store(false, Ordering::Relaxed);
     let cancel = state.local_discovery_cancel.clone();
     run_blocking(ErrorCode::ConfigInvalid, move || {
-        Ok(core_discover_local_candidates(cancel))
+        let config = app_config::load_config(&app_config::default_config_path()?)?;
+        Ok(core_discover_local_candidates(
+            LocalScanRequest::from_config(&config, roots),
+            cancel,
+        ))
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn count_project_files(
+    paths: Vec<PathBuf>,
+) -> Result<Vec<LocalProjectCandidate>, RehomeError> {
+    run_blocking(ErrorCode::ConfigInvalid, move || {
+        Ok(core_count_project_files(paths))
     })
     .await
 }
@@ -526,10 +544,17 @@ fn request_admin_local_discovery_sync() -> Result<LocalDiscoveryResult, RehomeEr
     use std::{ffi::OsStr, os::windows::ffi::OsStrExt, thread};
     use windows_sys::Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_HIDE};
 
-    let output_path = env::temp_dir().join(format!(
-        "enhe-codex-backup-admin-scan-{}.json",
-        Uuid::new_v4()
-    ));
+    let config = app_config::load_config(&app_config::default_config_path()?)?;
+    let scan_directory = tempfile::Builder::new()
+        .prefix("enhe-codex-backup-admin-scan-")
+        .tempdir()
+        .map_err(|error| RehomeError::new(ErrorCode::AdminScanUnavailable, error.to_string()))?;
+    let output_path = scan_directory.path().join("result.json");
+    let request = LocalScanRequest::from_config(&config, None);
+    let request_bytes = serde_json::to_vec(&request)
+        .map_err(|error| RehomeError::new(ErrorCode::AdminScanUnavailable, error.to_string()))?;
+    fs::write(output_path.with_extension("request.json"), request_bytes)
+        .map_err(|error| RehomeError::new(ErrorCode::AdminScanUnavailable, error.to_string()))?;
     let executable = env::current_exe().map_err(|error| {
         RehomeError::new(
             ErrorCode::AdminScanUnavailable,

@@ -16,6 +16,7 @@ import {
 
 import { createPackage, openPath } from "../../lib/api";
 import { useI18n } from "../../lib/i18n";
+import "../migration.css";
 import {
   errorMessage,
   type CodexInventory,
@@ -181,12 +182,12 @@ export default function SendPage({
   }
 
   return (
-    <div className="page">
+    <div className="page migration-page">
       <header className="page-header page-header-with-action">
         <div>
           <p className="eyebrow">EXPORT</p>
-          <h1 ref={headingRef} tabIndex={-1}>{t("导出 Codex 数据")}</h1>
-          <p className="page-description">{t("在原电脑选择要带走的项目、对话和其他 Codex 内容。")}</p>
+          <h1 ref={headingRef} tabIndex={-1}>{t("导出 ReHome 迁移包")}</h1>
+          <p className="page-description">{t("将所选项目、对话和其他 Codex 内容导出为 .rehome 文件；迁移包不等于完整备份。")}</p>
         </div>
         <label className="global-select-toggle">
           <input
@@ -202,6 +203,8 @@ export default function SendPage({
           </span>
         </label>
       </header>
+
+      <p className="scan-warning">{t("ReHome 仅做选择性导出并排除已知凭据文件；迁移包未加密，分享前仍需检查内容。全量恢复请使用本地备份仓库。")}</p>
 
       <section className="workflow-section" aria-labelledby="send-projects-title">
         <div className="section-title-row">

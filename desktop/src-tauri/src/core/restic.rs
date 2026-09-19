@@ -1,4 +1,5 @@
 use crate::core::error::{ErrorCode, RehomeError};
+use crate::core::local_discovery::{has_redirect_ancestor, is_filesystem_redirect};
 use chrono::{SecondsFormat, Utc};
 use rusqlite::{backup::Backup, Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
@@ -104,8 +105,7 @@ struct StageStats {
     git_metadata_paths: Vec<String>,
 }
 
-/// Complete backups keep Git metadata and lock/manifest files needed to rebuild a project.
-/// Only credentials, redirects, caches and known runtime state are excluded here.
+/// Codex-home policy only. Full encrypted project backups use `SourcePolicy::Project`.
 pub fn is_excluded_backup_path(path: &Path) -> bool {
     let components: Vec<String> = path
         .iter()
@@ -155,6 +155,18 @@ pub fn is_excluded_backup_path(path: &Path) -> bool {
     })
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SourcePolicy {
+    Project,
+    Codex,
+}
+
+impl SourcePolicy {
+    fn excludes(self, relative: &Path) -> bool {
+        self == Self::Codex && is_excluded_backup_path(relative)
+    }
+}
+
 pub fn payload_relative_path(
     project_id: &str,
     source_root: &Path,
@@ -180,22 +192,47 @@ pub fn payload_relative_path(
 }
 
 pub fn file_fingerprint(root: &Path) -> Result<String, RehomeError> {
+    fingerprint_tree(root, SourcePolicy::Project)
+}
+
+fn fingerprint_tree(root: &Path, policy: SourcePolicy) -> Result<String, RehomeError> {
+    if has_redirect_ancestor(root).map_err(|error| backup_io("inspect fingerprint root", error))?
+        || !root.is_dir()
+    {
+        return Err(unsafe_path("fingerprint root is not a regular directory"));
+    }
     let mut records = BTreeMap::new();
-    let entries = WalkDir::new(root).follow_links(false).into_iter();
-    for entry in entries {
+    let mut entries = WalkDir::new(root)
+        .follow_links(false)
+        .follow_root_links(false)
+        .into_iter();
+    while let Some(entry) = entries.next() {
         let entry = entry.map_err(|error| backup_io("fingerprint", error))?;
         let relative = entry
             .path()
             .strip_prefix(root)
             .map_err(|_| unsafe_path("fingerprint path escaped its root"))?;
-        if relative.as_os_str().is_empty() || is_excluded_backup_path(relative) {
+        if relative.as_os_str().is_empty() {
             continue;
         }
-        let file_type = entry.file_type();
-        if file_type.is_symlink() || !file_type.is_file() {
+        let metadata = fs::symlink_metadata(entry.path())
+            .map_err(|error| backup_io("fingerprint metadata", error))?;
+        if policy.excludes(relative) {
+            if metadata.is_dir() {
+                entries.skip_current_dir();
+            }
             continue;
         }
-        let digest = hash_file(entry.path())?;
+        if is_filesystem_redirect(&metadata) || !(metadata.is_file() || metadata.is_dir()) {
+            return Err(unsafe_path(
+                "fingerprint contains an unsupported filesystem entry",
+            ));
+        }
+        let digest = if metadata.is_file() {
+            hash_file(entry.path())?
+        } else {
+            "directory".into()
+        };
         let relative = normalize_relative(relative)?;
         records.insert(relative, digest);
     }
@@ -237,11 +274,21 @@ pub fn backup_local(
     executable: &Path,
 ) -> Result<LocalSnapshot, RehomeError> {
     validate_request(&request)?;
-    let fingerprint = fingerprint_sources(&request.codex_home, &request.project_paths)?;
+    let git_sources = related_git_sources(&request)?;
+    // An unreadable/unsupported source must never hit the complete-snapshot
+    // cache. Staging records the individual missing entries in a partial backup.
+    let source_fingerprint =
+        fingerprint_sources(&request.codex_home, &request.project_paths, &git_sources).ok();
+    let fingerprint = source_fingerprint
+        .clone()
+        .unwrap_or_else(|| format!("partial-{}", Uuid::new_v4()));
     if request.repository.is_dir() && repository_has_entries(&request.repository)? {
         ensure_repository(&request.repository, &request.password, executable)?;
         if let Some(previous) = read_state(&request.repository)? {
-            if previous.fingerprint == fingerprint && previous.snapshot.complete {
+            if source_fingerprint.is_some()
+                && previous.fingerprint == fingerprint
+                && previous.snapshot.complete
+            {
                 return Ok(previous.snapshot);
             }
         }
@@ -258,26 +305,23 @@ pub fn backup_local(
     for (index, project) in request.project_paths.iter().enumerate() {
         let project_id = stable_project_id(project, index);
         let destination = payload.join("projects").join(project_id.to_string());
-        if project.exists() {
-            stage_tree(project, &destination, &mut stats)?;
-            stage_related_git_data(project, &payload, &project_id.to_string(), &mut stats)?;
-        } else {
-            stats.missing.push(BackupIssue {
-                path: project.display().to_string(),
-                reason: "selected project path is missing".to_owned(),
-                bytes: 0,
-            });
-        }
+        stage_tree(project, &destination, &mut stats, SourcePolicy::Project)?;
     }
-    if request.codex_home.exists() {
-        stage_tree(&request.codex_home, &payload.join("codex"), &mut stats)?;
-    } else {
-        stats.missing.push(BackupIssue {
-            path: request.codex_home.display().to_string(),
-            reason: "selected Codex data location is missing".to_owned(),
-            bytes: 0,
-        });
+    for (source, destination) in &git_sources {
+        stage_tree(
+            source,
+            &payload.join(destination),
+            &mut stats,
+            SourcePolicy::Project,
+        )?;
+        stats.git_metadata_paths.push(source.display().to_string());
     }
+    stage_tree(
+        &request.codex_home,
+        &payload.join("codex"),
+        &mut stats,
+        SourcePolicy::Codex,
+    )?;
 
     let logical_backup_id = Uuid::new_v4();
     let missing = stats.missing;
@@ -410,10 +454,8 @@ pub fn list_local_snapshots(
         ];
         if let Ok(stats) = run_restic_with_password(executable, args, password) {
             if let Ok(value) = serde_json::from_slice::<serde_json::Value>(&stats.stdout) {
-                summary.file_count = value
-                    .get("total_file_count")
-                    .and_then(serde_json::Value::as_u64)
-                    .unwrap_or(summary.file_count);
+                // `stats.total_file_count` includes directories and must not
+                // overwrite the source-file count from snapshot metadata.
                 summary.byte_count = value
                     .get("total_size")
                     .and_then(serde_json::Value::as_u64)
@@ -493,10 +535,9 @@ fn validate_request(request: &LocalBackupRequest) -> Result<(), RehomeError> {
             "a recovery password is required before creating a local backup",
         ));
     }
-    if request.project_paths.is_empty() {
-        return Err(RehomeError::new(
-            ErrorCode::ConfigInvalid,
-            "select at least one project before creating a local backup",
+    if !request.repository.is_absolute() {
+        return Err(unsafe_path(
+            "backup repository must be an absolute local path",
         ));
     }
     for source in request
@@ -504,8 +545,16 @@ fn validate_request(request: &LocalBackupRequest) -> Result<(), RehomeError> {
         .iter()
         .chain(std::iter::once(&request.codex_home))
     {
+        if !source.is_absolute() {
+            return Err(unsafe_path("backup sources must be absolute local paths"));
+        }
         if paths_overlap(source, &request.repository) {
             return Err(unsafe_path("backup repository overlaps a selected source"));
+        }
+    }
+    for project in &request.project_paths {
+        if paths_overlap(project, &request.codex_home) {
+            return Err(unsafe_path("project selection overlaps Codex data"));
         }
     }
     Ok(())
@@ -515,10 +564,34 @@ fn stage_tree(
     source: &Path,
     destination: &Path,
     stats: &mut StageStats,
+    policy: SourcePolicy,
 ) -> Result<(), RehomeError> {
-    let mut entries = WalkDir::new(source).follow_links(false).into_iter();
+    if has_redirect_ancestor(source).unwrap_or(true) || !source.is_dir() {
+        stats.missing.push(BackupIssue {
+            path: source.display().to_string(),
+            reason: "source is unavailable, not a directory, or contains a filesystem redirect"
+                .into(),
+            bytes: 0,
+        });
+        return Ok(());
+    }
+    fs::create_dir_all(destination).map_err(|error| backup_io("create staged root", error))?;
+    let mut entries = WalkDir::new(source)
+        .follow_links(false)
+        .follow_root_links(false)
+        .into_iter();
     while let Some(entry) = entries.next() {
-        let entry = entry.map_err(|error| backup_io("scan selected source", error))?;
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(error) => {
+                stats.missing.push(BackupIssue {
+                    path: error.path().unwrap_or(source).display().to_string(),
+                    reason: "source entry could not be enumerated".into(),
+                    bytes: 0,
+                });
+                continue;
+            }
+        };
         let relative = entry
             .path()
             .strip_prefix(source)
@@ -526,25 +599,37 @@ fn stage_tree(
         if relative.as_os_str().is_empty() {
             continue;
         }
-        let metadata = fs::symlink_metadata(entry.path())
-            .map_err(|error| backup_io("read selected source metadata", error))?;
-        if metadata.file_type().is_symlink() {
-            stats.missing.push(BackupIssue {
-                path: entry.path().display().to_string(),
-                reason: "symbolic link or filesystem redirect was not followed".to_owned(),
-                bytes: 0,
-            });
-            continue;
-        }
-        if is_excluded_backup_path(relative) {
+        let metadata = match fs::symlink_metadata(entry.path()) {
+            Ok(metadata) => metadata,
+            Err(_) => {
+                stats.missing.push(BackupIssue {
+                    path: entry.path().display().to_string(),
+                    reason: "source metadata could not be read".into(),
+                    bytes: 0,
+                });
+                continue;
+            }
+        };
+        if policy.excludes(relative) {
             stats.exclusions.push(BackupIssue {
                 path: relative.display().to_string(),
-                reason: "credential, cache, dependency or runtime data".to_owned(),
+                reason: "Codex credential, cache or runtime data".to_owned(),
                 bytes: metadata.len(),
             });
             if metadata.is_dir() {
                 entries.skip_current_dir();
             }
+            continue;
+        }
+        if is_filesystem_redirect(&metadata) {
+            if metadata.is_dir() {
+                entries.skip_current_dir();
+            }
+            stats.missing.push(BackupIssue {
+                path: entry.path().display().to_string(),
+                reason: "symbolic link or filesystem redirect was not followed".to_owned(),
+                bytes: 0,
+            });
             continue;
         }
         if metadata.is_dir() {
@@ -553,9 +638,17 @@ fn stage_tree(
             continue;
         }
         if !metadata.is_file() {
+            stats.missing.push(BackupIssue {
+                path: entry.path().display().to_string(),
+                reason: "unsupported filesystem entry".into(),
+                bytes: 0,
+            });
             continue;
         }
-        let target = if is_sqlite_sidecar(entry.path()) && sqlite_base_exists(entry.path())? {
+        let target = if policy == SourcePolicy::Codex
+            && is_sqlite_sidecar(entry.path())
+            && sqlite_base_exists(entry.path())?
+        {
             destination.join(SQLITE_SIDECAR_ROOT).join(relative)
         } else {
             destination.join(relative)
@@ -563,13 +656,25 @@ fn stage_tree(
         if let Some(parent) = target.parent() {
             fs::create_dir_all(parent).map_err(|error| backup_io("create staged parent", error))?;
         }
-        if is_sqlite_database(entry.path())? {
-            copy_sqlite_database(entry.path(), &target)?;
-        } else if fs::hard_link(entry.path(), &target).is_err() {
-            fs::copy(entry.path(), &target)
-                .map_err(|error| backup_io("copy selected file to staging", error))?;
+        let copied = (|| {
+            if policy == SourcePolicy::Codex && is_sqlite_database(entry.path())? {
+                copy_sqlite_database(entry.path(), &target)
+            } else {
+                fs::copy(entry.path(), &target)
+                    .map(|_| ())
+                    .map_err(|error| backup_io("copy selected file to staging", error))
+            }
+        })();
+        if copied.is_err() {
+            let _ = fs::remove_file(&target);
+            stats.missing.push(BackupIssue {
+                path: entry.path().display().to_string(),
+                reason: "source file could not be copied consistently".into(),
+                bytes: metadata.len(),
+            });
+            continue;
         }
-        if is_jsonl_file(entry.path()) {
+        if policy == SourcePolicy::Codex && is_jsonl_file(entry.path()) {
             match inspect_jsonl(entry.path(), metadata.len()) {
                 Ok(Some(issue)) => stats.missing.push(issue),
                 Ok(None) => {}
@@ -586,53 +691,65 @@ fn stage_tree(
     Ok(())
 }
 
-fn stage_related_git_data(
-    project: &Path,
-    payload: &Path,
-    project_id: &str,
-    stats: &mut StageStats,
-) -> Result<(), RehomeError> {
-    let git_marker = project.join(".git");
-    if !git_marker.is_file() {
-        return Ok(());
-    }
-    let marker = fs::read_to_string(&git_marker)
-        .map_err(|error| backup_io("read Git worktree marker", error))?;
-    let Some(pointer) = marker.lines().find_map(|line| line.strip_prefix("gitdir:")) else {
-        return Ok(());
-    };
-    let gitdir = PathBuf::from(pointer.trim());
-    let gitdir = if gitdir.is_absolute() {
-        gitdir
-    } else {
-        project.join(gitdir)
-    };
-    if !gitdir.is_dir() {
-        stats.missing.push(BackupIssue {
-            path: gitdir.display().to_string(),
-            reason: "Git worktree metadata directory is missing".to_owned(),
-            bytes: 0,
-        });
-        return Ok(());
-    }
-    let base = payload.join("git-metadata").join(project_id);
-    stage_tree(&gitdir, &base.join("worktree"), stats)?;
-    stats.git_metadata_paths.push(gitdir.display().to_string());
-    let commondir_file = gitdir.join("commondir");
-    if commondir_file.is_file() {
-        let commondir = fs::read_to_string(&commondir_file)
-            .map_err(|error| backup_io("read Git common directory marker", error))?;
-        let common = gitdir.join(commondir.trim());
-        if common.is_dir() && common != gitdir {
-            stage_tree(&common, &base.join("common"), stats)?;
-            stats.git_metadata_paths.push(common.display().to_string());
-        } else {
-            stats.missing.push(BackupIssue {
-                path: common.display().to_string(),
-                reason: "Git common directory for the worktree is missing".to_owned(),
-                bytes: 0,
-            });
+fn related_git_sources(
+    request: &LocalBackupRequest,
+) -> Result<Vec<(PathBuf, PathBuf)>, RehomeError> {
+    let mut sources = Vec::new();
+    for (index, project) in request.project_paths.iter().enumerate() {
+        if has_redirect_ancestor(project).unwrap_or(true) {
+            continue;
         }
+        let git_marker = project.join(".git");
+        if !fs::symlink_metadata(&git_marker)
+            .map(|metadata| metadata.is_file() && !is_filesystem_redirect(&metadata))
+            .unwrap_or(false)
+        {
+            continue;
+        }
+        let marker = fs::read_to_string(&git_marker)
+            .map_err(|error| backup_io("read Git worktree marker", error))?;
+        let Some(pointer) = marker.lines().find_map(|line| line.strip_prefix("gitdir:")) else {
+            continue;
+        };
+        let gitdir = PathBuf::from(pointer.trim());
+        let gitdir = if gitdir.is_absolute() {
+            gitdir
+        } else {
+            project.join(gitdir)
+        };
+        validate_git_source(&gitdir, request)?;
+        let base = Path::new("git-metadata").join(stable_project_id(project, index).to_string());
+        sources.push((gitdir.clone(), base.join("worktree")));
+        let commondir_file = gitdir.join("commondir");
+        if commondir_file.is_file() && !has_redirect_ancestor(&commondir_file).unwrap_or(true) {
+            let commondir = fs::read_to_string(&commondir_file)
+                .map_err(|error| backup_io("read Git common directory marker", error))?;
+            let common = gitdir.join(commondir.trim());
+            validate_git_source(&common, request)?;
+            if resolved_path(&common)? != resolved_path(&gitdir)? {
+                sources.push((common, base.join("common")));
+            }
+        }
+    }
+    Ok(sources)
+}
+
+fn validate_git_source(source: &Path, request: &LocalBackupRequest) -> Result<(), RehomeError> {
+    if paths_overlap(source, &request.codex_home) || paths_overlap(source, &request.repository) {
+        return Err(unsafe_path(
+            "Git metadata overlaps protected Codex data or backup repository",
+        ));
+    }
+    // An external Git pointer is allowed only for an actual Git metadata tree.
+    // Missing/redirected trees are left to staging to report as partial.
+    if !has_redirect_ancestor(source).unwrap_or(true)
+        && source.is_dir()
+        && (!source.join("HEAD").is_file()
+            || !(source.join("objects").is_dir() || source.join("commondir").is_file()))
+    {
+        return Err(unsafe_path(
+            "Git pointer does not identify a Git metadata directory",
+        ));
     }
     Ok(())
 }
@@ -646,14 +763,15 @@ fn copy_tree_for_restore(source: &Path, destination: &Path) -> Result<(u64, u64)
             .path()
             .strip_prefix(source)
             .map_err(|_| unsafe_path("restored payload escaped its root"))?;
-        if relative.as_os_str().is_empty() || relative == Path::new("manifest.json") {
+        if relative.as_os_str().is_empty() {
             continue;
         }
+        let internal_manifest = relative == Path::new("manifest.json");
         let relative = normalize_relative(relative)?;
         let target = destination.join(&relative);
         let metadata = fs::symlink_metadata(entry.path())
             .map_err(|error| backup_io("read restored payload metadata", error))?;
-        if metadata.file_type().is_symlink() {
+        if is_filesystem_redirect(&metadata) {
             return Err(unsafe_path(
                 "restored payload contains a filesystem redirect",
             ));
@@ -666,13 +784,23 @@ fn copy_tree_for_restore(source: &Path, destination: &Path) -> Result<(u64, u64)
                 fs::create_dir_all(parent)
                     .map_err(|error| backup_io("create restored parent", error))?;
             }
-            let temporary = target.with_extension("enhe-partial");
-            fs::copy(entry.path(), &temporary)
+            let temporary = NamedTempFile::new_in(
+                target
+                    .parent()
+                    .ok_or_else(|| unsafe_path("restored file has no parent"))?,
+            )
+            .map_err(|error| backup_io("create restored temporary file", error))?;
+            fs::copy(entry.path(), temporary.path())
                 .map_err(|error| backup_io("write restored file", error))?;
-            fs::rename(&temporary, &target)
+            temporary
+                .persist_noclobber(&target)
                 .map_err(|error| backup_io("commit restored file", error))?;
-            files += 1;
-            bytes = bytes.saturating_add(metadata.len());
+            // Retain recovery metadata without inflating ordinary source counts.
+            // Project-owned manifest.json files live below projects/<id>/.
+            if !internal_manifest {
+                files += 1;
+                bytes = bytes.saturating_add(metadata.len());
+            }
         }
     }
     repair_worktree_layout(destination)?;
@@ -1068,9 +1196,11 @@ fn parse_snapshot_summaries(bytes: &[u8]) -> Result<Vec<LocalSnapshotSummary>, R
                 .to_owned(),
             file_count: value
                 .get("summary")
-                .and_then(|summary| summary.get("files_new"))
+                .and_then(|summary| summary.get("total_files_processed"))
                 .and_then(serde_json::Value::as_u64)
-                .unwrap_or_default(),
+                .unwrap_or_default()
+                // Each ENHE payload contains one additional internal manifest.
+                .saturating_sub(1),
             byte_count: value
                 .get("summary")
                 .and_then(|summary| summary.get("bytes_added"))
@@ -1104,19 +1234,26 @@ fn validate_target_directory(target: &Path, repository: &Path) -> Result<(), Reh
     Ok(())
 }
 
-fn fingerprint_sources(codex_home: &Path, projects: &[PathBuf]) -> Result<String, RehomeError> {
-    let mut roots = projects.to_vec();
-    roots.push(codex_home.to_path_buf());
-    roots.sort_by(|left, right| left.to_string_lossy().cmp(&right.to_string_lossy()));
+fn fingerprint_sources(
+    codex_home: &Path,
+    projects: &[PathBuf],
+    git_sources: &[(PathBuf, PathBuf)],
+) -> Result<String, RehomeError> {
+    let roots = projects
+        .iter()
+        .map(|root| (root.as_path(), SourcePolicy::Project))
+        .chain(
+            git_sources
+                .iter()
+                .map(|(root, _)| (root.as_path(), SourcePolicy::Project)),
+        )
+        .chain(std::iter::once((codex_home, SourcePolicy::Codex)));
     let mut hasher = Sha256::new();
-    for root in roots {
+    hasher.update(b"full-project-policy-v1\0");
+    for (root, policy) in roots {
         hasher.update(root.to_string_lossy().as_bytes());
         hasher.update([0]);
-        if root.exists() {
-            hasher.update(file_fingerprint(&root)?.as_bytes());
-        } else {
-            hasher.update(b"missing");
-        }
+        hasher.update(fingerprint_tree(root, policy)?.as_bytes());
         hasher.update([0]);
     }
     Ok(hex_digest(hasher.finalize()))
@@ -1154,17 +1291,40 @@ fn normalize_relative(path: &Path) -> Result<String, RehomeError> {
 }
 
 fn paths_overlap(left: &Path, right: &Path) -> bool {
-    let normalize = |path: &Path| {
-        path.canonicalize()
-            .unwrap_or_else(|_| path.to_path_buf())
-            .to_string_lossy()
-            .replace('\\', "/")
-            .trim_end_matches('/')
-            .to_ascii_lowercase()
-    };
-    let left = normalize(left);
-    let right = normalize(right);
-    left == right || left.starts_with(&(right.clone() + "/")) || right.starts_with(&(left + "/"))
+    match (resolved_path(left), resolved_path(right)) {
+        (Ok(left), Ok(right)) => left.starts_with(&right) || right.starts_with(&left),
+        _ => true, // Unknown boundaries must fail closed.
+    }
+}
+
+fn resolved_path(path: &Path) -> Result<PathBuf, RehomeError> {
+    let absolute = std::path::absolute(path).map_err(|error| backup_io("resolve path", error))?;
+    let mut normalized = PathBuf::new();
+    for component in absolute.components() {
+        match component {
+            std::path::Component::Prefix(_) => {
+                normalized.push(component.as_os_str());
+                continue;
+            }
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                normalized.pop();
+            }
+            _ => normalized.push(component.as_os_str()),
+        }
+        // Resolve each existing prefix so a nonexistent final directory cannot
+        // hide a junction/alias or an overlapping repository.
+        match fs::canonicalize(&normalized) {
+            Ok(path) => normalized = path,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(backup_io("resolve path boundary", error)),
+        }
+    }
+    #[cfg(windows)]
+    {
+        normalized = PathBuf::from(normalized.to_string_lossy().to_ascii_lowercase());
+    }
+    Ok(normalized)
 }
 
 fn hash_file(path: &Path) -> Result<String, RehomeError> {
@@ -1268,9 +1428,52 @@ fn backup_engine_failed(exit_code: Option<i32>) -> RehomeError {
 
 #[cfg(test)]
 mod tests {
-    use super::{inspect_jsonl, stage_tree, StageStats};
+    use super::{inspect_jsonl, parse_snapshot_summaries, stage_tree, SourcePolicy, StageStats};
     use std::fs;
     use tempfile::tempdir;
+
+    #[test]
+    fn restored_manifest_never_overwrites_an_existing_file() {
+        let source = tempdir().unwrap();
+        let destination = tempdir().unwrap();
+        fs::write(source.path().join("manifest.json"), b"new manifest").unwrap();
+        fs::write(
+            destination.path().join("manifest.json"),
+            b"existing manifest",
+        )
+        .unwrap();
+        assert!(super::copy_tree_for_restore(source.path(), destination.path()).is_err());
+        assert_eq!(
+            fs::read(destination.path().join("manifest.json")).unwrap(),
+            b"existing manifest"
+        );
+    }
+
+    #[test]
+    fn full_file_restore_preserves_files_named_like_temporary_outputs() {
+        let source = tempdir().unwrap();
+        let destination = tempdir().unwrap();
+        fs::write(source.path().join("same.enhe-partial"), b"first").unwrap();
+        fs::write(source.path().join("same.txt"), b"second").unwrap();
+        super::copy_tree_for_restore(source.path(), destination.path()).unwrap();
+        assert_eq!(
+            fs::read(destination.path().join("same.enhe-partial")).unwrap(),
+            b"first"
+        );
+        assert_eq!(
+            fs::read(destination.path().join("same.txt")).unwrap(),
+            b"second"
+        );
+    }
+
+    #[test]
+    fn snapshot_file_count_includes_unchanged_files_but_not_internal_manifest() {
+        let summaries = parse_snapshot_summaries(
+            br#"[{"id":"12345678","summary":{"files_new":1,"files_changed":2,"files_unmodified":8,"total_files_processed":11}}]"#,
+        )
+        .unwrap();
+        assert_eq!(summaries[0].file_count, 10);
+    }
 
     #[test]
     fn invalid_jsonl_is_preserved_and_marked_missing() {
@@ -1285,7 +1488,13 @@ mod tests {
         .expect("write JSONL fixture");
 
         let mut stats = StageStats::default();
-        stage_tree(root.path(), destination.path(), &mut stats).expect("stage JSONL");
+        stage_tree(
+            root.path(),
+            destination.path(),
+            &mut stats,
+            SourcePolicy::Codex,
+        )
+        .expect("stage JSONL");
 
         assert!(destination.path().join("session.jsonl").is_file());
         assert_eq!(stats.files, 1);

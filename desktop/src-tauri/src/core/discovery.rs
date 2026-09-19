@@ -1,5 +1,6 @@
 use crate::core::{
     error::{ErrorCode, RehomeError},
+    local_discovery::is_excluded_project_path,
     models::{
         CodexInventory, ContentCounts, ConversationClassification, ConversationEntry,
         OptionalContentEntry, ProjectEntry, SourceOs,
@@ -166,6 +167,10 @@ pub fn discover_codex_with_context(
         })
         .unwrap_or_else(|| (0, BTreeMap::new()));
 
+    project_paths.retain(|path| {
+        !is_excluded_project_path(path)
+            && !is_excluded_project_path(&fs::canonicalize(path).unwrap_or_else(|_| path.clone()))
+    });
     let projects = discovered_projects(&project_paths);
     let conversations = discovered_conversations(
         &codex_home,
@@ -229,6 +234,7 @@ pub fn discover_codex_with_context(
             sqlite_threads,
         },
         projects,
+        projects_file_counts_known: false,
         project_paths,
         conversations,
         conversation_paths,

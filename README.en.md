@@ -48,7 +48,7 @@ Projects includes a Request administrator permission for restricted folders opti
 
 ## 6. Installation
 
-1. Open the [GitHub Releases installer download page](https://github.com/yangjing6213-dev/Codex-Backup/releases), or directly download the [Windows x64 installer](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.2_x64-setup.exe) and [SHA-256 checksum](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.2_x64-setup.exe.sha256). If the page has no Release yet, use the local build steps below to create the installer.
+1. Open the [GitHub Releases installer download page](https://github.com/yangjing6213-dev/Codex-Backup/releases), or directly download the [Windows x64 installer](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.3_x64-setup.exe) and [SHA-256 checksum](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.3_x64-setup.exe.sha256). If the page has no Release yet, use the local build steps below to create the installer.
 2. Compare the installer SHA-256 with the sidecar in PowerShell.
 3. Run the installer for the Windows current user.
 4. Confirm the local data location on first launch; cloud may remain off.
@@ -63,12 +63,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
 
 ## 7. How to use it
 
-The primary navigation includes Overview, Projects, Backups & Migration, Settings, and How it works. For a first run:
+The primary navigation includes Overview, Projects, Data, Backups & Migration, Settings, and How it works. For a first run:
 
-1. Select the projects that belong in a complete backup; regular non-Git folders can be added manually.
-2. If needed, check Request administrator permission for restricted folders in Projects and click Rescan as administrator. If UAC is canceled, the normal results remain available.
-3. Enter a local repository directory and recovery password in Backups & Migration, then run a local backup.
-4. Restore through Restore target folder; an existing target is reported as a conflict and is not overwritten.
+1. Configure a scan folder in Projects, click Rescan, verify the direct child folder names and background file counts, then select the projects that belong in the backup.
+2. Confirm the Codex data location on Data and the local repository directory in Settings.
+3. If needed, check Request administrator permission for restricted folders in Projects and click Rescan as administrator. If UAC is canceled, the normal results remain available.
+4. Enter a recovery password in Backups & Migration, then run a local backup.
+5. Restore through Restore target folder; an existing target is reported as a conflict and is not overwritten.
 
 The How it works page presents the same flow as an accessible visual guide.
 
@@ -99,7 +100,7 @@ tests/                      isolated tests and documentation contract tests
 
 ## 10. Implementation notes
 
-Credentials, cookies, private keys, `.env` files (except `.env.example`), dependency/cache directories, and runtime lock files are excluded from complete backups; `.git` is preserved and is not inherited from the migration tool's exclusion defaults. Restored payloads are treated as untrusted files: scripts, hooks, and MCP configuration are not executed. Remembered passwords use DPAPI scoped to the current Windows user; otherwise no password is stored.
+Starting with 0.1.3, complete local project backups include every readable regular file, including hidden files, dependencies, build outputs, `.env`, private keys, and tokens. The Codex data location keeps separate safety exclusions for known login credentials and other high-risk data. Sensitive project files are stored only inside the encrypted restic repository: use a strong independent password and never publish restored content or commit it to GitHub. `.git` and related worktree data are preserved and are not inherited from the migration tool's exclusion defaults. Restored payloads are treated as untrusted files: scripts, hooks, and MCP configuration are not executed. Remembered passwords use DPAPI scoped to the current Windows user; otherwise no password is stored.
 
 Cloud connection, real OneDrive authorization, real-data upload, overwriting real Codex data, and system installation require explicit user action. Development acceptance uses synthetic data and temporary directories only.
 
@@ -119,7 +120,7 @@ See [COMPATIBILITY](docs/COMPATIBILITY.md), [UPSTREAM](docs/UPSTREAM.md), and [A
 
 ## 11. Version
 
-Current version: `0.1.2`. This version focuses on Windows x64 local backup, restore, offline migration, automatic discovery, and bilingual settings. It normalizes user-facing `\\?\` paths, aggregates inaccessible scan folders, adds an explicit administrator rescan option, and provides the How it works flowchart. Real OneDrive, second-device, live conversation continuation, and clean-profile verification remain outside the completed evidence boundary; see [STATUS](docs/STATUS.md) and [ACCEPTANCE](docs/ACCEPTANCE.md).
+Current version: `0.1.3`. This version lists the real direct child folder names for configured scan roots, counts every regular project file in background workers, and includes hidden files, dependencies, build outputs, plus explicitly requested `.env`, private keys, and tokens in encrypted complete project backups. It also moves long-running backup work off the UI thread, preserves tasks across navigation, fixes migration return navigation, project deselection, and restore manifests, and introduces an ENHE blue theme and application icon. Real OneDrive, second-device, live conversation continuation, and clean-profile verification remain outside the completed evidence boundary; see [STATUS](docs/STATUS.md) and [ACCEPTANCE](docs/ACCEPTANCE.md).
 
 ## 12. Related projects
 

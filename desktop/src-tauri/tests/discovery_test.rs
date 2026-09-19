@@ -264,6 +264,60 @@ fn deleted_registered_project_is_reported_as_unavailable() -> Result<(), Box<dyn
 }
 
 #[test]
+fn discovery_marks_project_file_counts_unknown_without_changing_numeric_entries(
+) -> Result<(), Box<dyn Error>> {
+    let temp = tempfile::tempdir()?;
+    let codex_home = temp.path().join(".codex");
+    let project = temp.path().join("project");
+    fs::create_dir_all(&codex_home)?;
+    fs::create_dir_all(project.join("nested"))?;
+    fs::write(project.join("nested/source.rs"), b"source")?;
+    fs::write(
+        codex_home.join(".codex-global-state.json"),
+        serde_json::to_vec(&json!({"local-projects": {"p": {"rootPaths": [project]}}}))?,
+    )?;
+    let inventory = discover_codex_with_context(Some(codex_home), &DiscoveryContext::default())?;
+    let mut json = serde_json::to_value(&inventory)?;
+    assert_eq!(json["projects_file_counts_known"], false);
+    assert_eq!(json["projects"][0]["file_count"], 0);
+    json.as_object_mut()
+        .unwrap()
+        .remove("projects_file_counts_known");
+    let old: rehome_desktop_lib::core::models::CodexInventory = serde_json::from_value(json)?;
+    assert_eq!(
+        serde_json::to_value(old)?["projects_file_counts_known"],
+        false
+    );
+    Ok(())
+}
+
+#[test]
+fn inventory_project_candidates_exclude_registered_cache_and_archive_copies(
+) -> Result<(), Box<dyn Error>> {
+    let temp = tempfile::tempdir()?;
+    let codex_home = temp.path().join(".codex");
+    let real = temp.path().join("real");
+    let paths = [
+        real.clone(),
+        temp.path().join("Codex-Migration-Simple-old/projects/copy"),
+        codex_home.join(".tmp/copy"),
+        codex_home.join("plugins/marketplaces/copy"),
+        temp.path().join(".cache/project"),
+    ];
+    for path in &paths {
+        fs::create_dir_all(path)?;
+    }
+    fs::write(
+        codex_home.join(".codex-global-state.json"),
+        serde_json::to_vec(&json!({"local-projects": {"registered": {"rootPaths": paths}}}))?,
+    )?;
+    let inventory = discover_codex_with_context(Some(codex_home), &DiscoveryContext::default())?;
+    assert_eq!(inventory.project_paths, vec![real]);
+    assert_eq!(inventory.counts.projects, 1);
+    Ok(())
+}
+
+#[test]
 fn plugin_inventory_uses_plugin_name_and_complete_version_root() -> Result<(), Box<dyn Error>> {
     let temp = tempfile::tempdir()?;
     let codex_home = temp.path().join(".codex");

@@ -107,6 +107,9 @@ pub struct CodexInventory {
     pub source_device_id: Uuid,
     pub counts: ContentCounts,
     pub projects: Vec<ProjectEntry>,
+    /// Discovery does not recursively count project files; backup counts them.
+    #[serde(default)]
+    pub projects_file_counts_known: bool,
     pub project_paths: Vec<PathBuf>,
     pub conversations: Vec<ConversationEntry>,
     pub conversation_paths: Vec<PathBuf>,

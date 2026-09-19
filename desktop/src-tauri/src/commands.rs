@@ -505,6 +505,7 @@ mod tests {
         };
         (
             CodexInventory {
+                projects_file_counts_known: false,
                 codex_home: PathBuf::from("C:\\Users\\Me\\.codex"),
                 source_os: SourceOs::Windows,
                 source_arch: "x86_64".into(),

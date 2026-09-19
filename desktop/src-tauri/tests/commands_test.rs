@@ -13,6 +13,7 @@ const COMMANDS: &[&str] = &[
     "open_restored_thread",
     "pick_directory",
     "discover_local_candidates",
+    "count_project_files",
     "request_admin_local_discovery",
 ];
 
@@ -28,13 +29,14 @@ const REGISTERED_COMMANDS: &[&str] = &[
     "open_restored_thread",
     "pick_directory",
     "discover_local_candidates",
+    "count_project_files",
     "cancel_local_discovery",
     "request_admin_local_discovery",
 ];
 
 #[test]
-fn desktop_registers_exactly_the_thirteen_reviewed_commands() {
-    assert_eq!(WORKFLOW_SOURCE.matches("#[tauri::command]").count(), 13);
+fn desktop_registers_exactly_the_fourteen_reviewed_commands() {
+    assert_eq!(WORKFLOW_SOURCE.matches("#[tauri::command]").count(), 14);
     for command in REGISTERED_COMMANDS {
         assert!(
             APP_SOURCE.contains(&format!("workflow::{command}")),

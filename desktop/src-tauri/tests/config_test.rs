@@ -37,3 +37,41 @@ fn cloud_config_has_no_effect_when_disabled() {
     };
     assert!(!config.enabled);
 }
+
+#[test]
+fn old_config_loads_with_automatic_scan_and_uninitialized_selection() {
+    let mut old = serde_json::to_value(default_config()).unwrap();
+    for field in [
+        "automatic_project_scan",
+        "project_scan_roots",
+        "project_selection_initialized",
+    ] {
+        old.as_object_mut().unwrap().remove(field);
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("config.json");
+    std::fs::write(&path, serde_json::to_vec(&old).unwrap()).unwrap();
+    let loaded = rehome_desktop_lib::core::app_config::load_config(&path).unwrap();
+    let json = serde_json::to_value(loaded).unwrap();
+    assert_eq!(json["automatic_project_scan"], true);
+    assert_eq!(json["project_scan_roots"], serde_json::json!([]));
+    assert_eq!(json["project_selection_initialized"], false);
+}
+
+#[test]
+fn scan_preferences_survive_config_save_and_reload() {
+    use rehome_desktop_lib::core::app_config::{load_config, save_config, AppConfig};
+
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("config.json");
+    let mut json = serde_json::to_value(default_config()).unwrap();
+    json["automatic_project_scan"] = serde_json::json!(false);
+    json["project_scan_roots"] = serde_json::json!([directory.path().join("projects")]);
+    json["project_selection_initialized"] = serde_json::json!(true);
+    let config: AppConfig = serde_json::from_value(json.clone()).unwrap();
+    save_config(&path, &config).unwrap();
+    assert_eq!(
+        serde_json::to_value(load_config(&path).unwrap()).unwrap(),
+        json
+    );
+}

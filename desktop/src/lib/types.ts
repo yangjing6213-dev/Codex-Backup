@@ -69,6 +69,7 @@ export interface OptionalContentEntry {
 }
 
 export interface CodexInventory {
+  projects_file_counts_known?: boolean;
   codex_home: string;
   source_os: SourceOs;
   source_arch: string;
@@ -232,6 +233,9 @@ export interface LocalProjectCandidate {
   path: string;
   name: string;
   markers: string[];
+  file_count: number;
+  file_count_complete: boolean;
+  skipped_entries: number;
 }
 
 export interface LocalDiscoveryResult {
@@ -267,6 +271,9 @@ export interface AppConfig {
   codex_home: string | null;
   local_repository: string | null;
   selected_project_paths: string[];
+  automatic_project_scan: boolean;
+  project_scan_roots: string[];
+  project_selection_initialized: boolean;
   frequency_minutes: number;
   retention: RetentionPolicy;
   cloud: CloudConfig;

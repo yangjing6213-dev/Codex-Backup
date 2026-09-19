@@ -107,62 +107,75 @@ fn normalize_user_paths(mut config: AppConfig) -> AppConfig {
 }
 
 #[tauri::command]
-pub fn run_local_backup(request: LocalBackupCommandRequest) -> Result<LocalSnapshot, RehomeError> {
-    let retention = app_config::load_config(&app_config::default_config_path()?)
-        .map(|config| config.retention)
-        .unwrap_or_default();
-    if request.remember_password {
-        app_config::protect_secret(
-            &app_config::default_secret_path()?,
-            &request.recovery_password,
-        )?;
-    }
-    let source_device_id = request.source_device_id.unwrap_or_else(Uuid::new_v4);
-    let repository = request.repository.clone();
-    let password = request.recovery_password.clone();
-    let snapshot = restic::backup_local(
-        LocalBackupRequest {
-            codex_home: request.codex_home,
-            project_paths: request.project_paths,
-            repository: request.repository,
-            password: request.recovery_password,
-            source_device_id,
-        },
-        &restic_path(),
-    )?;
-    if snapshot.complete {
-        restic::apply_retention(
-            &repository,
-            &password,
+pub async fn run_local_backup(
+    request: LocalBackupCommandRequest,
+) -> Result<LocalSnapshot, RehomeError> {
+    run_blocking(ErrorCode::BackupFailed, move || {
+        let _lock = WorkerLock::acquire(&worker_lock_path()?)?;
+        let retention = app_config::load_config(&app_config::default_config_path()?)
+            .map(|config| config.retention)
+            .unwrap_or_default();
+        if request.remember_password {
+            app_config::protect_secret(
+                &app_config::default_secret_path()?,
+                &request.recovery_password,
+            )?;
+        }
+        let source_device_id = request.source_device_id.unwrap_or_else(Uuid::new_v4);
+        let repository = request.repository.clone();
+        let password = request.recovery_password.clone();
+        let snapshot = restic::backup_local(
+            LocalBackupRequest {
+                codex_home: request.codex_home,
+                project_paths: request.project_paths,
+                repository: request.repository,
+                password: request.recovery_password,
+                source_device_id,
+            },
             &restic_path(),
-            retention.high_frequency_hours,
-            retention.daily_days,
-            retention.weekly_weeks,
         )?;
-    }
-    Ok(snapshot)
+        if snapshot.complete {
+            restic::apply_retention(
+                &repository,
+                &password,
+                &restic_path(),
+                retention.high_frequency_hours,
+                retention.daily_days,
+                retention.weekly_weeks,
+            )?;
+        }
+        Ok(snapshot)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn list_local_backups(
+pub async fn list_local_backups(
     request: LocalBackupListRequest,
 ) -> Result<Vec<LocalSnapshotSummary>, RehomeError> {
-    let password = resolve_password(&request.recovery_password)?;
-    restic::list_local_snapshots(&request.repository, &password, &restic_path())
+    run_blocking(ErrorCode::BackupFailed, move || {
+        let password = resolve_password(&request.recovery_password)?;
+        restic::list_local_snapshots(&request.repository, &password, &restic_path())
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn restore_local_backup(
+pub async fn restore_local_backup(
     request: LocalRestoreCommandRequest,
 ) -> Result<LocalRestoreReport, RehomeError> {
-    let password = resolve_password(&request.recovery_password)?;
-    restic::restore_local(
-        &request.snapshot_id,
-        &request.repository,
-        &password,
-        &request.target,
-        &restic_path(),
-    )
+    run_blocking(ErrorCode::RestoreFailed, move || {
+        let _lock = WorkerLock::acquire(&worker_lock_path()?)?;
+        let password = resolve_password(&request.recovery_password)?;
+        restic::restore_local(
+            &request.snapshot_id,
+            &request.repository,
+            &password,
+            &request.target,
+            &restic_path(),
+        )
+    })
+    .await
 }
 
 #[tauri::command]
@@ -290,6 +303,16 @@ pub fn upload_local_snapshot(
     )
 }
 
+async fn run_blocking<T, F>(code: ErrorCode, operation: F) -> Result<T, RehomeError>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, RehomeError> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(operation)
+        .await
+        .map_err(|error| RehomeError::new(code, format!("background operation failed: {error}")))?
+}
+
 fn resolve_password(explicit: &str) -> Result<String, RehomeError> {
     if !explicit.is_empty() {
         return Ok(explicit.to_owned());
@@ -302,6 +325,8 @@ fn resolve_password(explicit: &str) -> Result<String, RehomeError> {
     })
 }
 
+// Keep this guard inside the blocking worker, so dropping an async caller cannot
+// release it while restic (including retention) is still mutating local data.
 struct WorkerLock {
     path: PathBuf,
 }
@@ -338,7 +363,7 @@ impl WorkerLock {
                 }
                 Err(RehomeError::new(
                     ErrorCode::SchedulerUnavailable,
-                    "another scheduled backup is already running",
+                    "another backup or restore is already running",
                 ))
             }
             Err(error) => Err(RehomeError::new(

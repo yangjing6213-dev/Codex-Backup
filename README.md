@@ -54,7 +54,7 @@ Codex 数据位置：C:\Users\<用户>\.codex
 
 ## 六、安装方法
 
-1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases)，或直接下载 [Windows x64 安装包](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.2_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.2_x64-setup.exe.sha256)；如果页面暂时没有 Release，请按下面的本地构建方式生成安装包。
+1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases)，或直接下载 [Windows x64 安装包](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.3_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.3_x64-setup.exe.sha256)；如果页面暂时没有 Release，请按下面的本地构建方式生成安装包。
 2. 使用 PowerShell 计算安装包 SHA-256，并与校验文件比对。
 3. 运行安装包，按 Windows 当前用户范围完成安装。
 4. 首次启动后确认本机数据位置；云端保持关闭即可完成本地备份。
@@ -69,8 +69,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
 
 ## 七、如何使用
 
-1. 打开“项目”，检查自动发现的 Codex 项目；需要时使用“选择项目目录”或手动输入普通目录。
-2. 打开“设置”，确认 Codex 数据位置和本地备份目录。点击字段旁的文件夹按钮即可选择路径。
+1. 打开“项目”，设置扫描目录并点击“重新扫描”，核对项目文件夹名称和后台统计出的文件数量，再勾选需要备份的项目。
+2. 打开“数据”，确认 Codex 数据位置；再到“设置”确认本地备份目录。点击字段旁的文件夹按钮即可选择路径。
 3. 打开“备份与迁移”，填写恢复密码并开始本地备份。
 4. 使用“刷新本地备份”查看快照，选择一个全新的恢复目标目录后恢复。
 5. 需要计划任务时，启用当前用户计划任务并选择记住密码；密码只通过当前 Windows 用户 DPAPI 保护。
@@ -103,6 +103,7 @@ tests/                      隔离测试与文档契约测试
 ## 十、注意实现
 
 - 完整备份不会照搬 ReHome 对 `.git` 的排除规则，会保留 Git 数据和相关 worktree 资料。
+- 从 0.1.3 起，完整本地项目备份包含项目中所有可读取的普通文件，包括隐藏文件、依赖、构建产物、`.env`、私钥和 Token；Codex 数据位置仍独立排除已知登录凭据等高风险数据。敏感项目文件只进入加密的 restic 仓库，请使用独立强密码并禁止把恢复结果公开或提交到 GitHub。
 - 自动项目扫描只读取目录元数据和项目标记，不读取无关源文件正文；跳过系统目录、依赖目录、构建缓存、网络盘和 OneDrive 同步目录。
 - 扫描有明确上限并可取消；无权限目录只显示聚合数量，其他提示最多显示少量摘要；部分结果会标记为部分完成，不能当作完整全盘扫描。
 - Windows 内部使用 `\\?\` 长路径形式是正常的；配置和界面会显示普通盘符或 UNC 形式。管理员扫描只有用户明确操作时才请求 UAC。
@@ -111,7 +112,7 @@ tests/                      隔离测试与文档契约测试
 
 ## 十一、版本说明
 
-当前版本：`0.1.2`。本版本在 Windows x64 本地备份、恢复、离线迁移、自动发现和双语设置流程基础上，修复用户可见的 `\\?\` 路径、聚合全盘扫描权限提示，并新增管理员重扫选项和“操作说明”流程图。真实 OneDrive、第二设备、真实会话续接和干净用户配置文件验证不在已完成证据范围内，详见 [STATUS](docs/STATUS.md) 与 [ACCEPTANCE](docs/ACCEPTANCE.md)。
+当前版本：`0.1.3`。本版本按扫描目录的直接子文件夹显示真实项目名称，在后台递归统计所有普通文件，并把隐藏文件、依赖、构建产物及用户明确要求的 `.env`、私钥和 Token 纳入加密的完整项目备份；同时将耗时备份移出界面线程，修复切换页面导致任务中断、迁移页返回、项目取消选择和恢复清单等问题，并更新为 ENHE 蓝色主题与应用图标。真实 OneDrive、第二设备、真实会话续接和干净用户配置文件验证不在已完成证据范围内，详见 [STATUS](docs/STATUS.md) 与 [ACCEPTANCE](docs/ACCEPTANCE.md)。
 
 ## 十二、相关项目
 

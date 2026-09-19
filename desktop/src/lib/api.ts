@@ -26,19 +26,20 @@ import type {
   LocalSnapshot,
   LocalSnapshotSummary,
   LocalDiscoveryResult,
+  LocalProjectCandidate,
   SchedulerStatus,
 } from "./types";
 
 export function discoverCodex(codexHome?: string | null): Promise<CodexInventory> {
-  return invoke("discover_codex", { codex_home: codexHome ?? null });
+  return invoke("discover_codex", { codexHome: codexHome ?? null });
 }
 
 export function pickDirectory(title: string): Promise<string | null> {
   return invoke("pick_directory", { title });
 }
 
-export function discoverLocalCandidates(): Promise<LocalDiscoveryResult> {
-  return invoke("discover_local_candidates");
+export function discoverLocalCandidates(roots?: string[]): Promise<LocalDiscoveryResult> {
+  return invoke("discover_local_candidates", { roots: roots ?? null });
 }
 
 export function requestAdminLocalDiscovery(): Promise<LocalDiscoveryResult> {
@@ -47,6 +48,10 @@ export function requestAdminLocalDiscovery(): Promise<LocalDiscoveryResult> {
 
 export function cancelLocalDiscovery(): Promise<void> {
   return invoke("cancel_local_discovery");
+}
+
+export function countProjectFiles(paths: string[]): Promise<LocalProjectCandidate[]> {
+  return invoke("count_project_files", { paths });
 }
 
 export function createPackage(selection: CreatePackageRequest): Promise<CreatePackageReport | null> {

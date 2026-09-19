@@ -20,6 +20,7 @@ import {
   selectRestoreDestinations,
 } from "../../lib/api";
 import { useI18n } from "../../lib/i18n";
+import "../migration.css";
 import {
   errorMessage,
   registrationIsComplete,
@@ -210,11 +211,11 @@ export default function ReceivePage({
   );
 
   return (
-    <div className="page receive-page">
+    <div className="page migration-page receive-page">
       <header className="page-header">
         <p className="eyebrow">IMPORT</p>
-        <h1 ref={headingRef} tabIndex={-1}>{t("导入 ReHome 包")}</h1>
-        <p className="page-description">{t("在新电脑选择迁移包，检查内容后导入本机 Codex。")}</p>
+        <h1 ref={headingRef} tabIndex={-1}>{t("导入 ReHome 迁移包")}</h1>
+        <p className="page-description">{t("检查 .rehome 包的内容和目标位置后导入；文件恢复后，仍需单独验证 Codex 中的对话能否继续。")}</p>
       </header>
 
       <section className="workflow-section" aria-labelledby="receive-package-title">
@@ -281,7 +282,7 @@ export default function ReceivePage({
                 : "已选择使用迁移包文件；被替换的文件会自动备份。")}
             </p>
           )}
-          <label className="confirmation-row"><input type="checkbox" checked={codexClosed} onChange={(event) => setCodexClosed(event.target.checked)} aria-label={t("确认已保存当前 Codex 工作")} /><span><strong>{t("当前 Codex 工作已保存")}</strong><small>{t("导入完成后请退出并重新打开 Codex，以加载迁移内容。")}</small></span></label>
+          <label className="confirmation-row"><input type="checkbox" checked={codexClosed} onChange={(event) => setCodexClosed(event.target.checked)} aria-label={t("确认已保存工作并完全退出 Codex")} /><span><strong>{t("已保存工作并完全退出 Codex")}</strong><small>{t("导入会写入上方 Codex 数据位置。完成后重新打开 Codex，并单独验证原对话是否可见、能否继续。")}</small></span></label>
           <div className="command-row"><ProgressSteps active={phase === "restoring"} complete={Boolean(report)} /><button className="command-button danger-command" type="button" disabled={!canRestore} onClick={() => void handleRestore()}>{phase === "restoring" ? <LoaderCircle className="spin" aria-hidden="true" /> : <Play aria-hidden="true" />}{t(phase === "restoring" ? "正在导入" : "导入到 Codex")}</button></div>
         </section>
       )}

@@ -45,6 +45,12 @@ pub struct AppConfig {
     pub codex_home: Option<PathBuf>,
     pub local_repository: Option<PathBuf>,
     pub selected_project_paths: Vec<PathBuf>,
+    #[serde(default = "automatic_project_scan_by_default")]
+    pub automatic_project_scan: bool,
+    #[serde(default)]
+    pub project_scan_roots: Vec<PathBuf>,
+    #[serde(default)]
+    pub project_selection_initialized: bool,
     pub frequency_minutes: u32,
     pub retention: RetentionPolicy,
     pub cloud: CloudConfig,
@@ -53,12 +59,19 @@ pub struct AppConfig {
     pub automatic_backup_enabled: bool,
 }
 
+fn automatic_project_scan_by_default() -> bool {
+    true
+}
+
 pub fn default_config() -> AppConfig {
     AppConfig {
         config_version: CONFIG_VERSION,
         codex_home: None,
         local_repository: None,
         selected_project_paths: Vec::new(),
+        automatic_project_scan: true,
+        project_scan_roots: Vec::new(),
+        project_selection_initialized: false,
         frequency_minutes: 15,
         retention: RetentionPolicy::default(),
         cloud: CloudConfig::default(),

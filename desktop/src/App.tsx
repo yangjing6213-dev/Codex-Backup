@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import {
   Archive,
   ArrowDown,
@@ -38,6 +38,7 @@ import {
   startCloudConfiguration,
   continueCloudConfiguration,
   discoverLocalCandidates,
+  countProjectFiles,
   cancelLocalDiscovery,
   requestAdminLocalDiscovery,
   pickDirectory,
@@ -49,6 +50,7 @@ import {
   errorMessage,
   type AppConfig,
   type Appearance,
+  type BackupIssue,
   type CloudConfig,
   type CloudConfigQuestion,
   type CodexInventory,
@@ -63,6 +65,7 @@ import "./App.css";
 export type View = "overview" | "projects" | "data" | "backups" | "settings" | "guide";
 type BackupView = "local" | "export" | "import";
 type LocalScanState = "idle" | "running" | "complete" | "partial" | "failed";
+type ProjectFileCounts = Record<string, LocalProjectCandidate | "counting" | "failed">;
 
 const views: Array<{
   id: View;
@@ -93,6 +96,9 @@ function defaultConfig(): AppConfig {
     codex_home: null,
     local_repository: null,
     selected_project_paths: [],
+    automatic_project_scan: true,
+    project_scan_roots: [],
+    project_selection_initialized: false,
     frequency_minutes: 15,
     retention: { high_frequency_hours: 48, daily_days: 30, weekly_weeks: 12 },
     cloud: {
@@ -123,6 +129,42 @@ function AppContent() {
   const [inventory, setInventory] = useState<CodexInventory | null>(null);
   const [localDiscovery, setLocalDiscovery] = useState<LocalDiscoveryResult | null>(null);
   const [localScanState, setLocalScanState] = useState<LocalScanState>("idle");
+  const [latestScanOnly, setLatestScanOnly] = useState(false);
+  const [projectFileCounts, setProjectFileCounts] = useState<ProjectFileCounts>({});
+  const requestedCounts = useRef(new Set<string>());
+  const countQueue = useRef(new Map<string, string>());
+  const countRunning = useRef(false);
+  const countGeneration = useRef(0);
+  const scanGeneration = useRef(0);
+  const requestProjectCounts = useCallback((paths: string[]) => {
+    const pending = paths.filter(path => !requestedCounts.current.has(pathKey(path)));
+    if (!pending.length) return;
+    pending.forEach(path => {
+      requestedCounts.current.add(pathKey(path));
+      countQueue.current.set(pathKey(path), path);
+    });
+    setProjectFileCounts(current => ({ ...current, ...Object.fromEntries(pending.map(path => [pathKey(path), "counting" as const])) }));
+    if (countRunning.current) return;
+    countRunning.current = true;
+    void (async () => {
+      try {
+        while (countQueue.current.size) {
+          const batch = [...countQueue.current.values()];
+          countQueue.current.clear();
+          const generation = countGeneration.current;
+          const failed = Object.fromEntries(batch.map(path => [pathKey(path), "failed" as const]));
+          try {
+            const results = await countProjectFiles(batch);
+            if (generation === countGeneration.current) setProjectFileCounts(current => ({ ...current, ...failed, ...Object.fromEntries(results.map(result => [pathKey(result.path), result])) }));
+          } catch {
+            if (generation === countGeneration.current) setProjectFileCounts(current => ({ ...current, ...failed }));
+          }
+        }
+      } finally {
+        countRunning.current = false;
+      }
+    })();
+  }, []);
   const [scheduler, setSchedulerStatus] = useState<SchedulerStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -130,27 +172,37 @@ function AppContent() {
   const [notice, setNotice] = useState<string | null>(null);
   const [activeOperations, setActiveOperations] = useState(0);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const backupHeadingRef = useRef<HTMLHeadingElement>(null);
+  const configRef = useRef(config);
+  const dataRequestGeneration = useRef(0);
+  configRef.current = config;
   const previousViewRef = useRef(view);
 
   useEffect(() => {
     let active = true;
+    const generation = scanGeneration.current;
+    const isCurrent = () => active && generation === scanGeneration.current;
     async function initialize() {
       let loaded = defaultConfig();
       let fastDiscoverySucceeded = false;
       try {
-        loaded = await getAppConfig();
-        if (active) {
+        loaded = { ...defaultConfig(), ...await getAppConfig() };
+        if (isCurrent()) {
           setConfig(loaded);
           setLocale(loaded.locale);
         }
       } catch (caught) {
-        if (active) setError(errorMessage(caught, t));
+        if (isCurrent()) setError(errorMessage(caught, t));
       }
 
+      if (!isCurrent()) {
+        if (active) setLoading(false);
+        return;
+      }
       try {
         const detected = await discoverCodex(loaded.codex_home);
         fastDiscoverySucceeded = true;
-        if (active) {
+        if (isCurrent()) {
           setInventory(detected);
           const next = mergeAutomaticConfig(loaded, detected);
           setConfig(next);
@@ -158,19 +210,19 @@ function AppContent() {
           if (hasConfigChanges(loaded, next)) {
             try {
               const saved = await saveAppConfig(next);
-              if (active) setConfig(saved);
+              if (isCurrent()) setConfig(saved);
             } catch (caught) {
               saveFailed = true;
-              if (active) setError(errorMessage(caught, t));
+              if (isCurrent()) setError(errorMessage(caught, t));
             }
           }
-          if (!saveFailed) {
+          if (isCurrent() && !saveFailed) {
             setError(null);
             setCodexScanFailed(false);
           }
         }
       } catch (caught) {
-        if (active) {
+        if (isCurrent()) {
           setCodexScanFailed(true);
           setError(errorMessage(caught, t));
         }
@@ -178,19 +230,20 @@ function AppContent() {
         if (active) setLoading(false);
       }
 
-      if (!active) return;
+      if (!isCurrent() || !loaded.automatic_project_scan) return;
       setLocalScanState("running");
       try {
-        const result = await discoverLocalCandidates();
-        if (active) {
+        const result = await discoverLocalCandidates(loaded.project_scan_roots);
+        if (isCurrent()) {
           setLocalDiscovery(result);
           setLocalScanState(localScanStateFor(result));
 
           if (!fastDiscoverySucceeded && result.codex_homes.length > 0) {
             try {
               const detected = await discoverCodex(result.codex_homes[0]);
+              if (!isCurrent()) return;
               const next = mergeAutomaticConfig(
-                { ...loaded, codex_home: result.codex_homes[0] },
+                { ...configRef.current, codex_home: result.codex_homes[0] },
                 detected,
               );
               setInventory(detected);
@@ -199,22 +252,26 @@ function AppContent() {
               if (hasConfigChanges(loaded, next)) {
                 try {
                   const saved = await saveAppConfig(next);
-                  if (active) setConfig(saved);
+                  if (isCurrent()) setConfig(saved);
                 } catch (caught) {
                   saveFailed = true;
-                  if (active) setError(errorMessage(caught, t));
+                  if (isCurrent()) setError(errorMessage(caught, t));
                 }
               }
-              setCodexScanFailed(false);
-              if (!saveFailed) setError(null);
+              if (isCurrent()) {
+                setCodexScanFailed(false);
+                if (!saveFailed) setError(null);
+              }
             } catch (caught) {
-              setCodexScanFailed(true);
-              setError(errorMessage(caught, t));
+              if (isCurrent()) {
+                setCodexScanFailed(true);
+                setError(errorMessage(caught, t));
+              }
             }
           }
         }
       } catch (caught) {
-        if (active) {
+        if (isCurrent()) {
           setLocalScanState("failed");
           setError(errorMessage(caught, t));
         }
@@ -233,7 +290,8 @@ function AppContent() {
 
   useEffect(() => {
     if (previousViewRef.current !== view) {
-      headingRef.current?.focus();
+      (view === "backups" ? backupHeadingRef : headingRef).current?.focus();
+      document.documentElement.scrollTop = 0;
       previousViewRef.current = view;
     }
   }, [view]);
@@ -241,18 +299,6 @@ function AppContent() {
   useEffect(() => {
     document.documentElement.dataset.appearance = config.appearance;
   }, [config.appearance]);
-
-  useEffect(() => {
-    if (!inventory) return;
-    setConfig((current) => ({
-      ...current,
-      codex_home: current.codex_home ?? inventory.codex_home,
-      selected_project_paths:
-        current.selected_project_paths.length > 0
-          ? current.selected_project_paths
-          : inventory.project_paths,
-    }));
-  }, [inventory]);
 
   const persistConfig = useCallback(
     async (next: AppConfig, message = "设置已保存") => {
@@ -281,17 +327,29 @@ function AppContent() {
     }
   }
 
-  async function runAdminScan() {
+  async function rescanProjects(next: AppConfig, administrator: boolean) {
+    if (localScanState === "running") return;
+    const generation = ++scanGeneration.current;
     setError(null);
     setNotice(null);
     setLocalScanState("running");
     try {
-      const result = await requestAdminLocalDiscovery();
+      await persistConfig(next, t("项目选择已保存"));
+      if (generation !== scanGeneration.current) return;
+      setLatestScanOnly(true);
+      countGeneration.current += 1;
+      requestedCounts.current.clear();
+      countQueue.current.clear();
+      setProjectFileCounts({});
+      setLocalDiscovery(null);
+      const result = administrator ? await requestAdminLocalDiscovery() : await discoverLocalCandidates(next.project_scan_roots);
+      if (generation !== scanGeneration.current) return;
       setLocalDiscovery(result);
       setLocalScanState(localScanStateFor(result));
-      setNotice(t("管理员扫描已完成"));
+      if (administrator) setNotice(t("管理员扫描已完成"));
     } catch (caught) {
-      setLocalScanState("partial");
+      if (generation !== scanGeneration.current) return;
+      setLocalScanState("failed");
       setError(errorMessage(caught, t));
     }
   }
@@ -308,8 +366,8 @@ function AppContent() {
     <div className="app-shell">
       <aside className="sidebar">
         <button className="brand" type="button" onClick={() => setView("overview")} aria-label={t("ENHE Codex Backup")}>
-          <span className="brand-mark" aria-hidden="true">E</span>
-          <span className="brand-copy"><small className="brand-version">v0.1.2</small><strong>ENHE</strong><small>Codex Backup</small></span>
+          <img className="brand-mark" src="/app-icon.png" alt="" />
+          <span className="brand-copy"><small className="brand-version">v0.1.3</small><strong>ENHE</strong><small>Codex Backup</small></span>
         </button>
 
         <nav className="navigation" aria-label={t("主导航")}>
@@ -355,7 +413,7 @@ function AppContent() {
           {loading ? (
             <span className="machine-status"><LoaderCircle className="spin" aria-hidden="true" />{t("本机扫描中")}</span>
           ) : error ? (
-            <span className="machine-status machine-error"><TriangleAlert aria-hidden="true" />{t("本机扫描失败")}</span>
+            <span className="machine-status machine-error"><TriangleAlert aria-hidden="true" />{t(codexScanFailed ? "本机扫描失败" : "操作未完成")}</span>
           ) : (
             <span className="machine-status"><CheckCircle2 aria-hidden="true" />{t("本机已就绪")}</span>
           )}
@@ -363,23 +421,26 @@ function AppContent() {
 
         {notice && <div className="notice" role="status">{notice}<button type="button" onClick={() => setNotice(null)} aria-label={t("关闭")}>×</button></div>}
         {error && <div className="global-error" role="alert"><span>{error}</span>{codexScanFailed && <button className="text-button" type="button" onClick={() => void chooseCodexHome()}>{t("选择 Codex 数据位置")}</button>}</div>}
+        {activeOperations > 0 && <div className="notice" role="status"><span><LoaderCircle className="spin" aria-hidden="true" /> {t("任务进行中，切换页面不会中断；请勿退出应用。")}</span><button type="button" onClick={() => setView("backups")}>{t("查看进行中的任务")}</button></div>}
 
         {view === "overview" && (
-          <OverviewPage headingRef={headingRef} inventory={inventory} localConversationCount={localDiscovery?.conversation_count ?? 0} config={config} scheduler={scheduler} localScanState={localScanState} onNavigate={setView} />
+          <OverviewPage headingRef={headingRef} inventory={inventory} localDiscovery={localDiscovery} config={config} scheduler={scheduler} localScanState={localScanState} onNavigate={setView} />
         )}
         {view === "projects" && (
           <ProjectsPage
             headingRef={headingRef}
             inventory={inventory}
             localCandidates={localDiscovery?.candidates ?? []}
+            fileCounts={projectFileCounts}
+            onCountFiles={requestProjectCounts}
             localWarnings={localDiscovery?.warnings ?? []}
             permissionDeniedCount={localDiscovery?.permission_denied_count ?? 0}
             otherWarningCount={localDiscovery?.other_warning_count ?? 0}
             scannedRootCount={localDiscovery?.scanned_roots.length ?? 0}
             localScanState={localScanState}
             onCancelLocalScan={() => { void cancelLocalDiscovery(); }}
-            onAdminScan={() => void runAdminScan()}
-            adminScanBusy={localScanState === "running"}
+            onRescan={rescanProjects}
+            latestScanOnly={latestScanOnly}
             config={config}
             onSave={async (next) => {
               try {
@@ -397,29 +458,37 @@ function AppContent() {
             inventory={inventory}
             config={config}
             onSave={async (next) => {
+              const generation = ++dataRequestGeneration.current;
               try {
-                await persistConfig(next, t("数据设置已保存"));
+                const detected = await discoverCodex(next.codex_home);
+                if (generation !== dataRequestGeneration.current) return;
+                await persistConfig({ ...configRef.current, codex_home: detected.codex_home }, t("数据设置已保存"));
+                if (generation !== dataRequestGeneration.current) return;
+                setInventory(detected);
+                setCodexScanFailed(false);
+                setError(null);
               } catch (caught) {
-                setError(errorMessage(caught, t));
+                if (generation === dataRequestGeneration.current) setError(errorMessage(caught, t));
               }
             }}
-            onConfigChange={setConfig}
             onError={setError}
           />
         )}
-        {view === "backups" && (
+        {!loading && <div hidden={view !== "backups"}>
           <BackupsPage
-            headingRef={headingRef}
+            headingRef={backupHeadingRef}
+            visible={view === "backups"}
+            operationBusy={activeOperations > 0}
             inventory={inventory}
             config={config}
-            onConfigChange={setConfig}
+            onRepositoryChange={async (repository) => { await persistConfig({ ...configRef.current, local_repository: repository }, t("设置已保存")); }}
             onNavigate={setView}
             onOperationStart={operationStarted}
             onOperationEnd={operationFinished}
             onNotice={setNotice}
             onError={setError}
           />
-        )}
+        </div>}
         {view === "settings" && (
           <SettingsPage
             headingRef={headingRef}
@@ -451,15 +520,18 @@ function AppContent() {
 interface OverviewPageProps {
   headingRef: RefObject<HTMLHeadingElement | null>;
   inventory: CodexInventory | null;
-  localConversationCount: number;
+  localDiscovery: LocalDiscoveryResult | null;
   config: AppConfig;
   scheduler: SchedulerStatus | null;
   localScanState: LocalScanState;
   onNavigate: (view: View) => void;
 }
 
-function OverviewPage({ headingRef, inventory, localConversationCount, config, scheduler, localScanState, onNavigate }: OverviewPageProps) {
+function OverviewPage({ headingRef, inventory, localDiscovery, config, scheduler, localScanState, onNavigate }: OverviewPageProps) {
   const { t } = useI18n();
+  const candidates = localDiscovery?.candidates ?? [];
+  const counted = localDiscovery !== null && localScanState === "complete" && candidates.every(candidate => candidate.file_count_complete);
+  const fileCount = candidates.reduce((sum, candidate) => sum + (candidate.file_count ?? 0), 0);
   return (
     <div className="page">
       <header className="page-header">
@@ -489,9 +561,9 @@ function OverviewPage({ headingRef, inventory, localConversationCount, config, s
       </section>
 
       <section className="metric-grid" aria-label={t("本机检测")}>
-        <Metric label={t("项目总数")} value={inventory?.counts.projects ?? 0} />
-        <Metric label={t("对话总数")} value={inventory?.counts.conversations ?? localConversationCount} />
-        <Metric label={t("文件总数")} value={inventory?.counts.project_files ?? 0} />
+        <Metric label={t("扫描项目数")} value={localDiscovery ? candidates.length : t("未扫描")} text={!localDiscovery} />
+        <Metric label={t("对话总数")} value={inventory?.counts.conversations ?? localDiscovery?.conversation_count ?? 0} />
+        <Metric label={t("扫描文件数")} value={counted ? fileCount.toLocaleString() : localDiscovery ? t("至少 {count}", { count: fileCount.toLocaleString() }) : t(localScanState === "running" ? "正在统计" : "未扫描")} text />
         <Metric label={t("计划任务状态")} value={scheduler?.enabled ? t("已启用") : t("未启用")} text />
       </section>
 
@@ -504,6 +576,7 @@ function OverviewPage({ headingRef, inventory, localConversationCount, config, s
           <p>{t("选择的项目会与 Git 元数据、未提交修改和 worktree 一起进入完整备份。")}</p>
           <div className="path-value"><span>{t("Codex 数据位置")}</span><code>{config.codex_home ?? t("未检测")}</code></div>
           <div className="path-value"><span>{t("备份目录")}</span><code>{config.local_repository ?? t("未检测")}</code></div>
+          <p className="help-text">{t("备份目录用于存放加密备份仓库，不是待备份的项目目录；恢复时请选择同一个仓库。")}</p>
         </div>
         <div className="how-it-works">
           <div className="section-heading"><CheckCircle2 aria-hidden="true" /><h2>{t("操作说明")}</h2></div>
@@ -520,11 +593,10 @@ interface DataPageProps {
   inventory: CodexInventory | null;
   config: AppConfig;
   onSave: (config: AppConfig) => Promise<void>;
-  onConfigChange: (config: AppConfig) => void;
   onError: (message: string | null) => void;
 }
 
-function DataPage({ headingRef, inventory, config, onSave, onConfigChange, onError }: DataPageProps) {
+function DataPage({ headingRef, inventory, config, onSave, onError }: DataPageProps) {
   const { t } = useI18n();
   const [draft, setDraft] = useState(config);
 
@@ -536,7 +608,7 @@ function DataPage({ headingRef, inventory, config, onSave, onConfigChange, onErr
     <div className="page">
       <header className="page-header page-header-with-action">
         <div><p className="eyebrow">DATA</p><h1 ref={headingRef} tabIndex={-1}>{t("数据")}</h1><p className="page-description">{t("集中管理 Codex 对话、索引和相关数据的备份来源。")}</p></div>
-        <button className="primary-button" type="button" onClick={() => { onConfigChange(draft); void onSave(draft); }}>{t("保存数据设置")}</button>
+        <button className="primary-button" type="button" onClick={() => void onSave(draft)}>{t("保存数据设置")}</button>
       </header>
 
       <section className="card settings-card">
@@ -566,7 +638,7 @@ function Metric({ label, value, text = false }: { label: string; value: number |
 }
 
 function localScanStateFor(result: LocalDiscoveryResult): LocalScanState {
-  return result.cancelled || result.permission_denied_count > 0 || result.other_warning_count > 0 || result.warnings.length > 0
+  return result.cancelled || result.permission_denied_count > 0 || result.other_warning_count > 0 || result.warnings.length > 0 || result.candidates.some(candidate => candidate.file_count_complete === false)
     ? "partial"
     : "complete";
 }
@@ -603,6 +675,29 @@ function GuidePage({ headingRef }: { headingRef: RefObject<HTMLHeadingElement | 
         <div className="section-heading"><ShieldCheck aria-hidden="true" /><h2>{t("安全提示")}</h2></div>
         <p>{t("本地优先模式不需要登录或云端配置；管理员权限只有在你勾选并点击重新扫描时才会请求。")}</p>
       </section>
+      {[
+        ["恢复到本机", [
+          ["打开原备份仓库", "进入备份与迁移的本地备份页，选择存放加密备份的目录，输入创建备份时的恢复密码。"],
+          ["刷新并选择快照", "点击刷新本地备份，按日期选择要恢复的快照；部分完成的备份可能缺少文件。"],
+          ["选择空目录并恢复", "填写新的恢复目标目录，再点击快照旁的恢复。原有项目和正在使用的 Codex 不会被覆盖。"],
+          ["检查恢复内容", "打开结果显示的 backup-… 目录。projects 保存项目，codex 保存 Codex 数据；保留整个目录及 git-metadata，避免破坏 worktree 关联。"],
+        ]],
+        ["迁移到另一台设备", [
+          ["携带整个仓库和密码", "等待备份完成后，将整个备份目录复制到移动硬盘或新设备；不能只复制快照中的个别文件。恢复密码请另行妥善保管。"],
+          ["安装并按本机流程恢复", "在新设备安装应用，不用登录、不用配置云端。选择带来的仓库，输入原密码，刷新列表并恢复到空目录。"],
+          ["恢复文件不等于续接会话", "先验证项目文件和 Git。恢复出的 Codex 数据是独立副本，不会自动替换新设备的真实资料；原会话续接需要另行验证。"],
+        ]],
+      ].map(([title, flow]) => <section className="card guide-card" key={title as string}>
+        <h2>{t(title as string)}</h2>
+        <ol className="flowchart-list restore-flow">
+          {(flow as string[][]).map(([step, description], index) => <li className="flowchart-step" key={step}>
+            <div className="flowchart-node" aria-hidden="true">{index + 1}</div>
+            <div className="flowchart-copy"><h3>{t(step)}</h3><p>{t(description)}</p></div>
+            {index < (flow as string[][]).length - 1 && <ArrowDown className="flowchart-arrow" aria-hidden="true" />}
+          </li>)}
+        </ol>
+      </section>)}
+      <p className="help-text">{t("完整迁移优先使用本地备份仓库。ReHome 迁移包用于选择性导入导出，不能替代保留 Git/worktree 的完整备份。")}</p>
     </div>
   );
 }
@@ -611,30 +706,56 @@ interface ProjectsPageProps {
   headingRef: RefObject<HTMLHeadingElement | null>;
   inventory: CodexInventory | null;
   localCandidates: LocalProjectCandidate[];
+  fileCounts: ProjectFileCounts;
+  onCountFiles: (paths: string[]) => void;
   localWarnings: string[];
   permissionDeniedCount: number;
   otherWarningCount: number;
   scannedRootCount: number;
   localScanState: LocalScanState;
   onCancelLocalScan: () => void;
-  onAdminScan: () => void;
-  adminScanBusy: boolean;
+  onRescan: (config: AppConfig, administrator: boolean) => Promise<void>;
+  latestScanOnly: boolean;
   config: AppConfig;
   onSave: (config: AppConfig) => Promise<void>;
   onError: (message: string | null) => void;
 }
 
-function ProjectsPage({ headingRef, inventory, localCandidates, localWarnings, permissionDeniedCount, otherWarningCount, scannedRootCount, localScanState, onCancelLocalScan, onAdminScan, adminScanBusy, config, onSave, onError }: ProjectsPageProps) {
+function ProjectsPage({ headingRef, inventory, localCandidates, fileCounts, onCountFiles, localWarnings, permissionDeniedCount, otherWarningCount, scannedRootCount, localScanState, onCancelLocalScan, onRescan, latestScanOnly, config, onSave, onError }: ProjectsPageProps) {
   const { t } = useI18n();
-  const [selected, setSelected] = useState(() => new Set(config.selected_project_paths));
+  const [selected, setSelected] = useState(() => new Set(config.selected_project_paths.map(pathKey)));
   const [manualPath, setManualPath] = useState("");
+  const [manualPaths, setManualPaths] = useState<string[]>(config.selected_project_paths);
+  const [automaticScan, setAutomaticScan] = useState(config.automatic_project_scan);
+  const [scanRoots, setScanRoots] = useState(config.project_scan_roots.join("\n"));
   const [requestAdmin, setRequestAdmin] = useState(false);
-  const projects = inventory?.projects ?? [];
-  const discoveredPaths = useMemo(() => new Set(projects.map((project) => project.source_path)), [projects]);
-  const candidatePaths = useMemo(() => new Set(localCandidates.map((candidate) => candidate.path)), [localCandidates]);
-  const manualPaths = [...selected].filter((path) => !discoveredPaths.has(path) && !candidatePaths.has(path));
+  const scanBusy = localScanState === "running";
+  const rows = new Map<string, { path: string; name: string; label: string; available: boolean; current: boolean; count?: LocalProjectCandidate }>();
+  const folderName = (path: string) => displayPath(path).replace(/[\\/]+$/, "").split(/[\\/]/).pop() || displayPath(path);
+  for (const project of inventory?.projects ?? []) {
+    const key = pathKey(project.source_path);
+    if (latestScanOnly && !selected.has(key) && !manualPaths.some((path) => pathKey(path) === key)) continue;
+    rows.set(key, { path: displayPath(project.source_path), name: folderName(project.source_path), label: folderName(project.source_path), available: project.source_available, current: false });
+  }
+  for (const candidate of localCandidates) {
+    const key = pathKey(candidate.path);
+    rows.set(key, { path: displayPath(candidate.path), name: candidate.name, label: rows.get(key)?.label ?? displayPath(candidate.path), available: true, current: true, count: candidate });
+  }
+  for (const path of [...manualPaths, ...config.selected_project_paths]) {
+    const key = pathKey(path);
+    if (!rows.has(key)) rows.set(key, { path: displayPath(path), name: folderName(path), label: displayPath(path), available: true, current: false });
+  }
+  const pathsToCount = JSON.stringify([...rows].filter(([key, row]) => row.available && row.count?.file_count === undefined && !fileCounts[key]).map(([, row]) => row.path));
+  useEffect(() => { onCountFiles(JSON.parse(pathsToCount) as string[]); }, [pathsToCount, onCountFiles]);
+  function countLabel(key: string, row: { available: boolean; count?: LocalProjectCandidate }) {
+    if (!row.available) return t("目录不可访问，无法统计");
+    const result = row.count?.file_count !== undefined ? row.count : fileCounts[key];
+    if (result === "failed") return t("统计失败，请重新扫描");
+    if (!result || result === "counting") return t("正在统计文件…");
+    return result.file_count_complete ? `${result.file_count.toLocaleString()} ${t("文件")}` : t("已统计 {count} 文件 · 部分统计，跳过 {skipped} 项", { count: result.file_count.toLocaleString(), skipped: result.skipped_entries });
+  }
   useEffect(() => {
-    setSelected(new Set(config.selected_project_paths));
+    setSelected(new Set(config.selected_project_paths.map(pathKey)));
   }, [config.selected_project_paths]);
   const toggleProject = (path: string) => {
     setSelected((current) => {
@@ -644,16 +765,25 @@ function ProjectsPage({ headingRef, inventory, localCandidates, localWarnings, p
       return next;
     });
   };
+  const nextConfig = (): AppConfig => ({ ...config, automatic_project_scan: automaticScan, project_scan_roots: scanRoots.split(/\r?\n/).map((path) => displayPath(path.trim())).filter(Boolean), selected_project_paths: [...rows].filter(([key]) => selected.has(key)).map(([, row]) => row.path), project_selection_initialized: true });
   return (
     <div className="page">
       <header className="page-header page-header-with-action">
         <div><p className="eyebrow">PROJECTS</p><h1 ref={headingRef} tabIndex={-1}>{t("项目")}</h1><p className="page-description">{t("选择的项目会与 Git 元数据、未提交修改和 worktree 一起进入完整备份。")}</p></div>
-        <button className="primary-button" type="button" onClick={() => void onSave({ ...config, selected_project_paths: [...selected] })}>{t("保存项目选择")}</button>
+        <button className="primary-button" type="button" disabled={scanBusy} onClick={() => void onSave(nextConfig())}>{t("保存项目选择")}</button>
       </header>
       <section className="card project-list" aria-label={t("项目文件夹")}>
+        <div className="scan-settings">
+          <label className="checkbox-row"><input type="checkbox" checked={automaticScan} onChange={(event) => setAutomaticScan(event.target.checked)} disabled={scanBusy} /><span>{t("启动时自动扫描项目")}</span></label>
+          <label><span>{t("项目扫描目录（每行一个；留空扫描所有本地磁盘）")}</span><textarea value={scanRoots} onChange={(event) => setScanRoots(event.target.value)} disabled={scanBusy} rows={3} placeholder="F:\Projects" /></label>
+          <p className="help-text">{t("指定目录按直属文件夹列出项目；子目录只计入文件数量，不再作为独立项目。留空时使用全盘智能发现。")}</p>
+          <p className="help-text">{t("重新扫描替换当前结果；手动与历史项目单独保留，不代表本次扫描发现。")}</p>
+          <p className="help-text">{t("完整本地项目备份包含隐藏文件、Git、依赖、构建产物及敏感文件（.env、私钥、Token）。仓库使用恢复密码加密，请勿共享密码。文件数为扫描时的普通文件数量；无法读取或未跟随的链接会标为部分统计。")}</p>
+          <button className="secondary-button" type="button" disabled={scanBusy} onClick={() => void onRescan(nextConfig(), false)}><RefreshCw aria-hidden="true" />{t("重新扫描")}</button>
+        </div>
         <div className="manual-project form-grid">
           <PathField label={t("手动添加项目目录")} value={manualPath} onChange={setManualPath} title={t("选择项目目录")} placeholder="F:\\Notes\\shared" onError={onError} />
-          <div><p className="help-text">{t("允许添加非 Git 普通目录。")}</p><button className="secondary-button" type="button" onClick={() => { const path = manualPath.trim(); if (path) { setSelected((current) => new Set(current).add(path)); setManualPath(""); } }} disabled={!manualPath.trim()}>{t("添加目录")}</button></div>
+          <div><p className="help-text">{t("允许添加非 Git 普通目录。")}</p><button className="secondary-button" type="button" onClick={() => { const path = displayPath(manualPath.trim()); if (path) { setManualPaths((current) => [...current, path]); setSelected((current) => new Set(current).add(pathKey(path))); setManualPath(""); } }} disabled={!manualPath.trim()}>{t("添加目录")}</button></div>
         </div>
         {localScanState === "running" && <div className="scan-status" role="status"><LoaderCircle className="spin" aria-hidden="true" />{t("正在扫描本机项目")}<button className="text-button" type="button" onClick={onCancelLocalScan}>{t("取消扫描")}</button></div>}
         {localScanState === "complete" && <p className="help-text">{t("本机项目扫描已完成")}</p>}
@@ -662,43 +792,35 @@ function ProjectsPage({ headingRef, inventory, localCandidates, localWarnings, p
         {localScanState !== "idle" && localScanState !== "running" && <p className="help-text">{t("扫描位置数量")}: {scannedRootCount} · {t("候选项目数量")}: {localCandidates.length}</p>}
         <div className="scan-permission card-muted">
           <label className="checkbox-row">
-            <input type="checkbox" aria-label={t("扫描受限目录时申请管理员权限")} checked={requestAdmin} onChange={(event) => setRequestAdmin(event.target.checked)} disabled={adminScanBusy} />
+            <input type="checkbox" aria-label={t("扫描受限目录时申请管理员权限")} checked={requestAdmin} onChange={(event) => setRequestAdmin(event.target.checked)} disabled={scanBusy} />
             <span><strong>{t("扫描受限目录时申请管理员权限")}</strong><small>{t("仅点击按钮时才会请求 Windows UAC；普通扫描不会被中断。")}</small></span>
           </label>
-          {requestAdmin && <button className="secondary-button" type="button" onClick={onAdminScan} disabled={adminScanBusy}>{adminScanBusy ? <LoaderCircle className="spin" aria-hidden="true" /> : <ShieldCheck aria-hidden="true" />}{adminScanBusy ? t("正在请求管理员权限") : t("以管理员权限重新扫描")}</button>}
+          {requestAdmin && <button className="secondary-button" type="button" onClick={() => void onRescan(nextConfig(), true)} disabled={scanBusy}><ShieldCheck aria-hidden="true" />{t("以管理员权限重新扫描")}</button>}
         </div>
         {(permissionDeniedCount > 0 || otherWarningCount > 0 || localWarnings.length > 0) && <div className="scan-warning" role="status"><TriangleAlert aria-hidden="true" /><span>{permissionDeniedCount > 0 && <>{t("已跳过 {count} 个无权限目录；可访问项目仍已显示。", { count: permissionDeniedCount })} </>}{otherWarningCount > 0 && <>{t("另有 {count} 条扫描提示。", { count: otherWarningCount })} </>}{localWarnings.length > 0 && <span>{localWarnings.join(" · ")}</span>}</span></div>}
-        {projects.length === 0 ? <p className="empty-state">{t("当前没有可扫描的项目。")}</p> : projects.map((project) => (
-          <label className="project-row" key={project.project_id}>
-            <input type="checkbox" checked={selected.has(project.source_path)} onChange={() => toggleProject(project.source_path)} aria-label={`选择项目 ${project.name}`} disabled={!project.source_available} />
-            <span className="project-copy"><strong>{project.name}</strong><code>{project.source_path}</code></span>
-            <span className="project-meta">{project.file_count} {t("文件")}{project.git_branch ? ` · ${project.git_branch}` : ""}</span>
+        {rows.size === 0 && <p className="empty-state">{t("当前没有可扫描的项目。")}</p>}
+        {[true, false].map(current => <section key={String(current)} aria-label={t(current ? "本次扫描的项目" : "手动与历史项目")}>
+        {[...rows.values()].some(row => row.current === current) && <h2 className="project-group-title">{t(current ? "本次扫描的项目" : "手动与历史项目")}</h2>}
+        {[...rows].filter(([, row]) => row.current === current).map(([key, row]) => (
+          <label className="project-row" key={key}>
+            <input type="checkbox" checked={selected.has(key)} onChange={() => toggleProject(key)} aria-label={`${t("选择项目")} ${row.label}`} disabled={!row.available && !selected.has(key)} />
+            <span className="project-copy"><strong>{row.name}</strong><code>{row.path}</code>{!row.available && <small>{t("目录当前不可访问；可以取消选择。")}</small>}</span>
+            <span className="project-meta" role="status">{countLabel(key, row)}</span>
           </label>
         ))}
-        {localCandidates.filter((candidate) => !discoveredPaths.has(candidate.path)).map((candidate) => (
-          <label className="project-row" key={candidate.path}>
-            <input type="checkbox" checked={selected.has(candidate.path)} onChange={() => toggleProject(candidate.path)} aria-label={`${t("选择项目")} ${candidate.path}`} />
-            <span className="project-copy"><strong>{candidate.name}</strong><code>{candidate.path}</code></span>
-            <span className="project-meta">{t("自动发现")} · {candidate.markers.join(", ")}</span>
-          </label>
-        ))}
-        {manualPaths.map((path) => (
-          <label className="project-row" key={path}>
-            <input type="checkbox" checked onChange={() => toggleProject(path)} aria-label={`${t("选择项目")} ${path}`} />
-            <span className="project-copy"><strong>{t("手动目录")}</strong><code>{path}</code></span>
-            <span className="project-meta">{t("已纳入本地备份")}</span>
-          </label>
-        ))}
+        </section>)}
       </section>
     </div>
   );
 }
 
 interface BackupsPageProps {
+  visible: boolean;
+  operationBusy: boolean;
   headingRef: RefObject<HTMLHeadingElement | null>;
   inventory: CodexInventory | null;
   config: AppConfig;
-  onConfigChange: (config: AppConfig) => void;
+  onRepositoryChange: (repository: string) => Promise<void>;
   onNavigate: (view: View) => void;
   onOperationStart: () => void;
   onOperationEnd: () => void;
@@ -706,9 +828,12 @@ interface BackupsPageProps {
   onError: (message: string | null) => void;
 }
 
-function BackupsPage({ headingRef, inventory, config, onConfigChange, onNavigate, onOperationStart, onOperationEnd, onNotice, onError }: BackupsPageProps) {
+function BackupsPage({ headingRef, visible, operationBusy, inventory, config, onRepositoryChange, onNavigate, onOperationStart, onOperationEnd, onNotice, onError }: BackupsPageProps) {
   const { t, locale } = useI18n();
   const [subview, setSubview] = useState<BackupView>("local");
+  const [openedViews, setOpenedViews] = useState({ export: false, import: false });
+  const exportHeadingRef = useRef<HTMLHeadingElement>(null);
+  const importHeadingRef = useRef<HTMLHeadingElement>(null);
   const [repository, setRepository] = useState(config.local_repository ?? "");
   const [password, setPassword] = useState("");
   const [restoreTarget, setRestoreTarget] = useState("");
@@ -717,27 +842,46 @@ function BackupsPage({ headingRef, inventory, config, onConfigChange, onNavigate
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<LocalSnapshot | null>(null);
   const [restoreResult, setRestoreResult] = useState<string | null>(null);
+  const [restoreComplete, setRestoreComplete] = useState(false);
+  const [restoreMissing, setRestoreMissing] = useState<BackupIssue[]>([]);
+
+  function openMigration(next: "export" | "import") {
+    setOpenedViews(current => ({ ...current, [next]: true }));
+    setSubview(next);
+  }
+
+  useEffect(() => {
+    if (visible) {
+      (subview === "export" ? exportHeadingRef : subview === "import" ? importHeadingRef : headingRef).current?.focus();
+      document.documentElement.scrollTop = 0;
+    }
+  }, [subview]);
+
+  useEffect(() => {
+    if (visible && !operationBusy) setSubview("local");
+    // Only reset on navigation, never while the active operation completes.
+  }, [visible]);
 
   useEffect(() => {
     setRepository(config.local_repository ?? "");
   }, [config.local_repository]);
 
   const codexHome = config.codex_home ?? inventory?.codex_home ?? "";
-  const projectPaths = config.selected_project_paths.length > 0 ? config.selected_project_paths : inventory?.project_paths ?? [];
+  const projectPaths = config.selected_project_paths;
 
   async function startBackup() {
     onError(null);
     onNotice(null);
     if (!repository.trim()) return onError(t("需要先填写完整的本地备份设置。"));
-    if (!codexHome || projectPaths.length === 0) return onError(t("需要先选择至少一个项目。"));
+    if (!codexHome) return onError(t("需要先填写完整的本地备份设置。"));
     if (!password) return onError(t("请输入恢复密码。"));
     setBusy(true);
     onOperationStart();
     try {
+      await onRepositoryChange(repository);
       const backup = await runLocalBackup({ codex_home: codexHome, project_paths: projectPaths, repository, recovery_password: password, remember_password: rememberPassword, source_device_id: inventory?.source_device_id });
       setResult(backup);
       setSnapshots((current) => [summaryFromSnapshot(backup), ...current.filter((item) => item.restic_snapshot_id !== backup.restic_snapshot_id)]);
-      onConfigChange({ ...config, codex_home: codexHome, local_repository: repository, selected_project_paths: projectPaths });
       onNotice(t(backup.complete ? "本地备份已完成" : "本地备份已完成但存在缺失内容"));
     } catch (caught) {
       onError(errorMessage(caught, t));
@@ -771,7 +915,9 @@ function BackupsPage({ headingRef, inventory, config, onConfigChange, onNavigate
     try {
       const report = await restoreLocalBackup({ snapshot_id: snapshot.restic_snapshot_id, repository, recovery_password: password, target: restoreTarget });
       setRestoreResult(`${report.restored_root} · ${report.restored_files} ${t("文件")}`);
-      onNotice(t("恢复完成"));
+      setRestoreComplete(report.complete);
+      setRestoreMissing(report.missing);
+      onNotice(t(report.complete ? "恢复完成" : "恢复已结束，但备份中存在缺失内容"));
     } catch (caught) {
       onError(errorMessage(caught, t));
     } finally {
@@ -803,11 +949,12 @@ function BackupsPage({ headingRef, inventory, config, onConfigChange, onNavigate
     }
   }
 
-  if (subview === "export") return <SendPage headingRef={headingRef} inventory={inventory} onOperationStart={onOperationStart} onOperationEnd={onOperationEnd} />;
-  if (subview === "import") return <ReceivePage headingRef={headingRef} inventory={inventory} onOperationStart={onOperationStart} onOperationEnd={onOperationEnd} />;
-
   return (
-    <div className="page">
+    <>
+    <div className="migration-return" hidden={subview === "local"}><button className="secondary-button" type="button" disabled={operationBusy} onClick={() => setSubview("local")}><RotateCcw aria-hidden="true" />{t("返回本地备份")}</button></div>
+    {openedViews.export && <div hidden={subview !== "export"}><SendPage headingRef={exportHeadingRef} inventory={inventory} onOperationStart={onOperationStart} onOperationEnd={onOperationEnd} /></div>}
+    {openedViews.import && <div hidden={subview !== "import"}><ReceivePage headingRef={importHeadingRef} inventory={inventory} onOperationStart={onOperationStart} onOperationEnd={onOperationEnd} /></div>}
+    <div className="page" hidden={subview !== "local"}>
       <header className="page-header page-header-with-action">
         <div><p className="eyebrow">BACKUP & MIGRATION</p><h1 ref={headingRef} tabIndex={-1}>{t("备份与迁移")}</h1><p className="page-description">{t("本地备份不会访问云端。")}</p></div>
         <button className="secondary-button" type="button" onClick={() => void refreshBackups()} disabled={busy}><RefreshCw aria-hidden="true" />{t("刷新本地备份")}</button>
@@ -815,22 +962,28 @@ function BackupsPage({ headingRef, inventory, config, onConfigChange, onNavigate
 
       <div className="subnav" role="tablist" aria-label={t("迁移能力")}>
         <button role="tab" aria-selected={subview === "local"} className={subview === "local" ? "subnav-item active" : "subnav-item"} type="button" onClick={() => setSubview("local")}>{t("本地备份")}</button>
-        <button role="tab" aria-selected={false} className="subnav-item" type="button" onClick={() => setSubview("export")}>{t("导出 ReHome 迁移包")}</button>
-        <button role="tab" aria-selected={false} className="subnav-item" type="button" onClick={() => setSubview("import")}>{t("导入 ReHome 迁移包")}</button>
+        <button role="tab" aria-selected={false} className="subnav-item" type="button" disabled={busy} onClick={() => openMigration("export")}>{t("导出 ReHome 迁移包")}</button>
+        <button role="tab" aria-selected={false} className="subnav-item" type="button" disabled={busy} onClick={() => openMigration("import")}>{t("导入 ReHome 迁移包")}</button>
       </div>
+      {(openedViews.export || openedViews.import) && <p className="help-text">{t("迁移结果保留在对应的导出或导入页面，重新打开即可查看。")}</p>}
 
       <section className="card form-card">
         <div className="section-heading"><HardDrive aria-hidden="true" /><h2>{t("完整本地备份")}</h2></div>
         <p className="help-text">{t("操作说明")}: {t("选择本地目录后，应用用 restic 加密、去重并校验快照。恢复会先进入独立目录，不覆盖现有资料。")}</p>
         <div className="form-grid">
-          <PathField label={t("备份目录")} value={repository} onChange={setRepository} title={t("选择备份目录")} placeholder="D:\\ENHE\\backups" onError={onError} />
-          <label><span>{t("恢复密码")}</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" /></label>
+          <PathField label={t("备份目录")} description={t("备份目录用于存放加密备份仓库，不是待备份的项目目录；恢复时请选择同一个仓库。")} value={repository} onChange={setRepository} title={t("选择备份目录")} placeholder="D:\\ENHE\\backups" onError={onError} disabled={busy} />
+          <label><span>{t("恢复密码")}</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" disabled={busy} /></label>
         </div>
-        <label className="checkbox-row"><input type="checkbox" checked={rememberPassword} onChange={(event) => setRememberPassword(event.target.checked)} /><span><strong>{t("记住密码（仅此 Windows 用户）")}</strong><small>{t("使用 DPAPI 保护密码，供计划任务使用。")}</small></span></label>
+        <label className="checkbox-row"><input type="checkbox" checked={rememberPassword} onChange={(event) => setRememberPassword(event.target.checked)} disabled={busy} /><span><strong>{t("记住密码（仅此 Windows 用户）")}</strong><small>{t("使用 DPAPI 保护密码，供计划任务使用。")}</small></span></label>
         <div className="path-line"><span>{t("Codex 数据位置")}</span><code>{codexHome || t("未检测")}</code></div>
-        <div className="path-line"><span>{t("项目")}</span><code>{projectPaths.length} · {projectPaths.join("; ") || t("未检测")}</code></div>
+        <div className="path-line"><span>{t("项目")}</span><code>{projectPaths.length} · {projectPaths.join("; ") || t("仅备份 Codex 数据")}</code></div>
+        <p className="help-text">{t("项目按全量备份，包含 .env、私钥和 Token；Codex 登录凭据仍排除。请保护仓库和恢复密码，缺失项会单独报告。")}</p>
         <button className="primary-button" type="button" onClick={() => void startBackup()} disabled={busy}>{busy ? <LoaderCircle className="spin" aria-hidden="true" /> : <LockKeyhole aria-hidden="true" />}{busy ? t("备份进行中") : t("开始本地备份")}</button>
         {result && <div className={result.complete ? "result success" : "result warning"} role="status">{result.complete ? <CheckCircle2 aria-hidden="true" /> : <TriangleAlert aria-hidden="true" />}<span>{t(result.complete ? "本地备份已完成" : "本地备份已完成但存在缺失内容")} · {result.manifest.file_count} {t("文件")} · {result.restic_snapshot_id}</span></div>}
+        {result && <details className="backup-details"><summary>{t("查看排除与缺失清单")}</summary>
+          <p>{t("安全排除")}: {result.manifest.exclusions?.length ?? 0} · {t("缺失文件")}: {result.manifest.missing?.length ?? 0}</p>
+          <ul>{[...(result.manifest.exclusions ?? []), ...(result.manifest.missing ?? [])].map((issue, index) => <li key={index}><code>{issue.path}</code> — {issue.reason}</li>)}</ul>
+        </details>}
       </section>
 
       <section className="card">
@@ -843,12 +996,16 @@ function BackupsPage({ headingRef, inventory, config, onConfigChange, onNavigate
             <div className="snapshot-actions"><button className="secondary-button small" type="button" disabled={busy} onClick={() => void restore(snapshot)}><RotateCcw aria-hidden="true" />{t("恢复")}</button>{config.cloud.enabled && <button className="secondary-button small" type="button" disabled={busy} onClick={() => void upload(snapshot)}><CloudUpload aria-hidden="true" />{t("上传此快照")}</button>}</div>
           </div>
         ))}</div>}
-        <PathField className="restore-target" label={t("恢复目标目录")} value={restoreTarget} onChange={setRestoreTarget} title={t("选择恢复目标目录")} placeholder="D:\\ENHE\\restored" onError={onError} />
-        {restoreResult && <div className="result success" role="status"><CheckCircle2 aria-hidden="true" />{t("恢复完成")} · {restoreResult}</div>}
+        <PathField className="restore-target" label={t("恢复目标目录")} description={t("选择新的空目录；恢复不会覆盖你正在使用的项目或 Codex 数据。")} value={restoreTarget} onChange={setRestoreTarget} title={t("选择恢复目标目录")} placeholder="D:\\ENHE\\restored" onError={onError} disabled={busy} />
+        {restoreResult && <div className={restoreComplete ? "result success" : "result warning"} role="status">{t(restoreComplete ? "恢复完成" : "恢复已结束，但备份中存在缺失内容")} · {restoreResult}</div>}
+        {restoreResult && <p className="help-text">{t("恢复目录内的 manifest.json 记录来源路径、排除和缺失项；它不计入项目文件数。")}</p>}
+        {restoreResult && restoreMissing.length > 0 && <details className="backup-details"><summary>{t("查看恢复缺失清单")}</summary><ul>{restoreMissing.map((issue, index) => <li key={`${issue.path}-${index}`}><code>{displayPath(issue.path)}</code> · {issue.reason}</li>)}</ul></details>}
+        <button type="button" className="text-button" onClick={() => onNavigate("guide")}>{t("如何恢复到本机或另一台设备？")}</button>
       </section>
 
       <section className="migration-note"><CloudOff aria-hidden="true" /><div><strong>{t("云端备份已关闭")}</strong><p>{t("云端关闭时不会启动远端连接，也不会上传资料。")}</p></div><button type="button" className="text-button" onClick={() => onNavigate("settings")}>{t("设置")}</button></section>
     </div>
+    </>
   );
 }
 
@@ -860,16 +1017,19 @@ function mergeAutomaticConfig(config: AppConfig, inventory: CodexInventory): App
   return {
     ...config,
     codex_home: config.codex_home?.trim() ? config.codex_home : inventory.codex_home,
-    selected_project_paths: config.selected_project_paths.length > 0 ? config.selected_project_paths : inventory.project_paths,
+    selected_project_paths: config.project_selection_initialized || config.selected_project_paths.length > 0 ? config.selected_project_paths : inventory.project_paths,
+    project_selection_initialized: true,
   };
 }
 
 function hasConfigChanges(before: AppConfig, after: AppConfig): boolean {
   return before.codex_home !== after.codex_home
+    || before.project_selection_initialized !== after.project_selection_initialized
     || before.selected_project_paths.join("\0") !== after.selected_project_paths.join("\0");
 }
 
 interface PathFieldProps {
+  description?: string;
   className?: string;
   label: string;
   value: string;
@@ -880,7 +1040,7 @@ interface PathFieldProps {
   onError?: (message: string | null) => void;
 }
 
-function PathField({ className, label, value, onChange, title, placeholder, disabled, onError }: PathFieldProps) {
+function PathField({ className, label, description, value, onChange, title, placeholder, disabled, onError }: PathFieldProps) {
   const { t } = useI18n();
   async function choosePath() {
     if (disabled) return;
@@ -916,8 +1076,18 @@ function PathField({ className, label, value, onChange, title, placeholder, disa
           <FolderOpen aria-hidden="true" />
         </button>
       </div>
+      {description && <small className="help-text">{description}</small>}
     </label>
   );
+}
+
+function displayPath(path: string): string {
+  const normalized = path.replace(/\//g, "\\").replace(/^\\\\\?\\UNC\\/i, "\\\\").replace(/^\\\\\?\\/, "");
+  return normalized.length > 3 ? normalized.replace(/\\+$/, "") : normalized;
+}
+
+function pathKey(path: string): string {
+  return displayPath(path).toLowerCase();
 }
 
 interface SettingsPageProps {
@@ -1036,7 +1206,7 @@ function SettingsPage({ headingRef, config, scheduler, onSave, onConfigChange, o
         </div>}
       </section>
 
-      <section className="settings-footer"><button className="primary-button" type="button" onClick={() => { onConfigChange(draft); void onSave(draft); }}>{t("保存设置")}</button><span>{t("当前版本")} 0.1.2</span></section>
+      <section className="settings-footer"><button className="primary-button" type="button" onClick={() => { onConfigChange(draft); void onSave(draft); }}>{t("保存设置")}</button><span>{t("当前版本")} 0.1.3</span></section>
     </div>
   );
 }

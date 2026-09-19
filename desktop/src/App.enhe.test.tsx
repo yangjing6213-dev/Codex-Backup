@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -7,10 +7,14 @@ import App from "./App";
 const api = vi.hoisted(() => ({
   discoverCodex: vi.fn(),
   discoverLocalCandidates: vi.fn(),
+  countProjectFiles: vi.fn(),
   requestAdminLocalDiscovery: vi.fn(),
   getAppConfig: vi.fn(),
   getSchedulerStatus: vi.fn(),
   listLocalBackups: vi.fn(),
+  restoreLocalBackup: vi.fn(),
+  createPackage: vi.fn(),
+  openPath: vi.fn(),
   saveAppConfig: vi.fn(),
   pickDirectory: vi.fn(),
   runLocalBackup: vi.fn(),
@@ -74,12 +78,15 @@ const config = {
   locale: "zh-CN",
   appearance: "system",
   automatic_backup_enabled: false,
+  automatic_project_scan: true,
+  project_scan_roots: [],
+  project_selection_initialized: true,
 };
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   window.localStorage.clear();
-  api.discoverCodex.mockResolvedValue(inventory);
+  api.discoverCodex.mockImplementation(async (codexHome) => ({ ...inventory, codex_home: codexHome ?? inventory.codex_home }));
   api.discoverLocalCandidates.mockResolvedValue({
     candidates: [],
     codex_homes: [],
@@ -92,9 +99,10 @@ beforeEach(() => {
     cancelled: false,
   });
   api.getAppConfig.mockResolvedValue(config);
+  api.countProjectFiles.mockImplementation(async (paths: string[]) => paths.map(path => ({ path, name: path.split(/[\\/]/).pop(), markers: [], file_count: 3, file_count_complete: true, skipped_entries: 0 })));
   api.getSchedulerStatus.mockResolvedValue({ enabled: false, task_name: "ENHE Codex Backup - Current User" });
   api.listLocalBackups.mockResolvedValue([]);
-  api.saveAppConfig.mockResolvedValue(config);
+  api.saveAppConfig.mockImplementation(async (next) => next);
   api.pickDirectory.mockResolvedValue(null);
   api.requestAdminLocalDiscovery.mockResolvedValue({
     candidates: [], codex_homes: [], conversation_count: 0, scanned_roots: [], skipped_roots: [],
@@ -105,6 +113,312 @@ beforeEach(() => {
 });
 
 describe("ENHE Codex Backup shell", () => {
+  it("shows exact scan folder names and counts separately from historical paths", async () => {
+    const user = userEvent.setup();
+    api.discoverLocalCandidates.mockResolvedValue({ candidates: [{ path: "F:\\Projects\\Product-video（推广视频生成）", name: "Product-video（推广视频生成）", markers: [], file_count: 1234, file_count_complete: true, skipped_entries: 0 }], codex_homes: [], conversation_count: 0, scanned_roots: ["F:\\Projects"], skipped_roots: [], warnings: [], permission_denied_count: 0, other_warning_count: 0, cancelled: false });
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "前往项目" }));
+    expect(await screen.findByText("1,234 文件")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "本次扫描的项目" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "手动与历史项目" })).toBeVisible();
+    expect(screen.getByText("Product-video（推广视频生成）")).toBeVisible();
+    expect(screen.queryByText("文件数将在备份时统计")).not.toBeInTheDocument();
+    expect(screen.getByText(/包含隐藏文件、Git、依赖、构建产物及敏感文件/)).toBeVisible();
+  });
+
+  it("keeps a pending count across navigation and labels partial counts honestly", async () => {
+    const user = userEvent.setup();
+    let finish!: (value: unknown) => void;
+    api.countProjectFiles.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "前往项目" }));
+    expect(await screen.findByText("正在统计文件…")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "前往数据" }));
+    await user.click(screen.getByRole("button", { name: "前往项目" }));
+    expect(api.countProjectFiles).toHaveBeenCalledTimes(1);
+    await act(async () => finish([{path: "C:\\Work\\demo", name: "demo", markers: [], file_count: 17, file_count_complete: false, skipped_entries: 2}]));
+    expect(await screen.findByText("已统计 17 文件 · 部分统计，跳过 2 项")).toBeVisible();
+  });
+
+  it("distinguishes a count error from a verified empty folder", async () => {
+    const user = userEvent.setup();
+    api.countProjectFiles.mockRejectedValue({ message: "synthetic read failure" });
+    api.discoverLocalCandidates.mockResolvedValue({ candidates: [{ path: "F:\\Projects\\EmptyFolder", name: "EmptyFolder", markers: [], file_count: 0, file_count_complete: true, skipped_entries: 0 }], codex_homes: [], conversation_count: 0, scanned_roots: ["F:\\Projects"], skipped_roots: [], warnings: [], permission_denied_count: 0, other_warning_count: 0, cancelled: false });
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "前往项目" }));
+    expect(await screen.findByText("统计失败，请重新扫描")).toBeVisible();
+    expect(screen.getByText("0 文件")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "切换为英文" }));
+    expect(screen.getByText("Count failed; scan again")).toBeVisible();
+    expect(screen.getByText("0 files")).toBeVisible();
+    expect(screen.getByText(/Full local project backup includes hidden files/)).toBeVisible();
+  });
+
+  it("serializes file counts when a second project is added during a pending count", async () => {
+    const user = userEvent.setup();
+    let finish!: (value: unknown) => void;
+    api.countProjectFiles.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "前往项目" }));
+    await screen.findByText("正在统计文件…");
+    await user.type(screen.getByRole("textbox", { name: "手动添加项目目录" }), "C:\\Work\\second");
+    await user.click(screen.getByRole("button", { name: "添加目录" }));
+    expect(api.countProjectFiles).toHaveBeenCalledTimes(1);
+    await act(async () => finish([{ path: "C:\\Work\\demo", name: "demo", markers: [], file_count: 4, file_count_complete: true, skipped_entries: 0 }]));
+    await waitFor(() => expect(api.countProjectFiles).toHaveBeenCalledTimes(2));
+    expect(api.countProjectFiles).toHaveBeenLastCalledWith(["C:\\Work\\second"]);
+    expect(await screen.findByText("4 文件")).toBeVisible();
+    expect(await screen.findByText("3 文件")).toBeVisible();
+  });
+
+  it("does not restart an outstanding file count until it finishes after rescan", async () => {
+    const user = userEvent.setup();
+    let finish!: (value: unknown) => void;
+    api.countProjectFiles.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "前往项目" }));
+    await screen.findByText("正在统计文件…");
+    await user.click(screen.getByRole("button", { name: "重新扫描" }));
+    await screen.findByText("本机项目扫描已完成");
+    expect(api.countProjectFiles).toHaveBeenCalledTimes(1);
+    await act(async () => finish([{ path: "C:\\Work\\demo", name: "demo", markers: [], file_count: 99, file_count_complete: true, skipped_entries: 0 }]));
+    await waitFor(() => expect(api.countProjectFiles).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("3 文件")).toBeVisible();
+    expect(screen.queryByText("99 文件")).not.toBeInTheDocument();
+  });
+
+  it("does not let slow startup discovery replace a newer manual scan or its settings", async () => {
+    const user = userEvent.setup();
+    let finish!: (value: unknown) => void;
+    api.discoverCodex.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    api.getAppConfig.mockResolvedValue({ ...config, project_scan_roots: ["C:\\OLD"] });
+    api.discoverLocalCandidates.mockResolvedValue({ candidates: [{ path: "C:\\NEW\\current", name: "current", markers: [], file_count: 7, file_count_complete: true, skipped_entries: 0 }], codex_homes: [], conversation_count: 0, scanned_roots: ["C:\\NEW"], skipped_roots: [], warnings: [], permission_denied_count: 0, other_warning_count: 0, cancelled: false });
+    render(<App />);
+    await waitFor(() => expect(api.discoverCodex).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole("button", { name: "前往项目" }));
+    const roots = screen.getByRole("textbox", { name: "项目扫描目录（每行一个；留空扫描所有本地磁盘）" });
+    await user.clear(roots);
+    await user.type(roots, "C:\\NEW");
+    await user.click(screen.getByRole("button", { name: "重新扫描" }));
+    await screen.findByText("7 文件");
+    await act(async () => finish(inventory));
+    expect(api.discoverLocalCandidates).toHaveBeenCalledTimes(1);
+    expect(api.discoverLocalCandidates).toHaveBeenLastCalledWith(["C:\\NEW"]);
+    await user.click(screen.getByRole("button", { name: "前往概览" }));
+    await user.click(screen.getByRole("button", { name: "前往项目" }));
+    expect(screen.getByRole("textbox", { name: "项目扫描目录（每行一个；留空扫描所有本地磁盘）" })).toHaveValue("C:\\NEW");
+  });
+
+  it("ends startup loading when a manual scan supersedes a pending config read", async () => {
+    const user = userEvent.setup();
+    let finish!: (value: unknown) => void;
+    api.getAppConfig.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "前往项目" }));
+    await user.type(screen.getByRole("textbox", { name: "项目扫描目录（每行一个；留空扫描所有本地磁盘）" }), "C:\\NEW");
+    await user.click(screen.getByRole("button", { name: "重新扫描" }));
+    await screen.findByText("本机项目扫描已完成");
+    await act(async () => finish({ ...config, project_scan_roots: ["C:\\OLD"] }));
+    expect(api.discoverCodex).not.toHaveBeenCalled();
+    expect(api.discoverLocalCandidates).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("本机已就绪")).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "项目扫描目录（每行一个；留空扫描所有本地磁盘）" })).toHaveValue("C:\\NEW");
+    await user.click(screen.getByRole("button", { name: "前往备份与迁移" }));
+    expect(screen.getByRole("button", { name: "开始本地备份" })).toBeVisible();
+  });
+
+  it("does not announce complete scanning when a project count is partial", async () => {
+    api.discoverLocalCandidates.mockResolvedValue({ candidates: [{ path: "F:\\Projects\\Partial", name: "Partial", markers: [], file_count: 9, file_count_complete: false, skipped_entries: 1 }], codex_homes: [], conversation_count: 0, scanned_roots: ["F:\\Projects"], skipped_roots: [], warnings: [], permission_denied_count: 0, other_warning_count: 0, cancelled: false });
+    render(<App />);
+    expect(await screen.findByText("本机项目扫描已部分完成")).toBeVisible();
+    expect(screen.queryByText("本机项目扫描已完成")).not.toBeInTheDocument();
+    expect(screen.getByText("至少 9")).toBeVisible();
+  });
+  it("does not let a slow data discovery overwrite a newer project selection", async () => {
+    const user = userEvent.setup();
+    let finish!: (value: unknown) => void;
+    render(<App />);
+    await screen.findByText("本机已就绪");
+    await user.click(screen.getByRole("button", { name:"前往数据" }));
+    api.discoverCodex.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    await user.click(screen.getByRole("button", { name:"保存数据设置" }));
+    await user.click(screen.getByRole("button", { name:"前往项目" }));
+    await user.click(screen.getByRole("checkbox", { name:"选择项目 demo" }));
+    await user.click(screen.getByRole("button", { name:"保存项目选择" }));
+    await act(async () => finish(inventory));
+    expect(api.saveAppConfig).toHaveBeenLastCalledWith(expect.objectContaining({selected_project_paths:[]}));
+    expect(screen.getByRole("checkbox", { name:"选择项目 demo" })).not.toBeChecked();
+  });
+
+  it("retains a migration report completed while viewing another page", async () => {
+    const user = userEvent.setup();
+    let finish!: (value: unknown) => void;
+    api.createPackage.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    api.openPath.mockResolvedValue(undefined);
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name:"前往备份与迁移" }));
+    await user.click(screen.getByRole("tab", { name:"导出 ReHome 迁移包" }));
+    await user.click(screen.getByRole("checkbox", { name:"选择项目 demo" }));
+    await user.click(screen.getByRole("button", { name:"创建迁移包" }));
+    await user.click(screen.getByRole("button", { name:"前往项目" }));
+    await act(async () => finish({package_path:"F:\\Synthetic\\preserved.rehome",reveal_id:"synthetic",counts:inventory.counts,bytes_written:200,archive_hash:"synthetic-checksum",warnings:[]}));
+    await user.click(screen.getByRole("button", { name:"前往备份与迁移" }));
+    expect(screen.getByRole("tab", { name:"本地备份" })).toHaveAttribute("aria-selected", "true");
+    await user.click(screen.getByRole("tab", { name:"导出 ReHome 迁移包" }));
+    expect(screen.getByText("F:\\Synthetic\\preserved.rehome")).toBeVisible();
+  });
+  it("refreshes data after saving a different Codex source", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText("本机已就绪");
+    await user.click(screen.getByRole("button", { name: "前往数据" }));
+    api.pickDirectory.mockResolvedValue("F:\\Synthetic\\.codex");
+    api.discoverCodex.mockResolvedValue({ ...inventory, codex_home: "F:\\Synthetic\\.codex", counts: {...inventory.counts, conversations: 27} });
+    await user.click(screen.getByRole("button", { name: "选择 Codex 数据位置" }));
+    await user.click(screen.getByRole("button", { name: "保存数据设置" }));
+    expect(await screen.findByText("27")).toBeVisible();
+    expect(api.discoverCodex).toHaveBeenLastCalledWith("F:\\Synthetic\\.codex");
+  });
+
+  it("shows English scan, migration and local/device restore instructions", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText("本机已就绪");
+    await user.click(screen.getByRole("button", { name: "切换为英文" }));
+    await user.click(screen.getByRole("button", { name: "Go to Projects" }));
+    expect(screen.getByRole("checkbox", { name: "Scan projects automatically at startup" })).toBeChecked();
+    expect(await screen.findByText("3 files")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Go to Backups & Migration" }));
+    await user.click(screen.getByRole("tab", { name: "Export a ReHome migration package" }));
+    expect(screen.getByRole("heading", { name: "Export a ReHome migration package" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Back to local backup" }));
+    await user.click(screen.getByRole("button", { name: "Go to How it works" }));
+    expect(screen.getByRole("heading", { name: "Restore on this device" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Move to another device" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Restored files do not guarantee session continuation" })).toBeVisible();
+  });
+
+  it("does not claim a partial restore is complete", async () => {
+    const user = userEvent.setup();
+    api.listLocalBackups.mockResolvedValue([{restic_snapshot_id:"partial-fixture",created_at:"2026-09-19T00:00:00Z",file_count:2,complete:false}]);
+    api.restoreLocalBackup.mockResolvedValue({restored_root:"F:\\Synthetic\\restored",restored_files:2,complete:false,missing:[{path:"synthetic-locked.txt",reason:"synthetic locked-file detail",bytes:3}]});
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "前往备份与迁移" }));
+    await user.click(screen.getByRole("button", { name: "刷新本地备份" }));
+    const target = screen.getByLabelText("恢复目标目录");
+    await user.type(target, "F:\\Synthetic\\empty");
+    await user.click(screen.getByRole("button", { name: "恢复" }));
+    await waitFor(() => expect(api.restoreLocalBackup).toHaveBeenCalledTimes(1));
+    expect(screen.getAllByText(/恢复已结束，但备份中存在缺失内容/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/^恢复完成/)).not.toBeInTheDocument();
+    await user.click(screen.getByText("查看恢复缺失清单"));
+    expect(screen.getByText(/synthetic-locked.txt/)).toBeVisible();
+    expect(screen.getByText(/synthetic locked-file detail/)).toBeVisible();
+    expect(screen.getByText(/manifest.json/)).toBeVisible();
+  });
+  it("returns from both migration pages and defaults to local backup on reentry", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "前往备份与迁移" }));
+    for (const name of ["导出 ReHome 迁移包", "导入 ReHome 迁移包"]) {
+      document.documentElement.scrollTop = 400;
+      await user.click(screen.getByRole("tab", { name }));
+      expect(document.documentElement.scrollTop).toBe(0);
+      await user.click(screen.getByRole("button", { name: "返回本地备份" }));
+      expect(screen.getByRole("tab", { name: "本地备份" })).toHaveAttribute("aria-selected", "true");
+    }
+    await user.click(screen.getByRole("tab", { name: "导出 ReHome 迁移包" }));
+    await user.click(screen.getByRole("button", { name: "前往项目" }));
+    await user.click(screen.getByRole("button", { name: "前往备份与迁移" }));
+    expect(screen.getByRole("tab", { name: "本地备份" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("keeps an in-flight backup and its result across navigation without resetting settings", async () => {
+    const user = userEvent.setup();
+    let finish!: (value: unknown) => void;
+    api.runLocalBackup.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "前往备份与迁移" }));
+    await user.type(screen.getByLabelText("恢复密码"), "synthetic-password");
+    await user.click(screen.getByRole("button", { name: "开始本地备份" }));
+    await user.click(screen.getByRole("button", { name: "前往数据" }));
+    expect(screen.getByRole("heading", { name: "数据" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "查看进行中的任务" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "前往备份与迁移" }));
+    expect(screen.getByRole("button", { name: "备份进行中" })).toBeDisabled();
+    expect(screen.getByLabelText("恢复密码")).toHaveValue("synthetic-password");
+    await user.click(screen.getByRole("button", { name: "前往项目" }));
+    await user.click(screen.getByRole("checkbox", { name: "选择项目 demo" }));
+    await user.click(screen.getByRole("button", { name: "保存项目选择" }));
+    await act(async () => finish({
+      logical_backup_id: "fixture-backup", restic_snapshot_id: "fixture-snapshot", complete: true,
+      manifest: { created_at: "2026-09-19T00:00:00Z", file_count: 4, byte_count: 300 },
+    }));
+    await user.click(screen.getByRole("button", { name: "前往备份与迁移" }));
+    expect(screen.getByText(/本地备份已完成 · 4/)).toBeVisible();
+    expect(api.runLocalBackup).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "前往项目" }));
+    expect(screen.getByRole("checkbox", { name: "选择项目 demo" })).not.toBeChecked();
+  });
+
+  it("deduplicates Windows aliases and allows deselecting an unavailable saved project", async () => {
+    const user = userEvent.setup();
+    api.discoverCodex.mockResolvedValue({ ...inventory, projects: [{ ...inventory.projects[0], source_path: "\\\\?\\C:\\Work\\demo", source_available: false }] });
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "前往项目" }));
+    const checkbox = screen.getByRole("checkbox", { name: "选择项目 demo" });
+    expect(checkbox).toBeChecked();
+    expect(checkbox).toBeEnabled();
+    await user.click(checkbox);
+    await user.click(screen.getByRole("button", { name: "保存项目选择" }));
+    expect(api.saveAppConfig).toHaveBeenLastCalledWith(expect.objectContaining({ selected_project_paths: [], project_selection_initialized: true }));
+    await user.click(screen.getByRole("button", { name: "前往概览" }));
+    await user.click(screen.getByRole("button", { name: "前往项目" }));
+    expect(screen.getByRole("checkbox", { name: "选择项目 demo" })).not.toBeChecked();
+  });
+
+  it("preserves an explicitly empty selection after restart and backs up only Codex data", async () => {
+    const user = userEvent.setup();
+    api.getAppConfig.mockResolvedValue({ ...config, selected_project_paths: [] });
+    api.runLocalBackup.mockRejectedValue({ message: "synthetic engine error" });
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "前往项目" }));
+    expect(screen.getByRole("checkbox", { name: "选择项目 demo" })).not.toBeChecked();
+    await user.click(screen.getByRole("button", { name: "前往备份与迁移" }));
+    await user.type(screen.getByLabelText("恢复密码"), "synthetic-password");
+    await user.click(screen.getByRole("button", { name: "开始本地备份" }));
+    expect(api.runLocalBackup).toHaveBeenCalledWith(expect.objectContaining({ project_paths: [] }));
+    expect(await screen.findByText("synthetic engine error")).toBeVisible();
+  });
+
+  it("respects disabled startup scanning and replaces previous rescan candidates", async () => {
+    const user = userEvent.setup();
+    api.getAppConfig.mockResolvedValue({ ...config, automatic_project_scan: false, selected_project_paths: [], project_scan_roots: ["F:\\Projects"] });
+    render(<App />);
+    await screen.findByText("本机已就绪");
+    expect(api.discoverLocalCandidates).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "前往项目" }));
+    expect(screen.getByRole("checkbox", { name: "启动时自动扫描项目" })).not.toBeChecked();
+    api.discoverLocalCandidates.mockResolvedValue({ candidates: [{path:"F:\\Projects\\first",name:"first",markers:[".git"]}], codex_homes:[], conversation_count:0, scanned_roots:["F:\\Projects"], skipped_roots:[],warnings:[],permission_denied_count:0,other_warning_count:0,cancelled:false });
+    await user.click(screen.getByRole("button", { name: "重新扫描" }));
+    expect(await screen.findByText("first")).toBeVisible();
+    expect(api.discoverLocalCandidates).toHaveBeenLastCalledWith(["F:\\Projects"]);
+    api.discoverLocalCandidates.mockResolvedValue({ candidates: [{path:"F:\\Projects\\second",name:"second",markers:[".git"]}], codex_homes:[], conversation_count:0, scanned_roots:["F:\\Projects"], skipped_roots:[],warnings:[],permission_denied_count:0,other_warning_count:0,cancelled:false });
+    await user.click(screen.getByRole("button", { name: "重新扫描" }));
+    expect(await screen.findByText("second")).toBeVisible();
+    expect(screen.queryByText("first")).not.toBeInTheDocument();
+    expect(screen.queryByText("demo")).not.toBeInTheDocument();
+  });
+
+  it("does not present an uncounted discovery as zero files", async () => {
+    const user = userEvent.setup();
+    api.discoverCodex.mockResolvedValue({ ...inventory, projects: [{...inventory.projects[0], file_count:0}], counts:{...inventory.counts,project_files:0} });
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "前往项目" }));
+    expect(await screen.findByText("3 文件")).toBeVisible();
+    expect(screen.queryByText(/^0 文件/)).not.toBeInTheDocument();
+  });
+
   it("exposes the primary navigation areas and a local-only state", async () => {
     render(<App />);
 
@@ -116,7 +430,7 @@ describe("ENHE Codex Backup shell", () => {
     expect(screen.getByRole("button", { name: "前往设置" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "前往操作说明" })).toBeInTheDocument();
     expect(screen.getAllByText("云端备份已关闭").length).toBeGreaterThan(0);
-    expect(screen.getByText("v0.1.2")).toBeInTheDocument();
+    expect(screen.getByText("v0.1.3")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Codex 数据备份&迁移" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "开始本地备份" })).toBeInTheDocument();
   });
