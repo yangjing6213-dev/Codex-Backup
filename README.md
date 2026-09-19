@@ -54,7 +54,7 @@ Codex 数据位置：C:\Users\<用户>\.codex
 
 ## 六、安装方法
 
-1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases)，或直接下载当前已发布的 [Windows x64 安装包（0.1.3）](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.3_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.3_x64-setup.exe.sha256)。0.1.4 源码已更新；在 0.1.4 Release 获得单独授权并发布前，请按下面的本地构建方式生成该版本安装包。
+1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases)，或直接下载 [Windows x64 安装包（0.1.4）](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.4/ENHE.Codex.Backup_0.1.4_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.4/ENHE.Codex.Backup_0.1.4_x64-setup.exe.sha256)。此安装包未进行代码签名；安装前请核对 SHA-256 校验值。
 2. 使用 PowerShell 计算安装包 SHA-256，并与校验文件比对。
 3. 运行安装包，按 Windows 当前用户范围完成安装。
 4. 首次启动后确认本机数据位置；云端保持关闭即可完成本地备份。
@@ -112,7 +112,7 @@ tests/                      隔离测试与文档契约测试
 
 ## 十一、版本说明
 
-当前版本：`0.1.4`。本版本在保留 0.1.3 全量项目文件备份、后台统计、页面切换不中断任务、ENHE 蓝色主题与图标等能力的基础上，修复 Windows 升级安装后已有桌面快捷方式仍显示旧图标的问题；安装程序只刷新已经存在的快捷方式，不改变用户不创建桌面快捷方式的选择。GitHub 当前公开下载仍为 0.1.3，0.1.4 Release 与安装包上传需要单独授权。真实 OneDrive、第二设备、真实会话续接和干净用户配置文件验证不在已完成证据范围内，详见 [STATUS](docs/STATUS.md) 与 [ACCEPTANCE](docs/ACCEPTANCE.md)。
+当前版本：`0.1.4`。本版本在保留 0.1.3 全量项目文件备份、后台统计、页面切换不中断任务、ENHE 蓝色主题与图标等能力的基础上，修复 Windows 升级安装后已有桌面快捷方式仍显示旧图标的问题；安装程序只刷新已经存在的快捷方式，不改变用户不创建桌面快捷方式的选择。[0.1.4 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.4) 提供未签名的 Windows x64 安装包及 SHA-256 校验文件，旧版本仍保留。真实 OneDrive、第二设备、真实会话续接和干净用户配置文件验证不在已完成证据范围内，详见 [STATUS](docs/STATUS.md) 与 [ACCEPTANCE](docs/ACCEPTANCE.md)。
 
 ## 十二、相关项目
 

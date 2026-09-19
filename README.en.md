@@ -48,7 +48,7 @@ Projects includes a Request administrator permission for restricted folders opti
 
 ## 6. Installation
 
-1. Open the [GitHub Releases installer download page](https://github.com/yangjing6213-dev/Codex-Backup/releases), or directly download the currently published [Windows x64 installer (0.1.3)](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.3_x64-setup.exe) and [SHA-256 checksum](https://github.com/yangjing6213-dev/Codex-Backup/releases/latest/download/ENHE.Codex.Backup_0.1.3_x64-setup.exe.sha256). The 0.1.4 source is available; until a separately authorized 0.1.4 Release is published, use the local build steps below to create that installer.
+1. Open the [GitHub Releases installer download page](https://github.com/yangjing6213-dev/Codex-Backup/releases), or directly download the [Windows x64 installer (0.1.4)](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.4/ENHE.Codex.Backup_0.1.4_x64-setup.exe) and [SHA-256 checksum](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.4/ENHE.Codex.Backup_0.1.4_x64-setup.exe.sha256). This installer is unsigned; verify its SHA-256 checksum before installation.
 2. Compare the installer SHA-256 with the sidecar in PowerShell.
 3. Run the installer for the Windows current user.
 4. Confirm the local data location on first launch; cloud may remain off.
@@ -120,7 +120,7 @@ See [COMPATIBILITY](docs/COMPATIBILITY.md), [UPSTREAM](docs/UPSTREAM.md), and [A
 
 ## 11. Version
 
-Current version: `0.1.4`. It retains the 0.1.3 complete-project backup, background counting, navigation-safe operations, and ENHE blue theme and icon, while fixing an upgrade issue that could leave an existing Windows desktop shortcut displaying the stale icon. The installer refreshes a shortcut only when one already exists, preserving a user's decision not to create one. The currently published GitHub download remains 0.1.3; publishing a 0.1.4 Release and installer assets requires separate authorization. Real OneDrive, second-device, live conversation continuation, and clean-profile verification remain outside the completed evidence boundary; see [STATUS](docs/STATUS.md) and [ACCEPTANCE](docs/ACCEPTANCE.md).
+Current version: `0.1.4`. It retains the 0.1.3 complete-project backup, background counting, navigation-safe operations, and ENHE blue theme and icon, while fixing an upgrade issue that could leave an existing Windows desktop shortcut displaying the stale icon. The installer refreshes a shortcut only when one already exists, preserving a user's decision not to create one. The [0.1.4 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.4) provides an unsigned Windows x64 installer and its SHA-256 checksum; older releases remain available. Real OneDrive, second-device, live conversation continuation, and clean-profile verification remain outside the completed evidence boundary; see [STATUS](docs/STATUS.md) and [ACCEPTANCE](docs/ACCEPTANCE.md).
 
 ## 12. Related projects
 
