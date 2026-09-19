@@ -8,7 +8,7 @@
 - Count all regular project files recursively in background workers; show incomplete counts and separate historical/manual paths from current results.
 - Include project dependencies, build outputs, hidden files and explicitly authorized `.env`, private keys and tokens in encrypted local backups; retain separate Codex credential exclusions and legacy ReHome export rules.
 - Replace the green theme with an accessible blue palette for light/dark/system modes, and use an ENHE-inspired blue application/window/installer icon.
-- Correct the selected Codex folder argument in native discovery, serialize pending file counts, and prevent stale startup discovery from overwriting a newer scan.
+- Correct the selected Codex folder argument in native discovery, serialize pending file counts, prevent stale startup discovery from overwriting a newer scan, and preserve existing settings when a rescan is requested before configuration loading finishes.
 - Preserve the restore manifest for source mapping and show missing-file details without counting internal metadata as project files.
 
 - Kept backup/restore work off the UI thread and preserved running tasks and results across page navigation.

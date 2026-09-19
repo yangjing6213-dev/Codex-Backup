@@ -174,9 +174,23 @@ function AppContent() {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const backupHeadingRef = useRef<HTMLHeadingElement>(null);
   const configRef = useRef(config);
+  const configLoadPromise = useRef<Promise<AppConfig> | null>(null);
+  const configLoadResolved = useRef(false);
   const dataRequestGeneration = useRef(0);
   configRef.current = config;
   const previousViewRef = useRef(view);
+
+  const loadConfig = useCallback(() => {
+    if (!configLoadPromise.current) {
+      configLoadPromise.current = getAppConfig().then((saved) => {
+        const loaded = { ...defaultConfig(), ...saved };
+        configRef.current = loaded;
+        configLoadResolved.current = true;
+        return loaded;
+      });
+    }
+    return configLoadPromise.current;
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -186,7 +200,7 @@ function AppContent() {
       let loaded = defaultConfig();
       let fastDiscoverySucceeded = false;
       try {
-        loaded = { ...defaultConfig(), ...await getAppConfig() };
+        loaded = await loadConfig();
         if (isCurrent()) {
           setConfig(loaded);
           setLocale(loaded.locale);
@@ -286,7 +300,7 @@ function AppContent() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadConfig]);
 
   useEffect(() => {
     if (previousViewRef.current !== view) {
@@ -303,12 +317,26 @@ function AppContent() {
   const persistConfig = useCallback(
     async (next: AppConfig, message = "设置已保存") => {
       const saved = await saveAppConfig(next);
+      configRef.current = saved;
       setConfig(saved);
       setLocale(saved.locale);
       setNotice(message);
+      return saved;
     },
     [setLocale],
   );
+
+  async function persistProjectConfig(next: AppConfig, message: string) {
+    const configWasReady = configLoadResolved.current;
+    await loadConfig();
+    return persistConfig({
+      ...configRef.current,
+      automatic_project_scan: configWasReady ? next.automatic_project_scan : configRef.current.automatic_project_scan,
+      project_scan_roots: next.project_scan_roots,
+      selected_project_paths: configWasReady ? next.selected_project_paths : configRef.current.selected_project_paths,
+      project_selection_initialized: configWasReady ? next.project_selection_initialized : configRef.current.project_selection_initialized,
+    }, message);
+  }
 
   async function chooseCodexHome() {
     try {
@@ -334,7 +362,7 @@ function AppContent() {
     setNotice(null);
     setLocalScanState("running");
     try {
-      await persistConfig(next, t("项目选择已保存"));
+      const saved = await persistProjectConfig(next, t("项目选择已保存"));
       if (generation !== scanGeneration.current) return;
       setLatestScanOnly(true);
       countGeneration.current += 1;
@@ -342,7 +370,7 @@ function AppContent() {
       countQueue.current.clear();
       setProjectFileCounts({});
       setLocalDiscovery(null);
-      const result = administrator ? await requestAdminLocalDiscovery() : await discoverLocalCandidates(next.project_scan_roots);
+      const result = administrator ? await requestAdminLocalDiscovery() : await discoverLocalCandidates(saved.project_scan_roots);
       if (generation !== scanGeneration.current) return;
       setLocalDiscovery(result);
       setLocalScanState(localScanStateFor(result));
@@ -444,7 +472,7 @@ function AppContent() {
             config={config}
             onSave={async (next) => {
               try {
-                await persistConfig(next, t("项目选择已保存"));
+                await persistProjectConfig(next, t("项目选择已保存"));
               } catch (caught) {
                 setError(errorMessage(caught, t));
               }

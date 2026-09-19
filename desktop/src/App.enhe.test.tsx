@@ -209,7 +209,7 @@ describe("ENHE Codex Backup shell", () => {
     expect(screen.getByRole("textbox", { name: "项目扫描目录（每行一个；留空扫描所有本地磁盘）" })).toHaveValue("C:\\NEW");
   });
 
-  it("ends startup loading when a manual scan supersedes a pending config read", async () => {
+  it("preserves loaded settings when a manual scan is requested before config loading finishes", async () => {
     const user = userEvent.setup();
     let finish!: (value: unknown) => void;
     api.getAppConfig.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
@@ -217,10 +217,28 @@ describe("ENHE Codex Backup shell", () => {
     await user.click(screen.getByRole("button", { name: "前往项目" }));
     await user.type(screen.getByRole("textbox", { name: "项目扫描目录（每行一个；留空扫描所有本地磁盘）" }), "C:\\NEW");
     await user.click(screen.getByRole("button", { name: "重新扫描" }));
+    expect(api.saveAppConfig).not.toHaveBeenCalled();
+    await act(async () => finish({
+      ...config,
+      codex_home: "C:\\Users\\Preserved\\.codex",
+      local_repository: "E:\\Preserved\\backups",
+      frequency_minutes: 90,
+      automatic_backup_enabled: true,
+      automatic_project_scan: false,
+      project_scan_roots: ["C:\\OLD"],
+    }));
     await screen.findByText("本机项目扫描已完成");
-    await act(async () => finish({ ...config, project_scan_roots: ["C:\\OLD"] }));
     expect(api.discoverCodex).not.toHaveBeenCalled();
     expect(api.discoverLocalCandidates).toHaveBeenCalledTimes(1);
+    expect(api.saveAppConfig).toHaveBeenCalledWith(expect.objectContaining({
+      codex_home: "C:\\Users\\Preserved\\.codex",
+      local_repository: "E:\\Preserved\\backups",
+      frequency_minutes: 90,
+      automatic_backup_enabled: true,
+      automatic_project_scan: false,
+      project_scan_roots: ["C:\\NEW"],
+      selected_project_paths: ["C:\\Work\\demo"],
+    }));
     expect(await screen.findByText("本机已就绪")).toBeVisible();
     expect(screen.getByRole("textbox", { name: "项目扫描目录（每行一个；留空扫描所有本地磁盘）" })).toHaveValue("C:\\NEW");
     await user.click(screen.getByRole("button", { name: "前往备份与迁移" }));

@@ -120,7 +120,7 @@ See [COMPATIBILITY](docs/COMPATIBILITY.md), [UPSTREAM](docs/UPSTREAM.md), and [A
 
 ## 11. Version
 
-Current version: `0.1.3`. This version lists the real direct child folder names for configured scan roots, counts every regular project file in background workers, and includes hidden files, dependencies, build outputs, plus explicitly requested `.env`, private keys, and tokens in encrypted complete project backups. It also moves long-running backup work off the UI thread, preserves tasks across navigation, fixes migration return navigation, project deselection, and restore manifests, and introduces an ENHE blue theme and application icon. Real OneDrive, second-device, live conversation continuation, and clean-profile verification remain outside the completed evidence boundary; see [STATUS](docs/STATUS.md) and [ACCEPTANCE](docs/ACCEPTANCE.md).
+Current version: `0.1.3`. This version lists the real direct child folder names for configured scan roots, counts every regular project file in background workers, and includes hidden files, dependencies, build outputs, plus explicitly requested `.env`, private keys, and tokens in encrypted complete project backups. It also moves long-running backup work off the UI thread, preserves tasks across navigation, fixes migration return navigation, project deselection, restore manifests, and the startup race that could overwrite existing settings when a rescan was requested before configuration loading finished, and introduces an ENHE blue theme and application icon. Real OneDrive, second-device, live conversation continuation, and clean-profile verification remain outside the completed evidence boundary; see [STATUS](docs/STATUS.md) and [ACCEPTANCE](docs/ACCEPTANCE.md).
 
 ## 12. Related projects
 
