@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
+import appCapability from "../src-tauri/capabilities/default.json";
 
 const api = vi.hoisted(() => ({
   discoverCodex: vi.fn(),
@@ -113,17 +114,84 @@ beforeEach(() => {
 });
 
 describe("ENHE Codex Backup shell", () => {
-  it("shows exact scan folder names and counts separately from historical paths", async () => {
+  it("shows exact scan folder names and counts grouped by storage location", async () => {
     const user = userEvent.setup();
     api.discoverLocalCandidates.mockResolvedValue({ candidates: [{ path: "F:\\Projects\\Product-video（推广视频生成）", name: "Product-video（推广视频生成）", markers: [], file_count: 1234, file_count_complete: true, skipped_entries: 0 }], codex_homes: [], conversation_count: 0, scanned_roots: ["F:\\Projects"], skipped_roots: [], warnings: [], permission_denied_count: 0, other_warning_count: 0, cancelled: false });
     render(<App />);
     await user.click(await screen.findByRole("button", { name: "前往项目" }));
     expect(await screen.findByText("1,234 文件")).toBeVisible();
-    expect(screen.getByRole("heading", { name: "本次扫描的项目" })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "手动与历史项目" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "F 盘 (F:)" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "C 盘 (C:)" })).toBeVisible();
     expect(screen.getByText("Product-video（推广视频生成）")).toBeVisible();
     expect(screen.queryByText("文件数将在备份时统计")).not.toBeInTheDocument();
     expect(screen.getByText(/包含隐藏文件、Git、依赖、构建产物及敏感文件/)).toBeVisible();
+  });
+
+  it("groups network and non-drive project paths separately", async () => {
+    const user = userEvent.setup();
+    api.discoverLocalCandidates.mockResolvedValue({
+      candidates: [
+        { path: "\\\\backup-server\\projects\\network-demo", name: "network-demo", markers: [], file_count: 7, file_count_complete: true, skipped_entries: 0 },
+        { path: "/opt/projects/other-demo", name: "other-demo", markers: [], file_count: 9, file_count_complete: true, skipped_entries: 0 },
+      ],
+      codex_homes: [], conversation_count: 0, scanned_roots: ["\\\\backup-server\\projects", "/opt/projects"], skipped_roots: [], warnings: [], permission_denied_count: 0, other_warning_count: 0, cancelled: false,
+    });
+
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "前往项目" }));
+
+    expect(screen.getByRole("heading", { name: "网络位置" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "其他位置" })).toBeVisible();
+    expect(screen.getByText("network-demo")).toBeVisible();
+    expect(screen.getByText("other-demo")).toBeVisible();
+  });
+
+  it("hides unselected historical fixture paths while keeping startup scan results", async () => {
+    const user = userEvent.setup();
+    const stalePath = "F:\\Projects\\flight-control\\.pfc-eval-results\\fixtures\\EFF-01-r1";
+    api.getAppConfig.mockResolvedValue({ ...config, selected_project_paths: [], project_selection_initialized: true });
+    api.discoverCodex.mockResolvedValue({
+      ...inventory,
+      projects: [{ ...inventory.projects[0], name: "EFF-01-r1", source_path: stalePath, source_available: true }],
+      project_paths: [stalePath],
+    });
+    api.discoverLocalCandidates.mockResolvedValue({
+      candidates: [{ path: "F:\\Projects\\flight-control", name: "flight-control", markers: [".git"], file_count: 215, file_count_complete: true, skipped_entries: 0 }],
+      codex_homes: [], conversation_count: 0, scanned_roots: ["F:\\Projects"], skipped_roots: [], warnings: [], permission_denied_count: 0, other_warning_count: 0, cancelled: false,
+    });
+
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "前往项目" }));
+
+    expect(await screen.findByText("flight-control")).toBeVisible();
+    expect(screen.getByText("215 文件")).toBeVisible();
+    expect(screen.queryByText("EFF-01-r1")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "F 盘 (F:)" })).toBeVisible();
+  });
+
+  it("does not turn historical session paths into selected projects on first startup", async () => {
+    const user = userEvent.setup();
+    const stalePath = "F:\\Projects\\flight-control\\fixtures\\repo";
+    api.getAppConfig.mockResolvedValue({ ...config, selected_project_paths: [], project_selection_initialized: false });
+    api.discoverCodex.mockResolvedValue({
+      ...inventory,
+      projects: [{ ...inventory.projects[0], name: "repo", source_path: stalePath, source_available: true }],
+      project_paths: [stalePath],
+    });
+    api.discoverLocalCandidates.mockResolvedValue({
+      candidates: [{ path: "F:\\Projects\\flight-control", name: "flight-control", markers: [".git"], file_count: 215, file_count_complete: true, skipped_entries: 0 }],
+      codex_homes: [], conversation_count: 0, scanned_roots: ["F:\\Projects"], skipped_roots: [], warnings: [], permission_denied_count: 0, other_warning_count: 0, cancelled: false,
+    });
+
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "前往项目" }));
+
+    expect(await screen.findByText("flight-control")).toBeVisible();
+    expect(screen.queryByText("repo")).not.toBeInTheDocument();
+    expect(api.saveAppConfig).toHaveBeenCalledWith(expect.objectContaining({
+      selected_project_paths: [],
+      project_selection_initialized: true,
+    }));
   });
 
   it("keeps a pending count across navigation and labels partial counts honestly", async () => {
@@ -265,7 +333,7 @@ describe("ENHE Codex Backup shell", () => {
     await user.click(screen.getByRole("button", { name:"保存项目选择" }));
     await act(async () => finish(inventory));
     expect(api.saveAppConfig).toHaveBeenLastCalledWith(expect.objectContaining({selected_project_paths:[]}));
-    expect(screen.getByRole("checkbox", { name:"选择项目 demo" })).not.toBeChecked();
+    expect(screen.queryByRole("checkbox", { name:"选择项目 demo" })).not.toBeInTheDocument();
   });
 
   it("retains a migration report completed while viewing another page", async () => {
@@ -376,7 +444,7 @@ describe("ENHE Codex Backup shell", () => {
     expect(screen.getByText(/本地备份已完成 · 4/)).toBeVisible();
     expect(api.runLocalBackup).toHaveBeenCalledTimes(1);
     await user.click(screen.getByRole("button", { name: "前往项目" }));
-    expect(screen.getByRole("checkbox", { name: "选择项目 demo" })).not.toBeChecked();
+    expect(screen.queryByRole("checkbox", { name: "选择项目 demo" })).not.toBeInTheDocument();
   });
 
   it("deduplicates Windows aliases and allows deselecting an unavailable saved project", async () => {
@@ -388,11 +456,15 @@ describe("ENHE Codex Backup shell", () => {
     expect(checkbox).toBeChecked();
     expect(checkbox).toBeEnabled();
     await user.click(checkbox);
+    expect(checkbox).toBeInTheDocument();
+    expect(checkbox).not.toBeChecked();
+    expect(screen.getByText("目录当前不可访问；可以取消选择。")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "保存项目选择" }));
     expect(api.saveAppConfig).toHaveBeenLastCalledWith(expect.objectContaining({ selected_project_paths: [], project_selection_initialized: true }));
+    await waitFor(() => expect(screen.queryByRole("checkbox", { name: "选择项目 demo" })).not.toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "前往概览" }));
     await user.click(screen.getByRole("button", { name: "前往项目" }));
-    expect(screen.getByRole("checkbox", { name: "选择项目 demo" })).not.toBeChecked();
+    expect(screen.queryByRole("checkbox", { name: "选择项目 demo" })).not.toBeInTheDocument();
   });
 
   it("preserves an explicitly empty selection after restart and backs up only Codex data", async () => {
@@ -401,7 +473,7 @@ describe("ENHE Codex Backup shell", () => {
     api.runLocalBackup.mockRejectedValue({ message: "synthetic engine error" });
     render(<App />);
     await user.click(await screen.findByRole("button", { name: "前往项目" }));
-    expect(screen.getByRole("checkbox", { name: "选择项目 demo" })).not.toBeChecked();
+    expect(screen.queryByRole("checkbox", { name: "选择项目 demo" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "前往备份与迁移" }));
     await user.type(screen.getByLabelText("恢复密码"), "synthetic-password");
     await user.click(screen.getByRole("button", { name: "开始本地备份" }));
@@ -447,8 +519,9 @@ describe("ENHE Codex Backup shell", () => {
     expect(screen.getByRole("button", { name: "前往备份与迁移" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "前往设置" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "前往操作说明" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "前往关于作者" })).toBeInTheDocument();
     expect(screen.getAllByText("云端备份已关闭").length).toBeGreaterThan(0);
-    expect(screen.getByText("v0.1.4")).toBeInTheDocument();
+    expect(screen.getByText("v0.1.5")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Codex 数据备份&迁移" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "开始本地备份" })).toBeInTheDocument();
   });
@@ -495,6 +568,35 @@ describe("ENHE Codex Backup shell", () => {
     expect(screen.getByText("自动扫描并确认路径")).toBeInTheDocument();
     expect(screen.getByText("选择项目")).toBeInTheDocument();
     expect(screen.getByText("恢复或离线迁移")).toBeInTheDocument();
+  });
+
+  it("opens a bilingual author page with the supplied portrait and contact links", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "前往关于作者" }));
+
+    expect(screen.getByRole("heading", { name: "关于作者" })).toBeInTheDocument();
+    expect(screen.getByText("产品设计师 · 一人公司实践者 · AI Builder")).toBeVisible();
+    expect(screen.getByRole("img", { name: "Enhe（恩禾）" })).toHaveAttribute("src", "/author-enhe.png");
+    expect(screen.getByRole("link", { name: "yangjing6213-dev" })).toHaveAttribute("href", "https://github.com/yangjing6213-dev");
+    expect(screen.getByRole("link", { name: "yangjing6213-dev" })).toHaveAttribute("target", "_blank");
+    expect(screen.getByRole("link", { name: "Amenenhe_ai" })).toHaveAttribute("target", "_blank");
+    expect(screen.getByRole("link", { name: "www.enhe-tech.com.cn" })).toHaveAttribute("href", "https://www.enhe-tech.com.cn/");
+    expect(screen.getByRole("link", { name: "www.enhe-tech.com.cn" })).toHaveAttribute("target", "_blank");
+    expect(screen.getByRole("link", { name: "amen.enhe@gmail.com" })).toHaveAttribute("href", "mailto:amen.enhe@gmail.com");
+    expect(appCapability.permissions).toContainEqual({
+      identifier: "opener:allow-open-url",
+      allow: [
+        { url: "https://github.com/yangjing6213-dev" },
+        { url: "https://x.com/Amenenhe_ai" },
+        { url: "https://www.enhe-tech.com.cn/" },
+      ],
+    });
+
+    await user.click(screen.getByRole("button", { name: "切换为英文" }));
+    expect(screen.getByRole("heading", { name: "About the author" })).toBeInTheDocument();
+    expect(screen.getByText("Product Designer · Solo Company Practitioner · AI Builder")).toBeVisible();
   });
 
   it("summarizes skipped permission directories and lets the user request an elevated scan", async () => {

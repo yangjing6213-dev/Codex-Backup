@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$expectedVersion = "0.1.4"
+$expectedVersion = "0.1.5"
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 
 $package = Get-Content -LiteralPath (Join-Path $projectRoot "desktop\package.json") -Raw | ConvertFrom-Json

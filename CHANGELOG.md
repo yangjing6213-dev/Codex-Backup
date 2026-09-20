@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-09-20
+
+- Show current project discoveries by drive, network location, or other location while hiding unselected nested paths remembered only by historical Codex sessions.
+- Keep startup scanning and recursive all-file counts while retaining manually added, selected, and temporarily unavailable project paths for explicit review.
+- Add a responsive bilingual About the Author page with the supplied portrait and contact details, and restrict external-link access to the three published HTTPS destinations.
+- Refresh existing Windows desktop shortcuts by inheriting the installed executable icon, with a native NSIS regression fixture.
+- Keep package metadata, the window title, visible version labels, documentation, and the unsigned Windows installer aligned at version 0.1.5.
+
 ## [0.1.4] - 2026-09-20
 
 - Refresh an existing Windows desktop shortcut during installation so it uses the bundled ENHE blue application icon instead of a stale icon.

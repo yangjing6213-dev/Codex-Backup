@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   Sun,
   TriangleAlert,
+  UserRound,
 } from "lucide-react";
 
 import ReceivePage from "./features/receive/ReceivePage";
@@ -62,10 +63,11 @@ import {
 } from "./lib/types";
 import "./App.css";
 
-export type View = "overview" | "projects" | "data" | "backups" | "settings" | "guide";
+export type View = "overview" | "projects" | "data" | "backups" | "settings" | "guide" | "about";
 type BackupView = "local" | "export" | "import";
 type LocalScanState = "idle" | "running" | "complete" | "partial" | "failed";
 type ProjectFileCounts = Record<string, LocalProjectCandidate | "counting" | "failed">;
+type ProjectRow = { path: string; name: string; label: string; available: boolean; current: boolean; count?: LocalProjectCandidate };
 
 const views: Array<{
   id: View;
@@ -79,6 +81,7 @@ const views: Array<{
   { id: "backups", label: "备份与迁移", accessibleLabel: "前往备份与迁移", icon: Archive },
   { id: "settings", label: "设置", accessibleLabel: "前往设置", icon: Settings2 },
   { id: "guide", label: "操作说明", accessibleLabel: "前往操作说明", icon: BookOpen },
+  { id: "about", label: "关于作者", accessibleLabel: "前往关于作者", icon: UserRound },
 ];
 
 const viewTitles: Record<View, string> = {
@@ -88,6 +91,7 @@ const viewTitles: Record<View, string> = {
   backups: "备份与迁移",
   settings: "设置",
   guide: "操作说明",
+  about: "关于作者",
 };
 
 function defaultConfig(): AppConfig {
@@ -129,7 +133,6 @@ function AppContent() {
   const [inventory, setInventory] = useState<CodexInventory | null>(null);
   const [localDiscovery, setLocalDiscovery] = useState<LocalDiscoveryResult | null>(null);
   const [localScanState, setLocalScanState] = useState<LocalScanState>("idle");
-  const [latestScanOnly, setLatestScanOnly] = useState(false);
   const [projectFileCounts, setProjectFileCounts] = useState<ProjectFileCounts>({});
   const requestedCounts = useRef(new Set<string>());
   const countQueue = useRef(new Map<string, string>());
@@ -364,7 +367,6 @@ function AppContent() {
     try {
       const saved = await persistProjectConfig(next, t("项目选择已保存"));
       if (generation !== scanGeneration.current) return;
-      setLatestScanOnly(true);
       countGeneration.current += 1;
       requestedCounts.current.clear();
       countQueue.current.clear();
@@ -395,7 +397,7 @@ function AppContent() {
       <aside className="sidebar">
         <button className="brand" type="button" onClick={() => setView("overview")} aria-label={t("ENHE Codex Backup")}>
           <img className="brand-mark" src="/app-icon.png" alt="" />
-          <span className="brand-copy"><small className="brand-version">v0.1.4</small><strong>ENHE</strong><small>Codex Backup</small></span>
+          <span className="brand-copy"><small className="brand-version">v0.1.5</small><strong>ENHE</strong><small>Codex Backup</small></span>
         </button>
 
         <nav className="navigation" aria-label={t("主导航")}>
@@ -468,7 +470,6 @@ function AppContent() {
             localScanState={localScanState}
             onCancelLocalScan={() => { void cancelLocalDiscovery(); }}
             onRescan={rescanProjects}
-            latestScanOnly={latestScanOnly}
             config={config}
             onSave={async (next) => {
               try {
@@ -540,6 +541,7 @@ function AppContent() {
           />
         )}
         {view === "guide" && <GuidePage headingRef={headingRef} />}
+        {view === "about" && <AboutPage headingRef={headingRef} />}
       </main>
     </div>
   );
@@ -730,6 +732,40 @@ function GuidePage({ headingRef }: { headingRef: RefObject<HTMLHeadingElement | 
   );
 }
 
+function AboutPage({ headingRef }: { headingRef: RefObject<HTMLHeadingElement | null> }) {
+  const { t } = useI18n();
+  return (
+    <div className="page">
+      <header className="page-header">
+        <p className="eyebrow">ABOUT ENHE</p>
+        <h1 ref={headingRef} tabIndex={-1}>{t("关于作者")}</h1>
+        <p className="page-description">{t("用AI打造一个人公司。")}</p>
+      </header>
+      <section className="card author-card" aria-label={t("关于作者")}>
+        <img className="author-image" src="/author-enhe.png" alt="Enhe（恩禾）" />
+        <div className="author-profile">
+          <div>
+            <p className="eyebrow">ENHE</p>
+            <h2>Enhe（恩禾）</h2>
+            <p className="author-role">{t("产品设计师 · 一人公司实践者 · AI Builder")}</p>
+            <p>{t("用AI打造一个人公司。")}</p>
+          </div>
+          <div className="author-contact">
+            <h3>{t("联系方式")}</h3>
+            <dl>
+              <div><dt>GitHub</dt><dd><a href="https://github.com/yangjing6213-dev" target="_blank" rel="noreferrer">yangjing6213-dev</a></dd></div>
+              <div><dt>X / Twitter</dt><dd><a href="https://x.com/Amenenhe_ai" target="_blank" rel="noreferrer">Amenenhe_ai</a></dd></div>
+              <div><dt>{t("网站")}</dt><dd><a href="https://www.enhe-tech.com.cn/" target="_blank" rel="noreferrer">www.enhe-tech.com.cn</a></dd></div>
+              <div><dt>{t("微信")}</dt><dd>Hu-Amen</dd></div>
+              <div><dt>{t("邮箱")}</dt><dd><a href="mailto:amen.enhe@gmail.com">amen.enhe@gmail.com</a></dd></div>
+            </dl>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 interface ProjectsPageProps {
   headingRef: RefObject<HTMLHeadingElement | null>;
   inventory: CodexInventory | null;
@@ -743,26 +779,26 @@ interface ProjectsPageProps {
   localScanState: LocalScanState;
   onCancelLocalScan: () => void;
   onRescan: (config: AppConfig, administrator: boolean) => Promise<void>;
-  latestScanOnly: boolean;
   config: AppConfig;
   onSave: (config: AppConfig) => Promise<void>;
   onError: (message: string | null) => void;
 }
 
-function ProjectsPage({ headingRef, inventory, localCandidates, fileCounts, onCountFiles, localWarnings, permissionDeniedCount, otherWarningCount, scannedRootCount, localScanState, onCancelLocalScan, onRescan, latestScanOnly, config, onSave, onError }: ProjectsPageProps) {
+function ProjectsPage({ headingRef, inventory, localCandidates, fileCounts, onCountFiles, localWarnings, permissionDeniedCount, otherWarningCount, scannedRootCount, localScanState, onCancelLocalScan, onRescan, config, onSave, onError }: ProjectsPageProps) {
   const { t } = useI18n();
   const [selected, setSelected] = useState(() => new Set(config.selected_project_paths.map(pathKey)));
   const [manualPath, setManualPath] = useState("");
-  const [manualPaths, setManualPaths] = useState<string[]>(config.selected_project_paths);
+  const [manualPaths, setManualPaths] = useState<string[]>([]);
+  const savedSelected = new Set(config.selected_project_paths.map(pathKey));
   const [automaticScan, setAutomaticScan] = useState(config.automatic_project_scan);
   const [scanRoots, setScanRoots] = useState(config.project_scan_roots.join("\n"));
   const [requestAdmin, setRequestAdmin] = useState(false);
   const scanBusy = localScanState === "running";
-  const rows = new Map<string, { path: string; name: string; label: string; available: boolean; current: boolean; count?: LocalProjectCandidate }>();
+  const rows = new Map<string, ProjectRow>();
   const folderName = (path: string) => displayPath(path).replace(/[\\/]+$/, "").split(/[\\/]/).pop() || displayPath(path);
   for (const project of inventory?.projects ?? []) {
     const key = pathKey(project.source_path);
-    if (latestScanOnly && !selected.has(key) && !manualPaths.some((path) => pathKey(path) === key)) continue;
+    if (!savedSelected.has(key) && !manualPaths.some((path) => pathKey(path) === key)) continue;
     rows.set(key, { path: displayPath(project.source_path), name: folderName(project.source_path), label: folderName(project.source_path), available: project.source_available, current: false });
   }
   for (const candidate of localCandidates) {
@@ -772,6 +808,19 @@ function ProjectsPage({ headingRef, inventory, localCandidates, fileCounts, onCo
   for (const path of [...manualPaths, ...config.selected_project_paths]) {
     const key = pathKey(path);
     if (!rows.has(key)) rows.set(key, { path: displayPath(path), name: folderName(path), label: displayPath(path), available: true, current: false });
+  }
+  const groupedRows = new Map<string, { label: string; order: number; rows: Array<[string, ProjectRow]> }>();
+  for (const entry of [...rows].sort(([, left], [, right]) => left.path.localeCompare(right.path, undefined, { sensitivity: "base" }))) {
+    const normalized = displayPath(entry[1].path);
+    const drive = /^([a-z]):(?:\\|$)/i.exec(normalized);
+    const location = drive
+      ? { key: `drive:${drive[1].toUpperCase()}`, label: t("{letter} 盘 ({drive})", { letter: drive[1].toUpperCase(), drive: `${drive[1].toUpperCase()}:` }), order: drive[1].toUpperCase().charCodeAt(0) }
+      : normalized.startsWith("\\\\")
+        ? { key: "network", label: t("网络位置"), order: 1000 }
+        : { key: "other", label: t("其他位置"), order: 1001 };
+    const group = groupedRows.get(location.key) ?? { label: location.label, order: location.order, rows: [] };
+    group.rows.push(entry);
+    groupedRows.set(location.key, group);
   }
   const pathsToCount = JSON.stringify([...rows].filter(([key, row]) => row.available && row.count?.file_count === undefined && !fileCounts[key]).map(([, row]) => row.path));
   useEffect(() => { onCountFiles(JSON.parse(pathsToCount) as string[]); }, [pathsToCount, onCountFiles]);
@@ -805,7 +854,7 @@ function ProjectsPage({ headingRef, inventory, localCandidates, fileCounts, onCo
           <label className="checkbox-row"><input type="checkbox" checked={automaticScan} onChange={(event) => setAutomaticScan(event.target.checked)} disabled={scanBusy} /><span>{t("启动时自动扫描项目")}</span></label>
           <label><span>{t("项目扫描目录（每行一个；留空扫描所有本地磁盘）")}</span><textarea value={scanRoots} onChange={(event) => setScanRoots(event.target.value)} disabled={scanBusy} rows={3} placeholder="F:\Projects" /></label>
           <p className="help-text">{t("指定目录按直属文件夹列出项目；子目录只计入文件数量，不再作为独立项目。留空时使用全盘智能发现。")}</p>
-          <p className="help-text">{t("重新扫描替换当前结果；手动与历史项目单独保留，不代表本次扫描发现。")}</p>
+          <p className="help-text">{t("重新扫描将替换之前的发现结果；已保存选择和手动目录保留。旧迁移包与缓存不参与自动发现。")}</p>
           <p className="help-text">{t("完整本地项目备份包含隐藏文件、Git、依赖、构建产物及敏感文件（.env、私钥、Token）。仓库使用恢复密码加密，请勿共享密码。文件数为扫描时的普通文件数量；无法读取或未跟随的链接会标为部分统计。")}</p>
           <button className="secondary-button" type="button" disabled={scanBusy} onClick={() => void onRescan(nextConfig(), false)}><RefreshCw aria-hidden="true" />{t("重新扫描")}</button>
         </div>
@@ -827,16 +876,18 @@ function ProjectsPage({ headingRef, inventory, localCandidates, fileCounts, onCo
         </div>
         {(permissionDeniedCount > 0 || otherWarningCount > 0 || localWarnings.length > 0) && <div className="scan-warning" role="status"><TriangleAlert aria-hidden="true" /><span>{permissionDeniedCount > 0 && <>{t("已跳过 {count} 个无权限目录；可访问项目仍已显示。", { count: permissionDeniedCount })} </>}{otherWarningCount > 0 && <>{t("另有 {count} 条扫描提示。", { count: otherWarningCount })} </>}{localWarnings.length > 0 && <span>{localWarnings.join(" · ")}</span>}</span></div>}
         {rows.size === 0 && <p className="empty-state">{t("当前没有可扫描的项目。")}</p>}
-        {[true, false].map(current => <section key={String(current)} aria-label={t(current ? "本次扫描的项目" : "手动与历史项目")}>
-        {[...rows.values()].some(row => row.current === current) && <h2 className="project-group-title">{t(current ? "本次扫描的项目" : "手动与历史项目")}</h2>}
-        {[...rows].filter(([, row]) => row.current === current).map(([key, row]) => (
-          <label className="project-row" key={key}>
-            <input type="checkbox" checked={selected.has(key)} onChange={() => toggleProject(key)} aria-label={`${t("选择项目")} ${row.label}`} disabled={!row.available && !selected.has(key)} />
-            <span className="project-copy"><strong>{row.name}</strong><code>{row.path}</code>{!row.available && <small>{t("目录当前不可访问；可以取消选择。")}</small>}</span>
-            <span className="project-meta" role="status">{countLabel(key, row)}</span>
-          </label>
+        {[...groupedRows.entries()].sort(([, left], [, right]) => left.order - right.order).map(([groupKey, group]) => (
+          <section className="project-location" key={groupKey} aria-label={group.label}>
+            <h2 className="project-group-title">{group.label}</h2>
+            {group.rows.map(([key, row]) => (
+              <label className="project-row" key={key}>
+                <input type="checkbox" checked={selected.has(key)} onChange={() => toggleProject(key)} aria-label={`${t("选择项目")} ${row.label}`} disabled={!row.available && !selected.has(key)} />
+                <span className="project-copy"><strong>{row.name}</strong><code>{row.path}</code>{!row.current && row.available && <small>{t("保留的手动或已选目录")}</small>}{!row.available && <small>{t("目录当前不可访问；可以取消选择。")}</small>}</span>
+                <span className="project-meta" role="status">{countLabel(key, row)}</span>
+              </label>
+            ))}
+          </section>
         ))}
-        </section>)}
       </section>
     </div>
   );
@@ -1045,7 +1096,7 @@ function mergeAutomaticConfig(config: AppConfig, inventory: CodexInventory): App
   return {
     ...config,
     codex_home: config.codex_home?.trim() ? config.codex_home : inventory.codex_home,
-    selected_project_paths: config.project_selection_initialized || config.selected_project_paths.length > 0 ? config.selected_project_paths : inventory.project_paths,
+    selected_project_paths: config.selected_project_paths,
     project_selection_initialized: true,
   };
 }
@@ -1234,7 +1285,7 @@ function SettingsPage({ headingRef, config, scheduler, onSave, onConfigChange, o
         </div>}
       </section>
 
-      <section className="settings-footer"><button className="primary-button" type="button" onClick={() => { onConfigChange(draft); void onSave(draft); }}>{t("保存设置")}</button><span>{t("当前版本")} 0.1.4</span></section>
+      <section className="settings-footer"><button className="primary-button" type="button" onClick={() => { onConfigChange(draft); void onSave(draft); }}>{t("保存设置")}</button><span>{t("当前版本")} 0.1.5</span></section>
     </div>
   );
 }

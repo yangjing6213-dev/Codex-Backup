@@ -5,6 +5,14 @@
   "windows": ["main"],
   "permissions": [
     "core:app:allow-version",
-    "process:allow-restart"
+    "process:allow-restart",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "https://github.com/yangjing6213-dev" },
+        { "url": "https://x.com/Amenenhe_ai" },
+        { "url": "https://www.enhe-tech.com.cn/" }
+      ]
+    }
   ]
 }
