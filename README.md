@@ -54,7 +54,7 @@ Codex 数据位置：C:\Users\<用户>\.codex
 
 ## 六、安装方法
 
-1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases)，或直接下载 [Windows x64 安装包（0.1.5）](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.5/ENHE.Codex.Backup_0.1.5_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.5/ENHE.Codex.Backup_0.1.5_x64-setup.exe.sha256)。此安装包未进行代码签名；安装前请核对 SHA-256 校验值。
+1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases)，或直接下载 [Windows x64 安装包（0.1.6）](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.6/ENHE.Codex.Backup_0.1.6_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.6/ENHE.Codex.Backup_0.1.6_x64-setup.exe.sha256)。此安装包未进行代码签名；安装前请核对 SHA-256 校验值。
 2. 使用 PowerShell 计算安装包 SHA-256，并与校验文件比对。
 3. 运行安装包，按 Windows 当前用户范围完成安装。
 4. 首次启动后确认本机数据位置；云端保持关闭即可完成本地备份。
@@ -112,7 +112,7 @@ tests/                      隔离测试与文档契约测试
 
 ## 十一、版本说明
 
-当前版本：`0.1.5`。本版本将当前扫描项目按盘符、网络位置和其他位置分类，隐藏只来自历史 Codex 会话且未选择的嵌套测试目录，同时保留已选择、手动添加或暂时不可访问的目录供用户确认；新增双语“关于作者”页面及精确外链白名单，并改进已有桌面快捷方式的 ENHE 图标刷新。[0.1.5 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.5) 提供未签名的 Windows x64 安装包及 SHA-256 校验文件，旧版本仍保留。真实 OneDrive、第二设备、真实会话续接和干净用户配置文件验证不在已完成证据范围内，详见 [STATUS](docs/STATUS.md) 与 [ACCEPTANCE](docs/ACCEPTANCE.md)。
+当前版本：`0.1.6`。本版本会在启动 restic 前识别非空但不是完整备份仓库的普通目录，避免改动已有文件；备份与恢复失败会显示原因、解决方法和脱敏技术详情，并区分仓库、恢复密码和磁盘空间问题。[0.1.6 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.6) 计划提供未签名的 Windows x64 安装包及 SHA-256 校验文件，旧版本继续保留。真实 OneDrive、第二设备、真实会话续接和干净用户配置文件验证不在已完成证据范围内，详见 [STATUS](docs/STATUS.md) 与 [ACCEPTANCE](docs/ACCEPTANCE.md)。
 
 ## 十二、相关项目
 

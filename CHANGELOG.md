@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-09-20
+
+- Reject a non-empty ordinary folder before restic runs unless it has a complete restic repository layout, leaving every existing file unchanged.
+- Classify repository, recovery-password, and disk-space failures from sanitized restic diagnostics without exposing the temporary password-file path.
+- Show bilingual backup and restore errors with a summary, cause, solution, and technical detail; correct the restore-failure wording.
+- Approve the pinned `esbuild` install script in the pnpm workspace policy so canonical frontend checks and packaging can run non-interactively.
+- Keep package metadata, the window title, visible version labels, documentation, and the unsigned Windows installer aligned at version 0.1.6.
+
 ## [0.1.5] - 2026-09-20
 
 - Show current project discoveries by drive, network location, or other location while hiding unselected nested paths remembered only by historical Codex sessions.

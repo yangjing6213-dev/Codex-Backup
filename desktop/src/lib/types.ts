@@ -400,10 +400,10 @@ export type RollbackAction = "rollback" | "resume";
 
 const localizedErrorKeys: Record<string, string> = {
   backup_engine_unavailable: "备份引擎不可用，请检查安装包中的 restic。",
-  backup_repository_invalid: "备份仓库无效，请选择 ENHE 创建的仓库目录。",
+  backup_repository_invalid: "备份仓库无效，请选择新的空目录或有效仓库。",
   backup_password_required: "恢复密码错误或缺失，无法打开仓库。",
-  backup_failed: "本地备份失败，既有版本保持不变。",
-  unsafe_path: "路径不安全，请选择互不重叠的本地目录。",
+  backup_failed: "本地备份未完整完成；原始项目文件未被修改。",
+  unsafe_path: "路径不符合安全要求，请重新选择本地目录。",
   config_invalid: "设置无效，请检查字段后重试。",
   admin_scan_unavailable: "管理员扫描未完成，请检查 Windows UAC 提示。",
   scheduler_unavailable: "计划任务不可用，本地手动备份仍可继续。",
@@ -412,7 +412,7 @@ const localizedErrorKeys: Record<string, string> = {
   cloud_unavailable: "云端操作失败，本地备份不受影响。",
   codex_not_found: "未找到 Codex 数据，请在数据页选择数据位置。",
   project_conflict: "恢复目标已存在，未覆盖任何资料。",
-  restore_failed: "本地备份失败，既有版本保持不变。",
+  restore_failed: "本地恢复失败，现有资料保持不变。",
   package_invalid: "迁移包无效，请重新选择并预览。",
   checksum_mismatch: "迁移包校验失败，未写入目标。",
   unsupported_schema: "迁移包格式暂不支持。",
@@ -422,6 +422,37 @@ const localizedErrorKeys: Record<string, string> = {
   registration_incomplete: "Codex 注册未完成，请按提示手动打开恢复后的项目。",
 };
 
+const localizedErrorGuidance: Record<string, { cause: string; solution: string }> = {
+  backup_engine_unavailable: {
+    cause: "原因：应用无法启动随安装包提供的 restic。",
+    solution: "解决方法：请重新安装应用；若仍失败，请保留技术详情。",
+  },
+  backup_repository_invalid: {
+    cause: "原因：所选路径不是可用的 ENHE/restic 备份仓库，或仓库结构无法读取。",
+    solution: "解决方法：请选择新的空目录，或选择可正常打开的旧备份仓库，并根据技术详情检查权限或损坏情况。",
+  },
+  backup_password_required: {
+    cause: "原因：恢复密码缺失、错误，或与该仓库不匹配。",
+    solution: "解决方法：请输入创建该仓库时使用的恢复密码后重试。",
+  },
+  backup_failed: {
+    cause: "原因：备份引擎未能完成操作。",
+    solution: "解决方法：请检查备份目录权限和剩余空间，确认恢复密码后重试。",
+  },
+  unsafe_path: {
+    cause: "原因：所选路径可能存在目录重叠、路径越界、格式无效或不支持的名称。",
+    solution: "解决方法：请重新选择互不重叠的绝对本地目录；若仍失败，请根据技术详情修正路径。",
+  },
+  restore_failed: {
+    cause: "原因：备份快照未能恢复到目标目录。",
+    solution: "解决方法：请选择新的空目标目录，确认仓库和恢复密码后重试。",
+  },
+  disk_space_insufficient: {
+    cause: "原因：目标磁盘没有足够空间完成操作。",
+    solution: "解决方法：请释放磁盘空间，或选择空间充足的目录后重试。",
+  },
+};
+
 export function errorMessage(error: unknown, translate?: (key: string) => string): string {
   if (translate && typeof error === "object" && error !== null && "code" in error) {
     const code = String((error as { code: unknown }).code);
@@ -429,6 +460,15 @@ export function errorMessage(error: unknown, translate?: (key: string) => string
     if (key) {
       const translated = translate(key);
       const detail = "message" in error ? String((error as { message: unknown }).message) : "";
+      const guidance = localizedErrorGuidance[code];
+      if (guidance) {
+        return [
+          translated,
+          translate(guidance.cause),
+          translate(guidance.solution),
+          detail ? `${translate("技术详情：")}${detail}` : "",
+        ].filter(Boolean).join("\n");
+      }
       return code === "codex_not_found" && detail ? `${translated} ${detail}` : translated;
     }
   }

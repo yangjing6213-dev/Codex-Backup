@@ -118,6 +118,8 @@ exit 23
         &self,
         operation: impl Future<Output = Result<T, RehomeError>>,
         mutating: bool,
+        expected_code: ErrorCode,
+        expected_message: &str,
     ) {
         let mut operation = Box::pin(operation);
         let release = self.root.path().join("release");
@@ -144,8 +146,8 @@ exit 23
             "command blocked its executor until restic exited"
         );
         let error = result.err().expect("synthetic engine must fail");
-        assert_eq!(error.code, ErrorCode::BackupFailed);
-        assert_eq!(error.message, "backup engine failed (exit 23)");
+        assert_eq!(error.code, expected_code);
+        assert_eq!(error.message, expected_message);
         assert!(entered.exists(), "synthetic engine did not start");
         assert_eq!(
             lock_during_work,
@@ -174,21 +176,36 @@ impl Drop for Fixture {
 fn backup_yields_while_restic_is_blocked() {
     let fixture = Fixture::new();
     fixture.gated_engine();
-    fixture.assert_yields(run_local_backup(fixture.backup()), true);
+    fixture.assert_yields(
+        run_local_backup(fixture.backup()),
+        true,
+        ErrorCode::BackupFailed,
+        "backup engine failed (exit 23)",
+    );
 }
 
 #[test]
 fn list_yields_while_restic_is_blocked() {
     let fixture = Fixture::new();
     fixture.gated_engine();
-    fixture.assert_yields(list_local_backups(fixture.list()), false);
+    fixture.assert_yields(
+        list_local_backups(fixture.list()),
+        false,
+        ErrorCode::BackupFailed,
+        "backup engine failed (exit 23)",
+    );
 }
 
 #[test]
 fn restore_yields_while_restic_is_blocked() {
     let fixture = Fixture::new();
     fixture.gated_engine();
-    fixture.assert_yields(restore_local_backup(fixture.restore()), true);
+    fixture.assert_yields(
+        restore_local_backup(fixture.restore()),
+        true,
+        ErrorCode::RestoreFailed,
+        "restore engine failed (exit 23)",
+    );
 }
 
 #[test]

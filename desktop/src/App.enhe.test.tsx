@@ -481,6 +481,44 @@ describe("ENHE Codex Backup shell", () => {
     expect(await screen.findByText("synthetic engine error")).toBeVisible();
   });
 
+  it("explains why an ordinary non-empty backup folder is rejected and how to fix it", async () => {
+    const user = userEvent.setup();
+    api.runLocalBackup.mockRejectedValue({
+      code: "backup_repository_invalid",
+      message: "the selected directory is not a restic repository: D:\\GPT备份",
+    });
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "前往备份与迁移" }));
+    await user.type(screen.getByLabelText("恢复密码"), "synthetic-password");
+    await user.click(screen.getByRole("button", { name: "开始本地备份" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("备份仓库无效，请选择新的空目录或有效仓库。");
+    expect(alert).toHaveTextContent("原因：所选路径不是可用的 ENHE/restic 备份仓库，或仓库结构无法读取。");
+    expect(alert).toHaveTextContent("解决方法：请选择新的空目录，或选择可正常打开的旧备份仓库，并根据技术详情检查权限或损坏情况。");
+  });
+
+  it("uses the production English translations for actionable repository errors", async () => {
+    const user = userEvent.setup();
+    api.runLocalBackup.mockRejectedValue({
+      code: "backup_repository_invalid",
+      message: "the selected directory is not a restic repository: D:\\GPT备份",
+    });
+    render(<App />);
+
+    await screen.findByText("本机已就绪");
+    await user.click(screen.getByRole("button", { name: "切换为英文" }));
+    await user.click(screen.getByRole("button", { name: "Go to Backups & Migration" }));
+    await user.type(screen.getByLabelText("Recovery password"), "synthetic-password");
+    await user.click(screen.getByRole("button", { name: "Start local backup" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("The backup repository is invalid.");
+    expect(alert).toHaveTextContent("Cause: The selected path is not a usable ENHE/restic backup repository");
+    expect(alert).toHaveTextContent("Solution: Choose a new empty folder or an existing backup repository that opens successfully");
+  });
+
   it("respects disabled startup scanning and replaces previous rescan candidates", async () => {
     const user = userEvent.setup();
     api.getAppConfig.mockResolvedValue({ ...config, automatic_project_scan: false, selected_project_paths: [], project_scan_roots: ["F:\\Projects"] });
@@ -521,7 +559,7 @@ describe("ENHE Codex Backup shell", () => {
     expect(screen.getByRole("button", { name: "前往操作说明" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "前往关于作者" })).toBeInTheDocument();
     expect(screen.getAllByText("云端备份已关闭").length).toBeGreaterThan(0);
-    expect(screen.getByText("v0.1.5")).toBeInTheDocument();
+    expect(screen.getByText("v0.1.6")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Codex 数据备份&迁移" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "开始本地备份" })).toBeInTheDocument();
   });

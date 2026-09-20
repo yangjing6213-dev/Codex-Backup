@@ -473,6 +473,17 @@ pub fn restore_local(
     target: &Path,
     executable: &Path,
 ) -> Result<LocalRestoreReport, RehomeError> {
+    restore_local_inner(snapshot, repository, password, target, executable)
+        .map_err(as_restore_error)
+}
+
+fn restore_local_inner(
+    snapshot: &str,
+    repository: &Path,
+    password: &str,
+    target: &Path,
+    executable: &Path,
+) -> Result<LocalRestoreReport, RehomeError> {
     validate_snapshot_id(snapshot)?;
     if password.is_empty() {
         return Err(RehomeError::new(
@@ -526,6 +537,19 @@ pub fn restore_local(
         complete: manifest.missing.is_empty(),
         missing: manifest.missing,
     })
+}
+
+fn as_restore_error(error: RehomeError) -> RehomeError {
+    if error.code == ErrorCode::BackupFailed {
+        RehomeError::new(
+            ErrorCode::RestoreFailed,
+            error
+                .message
+                .replacen("backup engine failed", "restore engine failed", 1),
+        )
+    } else {
+        error
+    }
 }
 
 fn validate_request(request: &LocalBackupRequest) -> Result<(), RehomeError> {
@@ -1042,6 +1066,15 @@ fn ensure_repository(
         run_restic_with_password(executable, args, password)?;
         return Ok(());
     }
+    if !has_restic_repository_layout(repository) {
+        return Err(RehomeError::new(
+            ErrorCode::BackupRepositoryInvalid,
+            format!(
+                "the selected directory is not a restic repository: {}",
+                repository.display()
+            ),
+        ));
+    }
     let args = vec![
         OsString::from("--repo"),
         repository.as_os_str().to_owned(),
@@ -1071,6 +1104,13 @@ fn repository_has_entries(repository: &Path) -> Result<bool, RehomeError> {
         .transpose()
         .map_err(|error| backup_io("inspect backup repository", error))?
         .is_some())
+}
+
+fn has_restic_repository_layout(repository: &Path) -> bool {
+    repository.join("config").is_file()
+        && ["data", "index", "keys", "locks", "snapshots"]
+            .iter()
+            .all(|entry| repository.join(entry).is_dir())
 }
 
 fn run_restic_with_password(
@@ -1133,18 +1173,20 @@ fn run_restic_with_password_in_dir(
         .output()
         .map_err(|error| engine_unavailable(executable, error))?;
     if !output.status.success() {
-        return Err(backup_engine_failed(output.status.code()));
+        return Err(backup_engine_failed(
+            output.status.code(),
+            &output.stderr,
+            password_file.path(),
+        ));
     }
     Ok(EngineOutput {
         stdout: output.stdout,
-        stderr: output.stderr,
     })
 }
 
 #[derive(Debug)]
 struct EngineOutput {
     stdout: Vec<u8>,
-    stderr: Vec<u8>,
 }
 
 fn parse_snapshot_id(bytes: &[u8]) -> Result<String, RehomeError> {
@@ -1416,21 +1458,148 @@ fn engine_unavailable(executable: &Path, error: io::Error) -> RehomeError {
     )
 }
 
-fn backup_engine_failed(exit_code: Option<i32>) -> RehomeError {
-    RehomeError::new(
-        ErrorCode::BackupFailed,
+fn backup_engine_failed(
+    exit_code: Option<i32>,
+    stderr: &[u8],
+    password_file: &Path,
+) -> RehomeError {
+    let password_file = password_file.to_string_lossy();
+    let redacted = String::from_utf8_lossy(stderr)
+        .replace(password_file.as_ref(), "<temporary-password-file>");
+    let collapsed = redacted.split_whitespace().collect::<Vec<_>>().join(" ");
+    let normalized = collapsed.to_ascii_lowercase();
+    let code = if normalized.contains("wrong password")
+        || normalized.contains("no key found")
+        || normalized.contains("unable to decrypt key")
+    {
+        ErrorCode::BackupPasswordRequired
+    } else if normalized.contains("repository does not exist")
+        || normalized.contains("unable to open config file")
+        || normalized.contains("is there a repository at")
+    {
+        ErrorCode::BackupRepositoryInvalid
+    } else if normalized.contains("no space left on device")
+        || normalized.contains("not enough space on the disk")
+        || normalized.contains("disk full")
+    {
+        ErrorCode::DiskSpaceInsufficient
+    } else {
+        ErrorCode::BackupFailed
+    };
+    let char_count = collapsed.chars().count();
+    let detail = if char_count > 600 {
         format!(
-            "backup engine failed{}",
-            exit_code.map_or(String::new(), |code| format!(" (exit {code})"))
-        ),
+            "…{}",
+            collapsed
+                .chars()
+                .skip(char_count.saturating_sub(599))
+                .collect::<String>()
+        )
+    } else {
+        collapsed
+    };
+    let summary = format!(
+        "backup engine failed{}",
+        exit_code.map_or(String::new(), |code| format!(" (exit {code})"))
+    );
+    RehomeError::new(
+        code,
+        if detail.is_empty() {
+            summary
+        } else {
+            format!("{summary}: {detail}")
+        },
     )
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{inspect_jsonl, parse_snapshot_summaries, stage_tree, SourcePolicy, StageStats};
+    use super::{
+        ensure_repository, inspect_jsonl, parse_snapshot_summaries, stage_tree, SourcePolicy,
+        StageStats,
+    };
+    use crate::core::error::ErrorCode;
     use std::fs;
     use tempfile::tempdir;
+
+    #[test]
+    fn rejects_non_repository_directory_without_modifying_it() {
+        let repository = tempdir().unwrap();
+        let sentinel = repository.path().join("keep.txt");
+        fs::write(
+            repository.path().join("config"),
+            b"not a complete repository",
+        )
+        .unwrap();
+        fs::write(&sentinel, b"existing user data").unwrap();
+
+        let error = ensure_repository(
+            repository.path(),
+            "synthetic-password",
+            &repository.path().join("missing-restic.exe"),
+        )
+        .unwrap_err();
+
+        assert_eq!(error.code, ErrorCode::BackupRepositoryInvalid);
+        assert_eq!(fs::read(sentinel).unwrap(), b"existing user data");
+    }
+
+    #[test]
+    fn valid_repository_layout_reaches_restic_validation() {
+        let repository = tempdir().unwrap();
+        fs::write(repository.path().join("config"), b"synthetic config").unwrap();
+        for directory in ["data", "index", "keys", "locks", "snapshots"] {
+            fs::create_dir(repository.path().join(directory)).unwrap();
+        }
+
+        let error = ensure_repository(
+            repository.path(),
+            "synthetic-password",
+            &repository.path().join("missing-restic.exe"),
+        )
+        .unwrap_err();
+
+        assert_eq!(error.code, ErrorCode::BackupEngineUnavailable);
+    }
+
+    #[test]
+    fn classifies_restic_failures_and_redacts_the_password_file_path() {
+        let password_file = std::path::Path::new(r"C:\Temp\secret-password.txt");
+        for (stderr, expected) in [
+            (
+                "Fatal: wrong password or no key found",
+                ErrorCode::BackupPasswordRequired,
+            ),
+            (
+                "Fatal: repository does not exist: unable to open config file",
+                ErrorCode::BackupRepositoryInvalid,
+            ),
+            (
+                "write failed: There is not enough space on the disk",
+                ErrorCode::DiskSpaceInsufficient,
+            ),
+        ] {
+            let error = super::backup_engine_failed(Some(10), stderr.as_bytes(), password_file);
+            assert_eq!(error.code, expected, "stderr: {stderr}");
+        }
+
+        let error = super::backup_engine_failed(
+            Some(1),
+            format!("unexpected failure reading {}", password_file.display()).as_bytes(),
+            password_file,
+        );
+        assert_eq!(error.code, ErrorCode::BackupFailed);
+        assert!(!error.message.contains(&password_file.display().to_string()));
+        assert!(error.message.contains("<temporary-password-file>"));
+
+        let delayed_failure = format!(
+            "{} Fatal: wrong password or no key found",
+            "non-fatal warning ".repeat(80)
+        );
+        let error = super::backup_engine_failed(Some(1), delayed_failure.as_bytes(), password_file);
+        assert_eq!(error.code, ErrorCode::BackupPasswordRequired);
+        assert!(error.message.contains("wrong password or no key found"));
+    }
 
     #[test]
     fn restored_manifest_never_overwrites_an_existing_file() {

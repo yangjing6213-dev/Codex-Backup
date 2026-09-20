@@ -48,7 +48,7 @@ Projects includes a Request administrator permission for restricted folders opti
 
 ## 6. Installation
 
-1. Open the [GitHub Releases installer download page](https://github.com/yangjing6213-dev/Codex-Backup/releases), or directly download the [Windows x64 installer (0.1.5)](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.5/ENHE.Codex.Backup_0.1.5_x64-setup.exe) and [SHA-256 checksum](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.5/ENHE.Codex.Backup_0.1.5_x64-setup.exe.sha256). This installer is unsigned; verify its SHA-256 checksum before installation.
+1. Open the [GitHub Releases installer download page](https://github.com/yangjing6213-dev/Codex-Backup/releases), or directly download the [Windows x64 installer (0.1.6)](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.6/ENHE.Codex.Backup_0.1.6_x64-setup.exe) and [SHA-256 checksum](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.6/ENHE.Codex.Backup_0.1.6_x64-setup.exe.sha256). This installer is unsigned; verify its SHA-256 checksum before installation.
 2. Compare the installer SHA-256 with the sidecar in PowerShell.
 3. Run the installer for the Windows current user.
 4. Confirm the local data location on first launch; cloud may remain off.
@@ -120,7 +120,7 @@ See [COMPATIBILITY](docs/COMPATIBILITY.md), [UPSTREAM](docs/UPSTREAM.md), and [A
 
 ## 11. Version
 
-Current version: `0.1.5`. It groups current project discoveries by drive, network location, or other location; hides unselected nested test paths remembered only by historical Codex sessions; and retains selected, manual, or temporarily unavailable paths for explicit review. It also adds a bilingual About the Author page with a narrowly scoped external-link allowlist and improves refresh behavior for the ENHE desktop shortcut icon. The [0.1.5 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.5) provides an unsigned Windows x64 installer and its SHA-256 checksum; older releases remain available. Real OneDrive, second-device, live conversation continuation, and clean-profile verification remain outside the completed evidence boundary; see [STATUS](docs/STATUS.md) and [ACCEPTANCE](docs/ACCEPTANCE.md).
+Current version: `0.1.6`. It detects a non-empty ordinary folder that is not a complete backup repository before restic starts, leaving existing files unchanged. Backup and restore failures now show a cause, solution, and sanitized technical details while distinguishing repository, recovery-password, and disk-space problems. The planned [0.1.6 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.6) will provide an unsigned Windows x64 installer and its SHA-256 checksum; older releases remain available. Real OneDrive, second-device, live conversation continuation, and clean-profile verification remain outside the completed evidence boundary; see [STATUS](docs/STATUS.md) and [ACCEPTANCE](docs/ACCEPTANCE.md).
 
 ## 12. Related projects
 
