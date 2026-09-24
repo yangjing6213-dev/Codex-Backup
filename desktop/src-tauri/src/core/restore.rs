@@ -1301,7 +1301,7 @@ mod tests {
         let _lock = APP_DATA_LOCK
             .lock()
             .unwrap_or_else(|error| error.into_inner());
-        let (fixture, mut plan, options) = storage_fixture_with_rows(50_000, "/p");
+        let (_fixture, mut plan, options) = storage_fixture_with_rows(50_000, "/p");
         let to = format!("/{}", "p".repeat(222));
         plan.reference_rewrites
             .push(crate::core::models::ReferenceRewrite {
@@ -1319,8 +1319,10 @@ mod tests {
         assert!(plan.required_bytes < available);
         assert!(rewritten_rows > available);
         let before = fs::read(plan.target_codex_home.join("state_5.sqlite")).unwrap();
+        let local_app_data = tempfile::tempdir().unwrap();
+        let application_root = local_app_data.path().join("com.rehome.desktop");
         let old_app_data = std::env::var_os("LOCALAPPDATA");
-        std::env::set_var("LOCALAPPDATA", fixture.root.join("app-data"));
+        std::env::set_var("LOCALAPPDATA", local_app_data.path());
         let mut events = Events::default();
         let result = apply_server_plan(
             plan.clone(),
@@ -1341,7 +1343,7 @@ mod tests {
             [RestoreProgressEvent::Stage(MigrationJobStage::Preflight)]
         );
         assert!(!options.backup_root.exists());
-        assert!(!fixture.root.join("app-data").exists());
+        assert!(!application_root.exists());
         assert!(!plan.projects_root.exists());
         assert!(!plan.sessions[0].target.exists());
         assert_eq!(

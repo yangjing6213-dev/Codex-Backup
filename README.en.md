@@ -4,7 +4,7 @@
 
 ## 1. What is this repository?
 
-ENHE Codex Backup is an independent Windows x64 local-first backup, restore, and offline migration utility. It preserves Codex data, project files, Git state, conversations, and handoff material without requiring cloud configuration or a GPT login. It is not an official OpenAI or ReHome product.
+ENHE Codex Backup is an independent Windows x64 local-first backup, restore, and offline migration utility. It preserves Codex data, project files, Git state, conversations, and handoff material without requiring cloud configuration or a GPT login. Version 0.1.7 also corrects a Windows CI preflight-test false positive about the application data directory. It is not an official OpenAI or ReHome product.
 
 ## 2. Who is it for?
 

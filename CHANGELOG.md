@@ -13,6 +13,7 @@
 - Align metadata, visible labels, bilingual guides and unsigned Windows x64 packaging at 0.1.7. Older releases remain unchanged.
 - Include offline program and third-party license/notice texts in the installer, and reject missing or stale notice inventories before packaging. This packaging correction does not change application behavior.
 - Treat the pinned `github.com/cloudsoda/sddl` revision conservatively under LGPL-3.0: include the exact rclone/SDDL source bundle, relinking instructions and build manifest in the installer. This release-preparation change does not change application behavior or dependency versions.
+- Fix the Windows CI restore preflight regression test so it checks the real application data directory instead of mistaking the `LOCALAPPDATA` parent directory for an application write.
 
 ## [0.1.6] - 2026-09-20
 
