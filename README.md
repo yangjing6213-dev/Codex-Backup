@@ -116,7 +116,7 @@ tests/                      隔离测试与文档契约测试
 
 ## 十一、版本说明
 
-当前版本：`0.1.8`。本次增加项目根目录扫描引导、全盘扫描不完整提示、当前结果与保留目录分组，以及一键选择本次扫描项目；完整备份仍包含项目中的所有可读取普通文件。文件恢复、对话识别与一次临时副本发送验证分别记录，不把文件已恢复宣称为真实会话续接成功。详见 [版本更新说明](CHANGELOG.md)。[0.1.8 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.8) 计划仅提供未签名的 Windows x64 安装包及 SHA-256 文件，旧版本保留；本地构建不代表已发布。真实 OneDrive、第二设备、真实会话续接和原生界面验证仍不在已完成证据范围内，详见 [STATUS](docs/STATUS.md) 与 [ACCEPTANCE](docs/ACCEPTANCE.md)。
+当前版本：`0.1.8`。本次增加项目根目录扫描引导、全盘扫描不完整提示、当前结果与保留目录分组，以及一键选择本次扫描项目；完整备份仍包含项目中的所有可读取普通文件。文件恢复、对话识别与一次临时副本发送验证分别记录，不把文件已恢复宣称为真实会话续接成功。详见 [版本更新说明](CHANGELOG.md)。[0.1.8 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.8) 已发布，包含未签名的 Windows x64 安装包和 SHA-256 文件，旧版本保留；安装前请按校验文件核对完整性。真实 OneDrive、第二设备、真实会话续接和原生界面验证仍不在已完成证据范围内，详见 [STATUS](docs/STATUS.md) 与 [ACCEPTANCE](docs/ACCEPTANCE.md)。
 
 ## 十二、相关项目
 
@@ -146,4 +146,4 @@ ReHome：本项目内置其适用的离线迁移能力，但完整本地备份�
 
 本项目沿用上游仓库的 MIT 许可；内置组件、版本和来源见 [THIRD_PARTY](docs/THIRD_PARTY.md)。
 
-0.1.8 候选安装包随附许可与第三方声明文件，安装后可在程序目录的 `resources/licenses` 文件夹离线查看；当前发布许可待核实，详见上述说明。
+0.1.8 安装包随附许可与第三方声明文件，安装后可在程序目录的 `resources/licenses` 文件夹离线查看；许可材料是技术再分发证据，不构成法律意见。

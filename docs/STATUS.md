@@ -1,6 +1,6 @@
 # Current status
 
-Source checkpoint: 2026-09-25. Current version: **0.1.8; local package and replacement installation PASS, GitHub publication pending**. Packaging and installation evidence for this candidate is recorded below; historical 0.1.7 evidence remains dated and is not transferred automatically. See [installer evidence](verification/installer-latest.md); local evidence is not a GitHub publication claim until the release is verified.
+Source checkpoint: 2026-09-25. Current version: **0.1.8; local package, replacement installation, GitHub main push and v0.1.8 Release PASS**. Packaging, installation and publication evidence for this candidate is recorded below; historical 0.1.7 evidence remains dated and is not transferred automatically. See [installer evidence](verification/installer-latest.md) and the [v0.1.8 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.8).
 
 ## 0.1.8 project-root scan improvements
 
@@ -11,7 +11,7 @@ Source checkpoint: 2026-09-25. Current version: **0.1.8; local package and repla
 - Fresh `scripts/package.ps1 -SkipBootstrap`: exit 0; unsigned Windows x64 NSIS installer, 51,281,865 bytes, SHA-256 `24c2cb5b767ef76d7d186cbdcf4e115730e4bc82d0578f4e3e0f867bc2eb339f`; the adjacent sidecar matches the independent hash.
 - Authorized current-user replacement installation: 0.1.7 uninstall and 0.1.8 install both completed; registry, installed executable FileVersion/ProductVersion and preserved ENHE user data report 0.1.8/true. The installed app was not launched, so native click-through remains NOT_RUN.
 
-Ordinary Git HTTPS connectivity failed during preflight; an earlier read-only SSH check at `ssh.github.com:443` succeeded for the verified repository/account, but the final read-only recheck returned `Permission denied (publickey)` without any write. No commit, push, release creation or asset upload has been performed for this update. The pinned SDDL discrepancy is handled on the conservative LGPL path with exact corresponding source, relinking instructions and build materials; this is technical redistribution evidence, not legal certification. Fresh exact-manifest/tag approval and SSH 443 authentication revalidation are required before any ordinary fast-forward push or release. Real-account, second-device, native UI and model/cloud acceptance remain NOT_RUN.
+The authorized ordinary fast-forward push used SSH 443 and was verified against `main`; `v0.1.8` was then published as a non-draft Release with exactly the unsigned Windows x64 installer and its SHA-256 sidecar. The pinned SDDL discrepancy is handled on the conservative LGPL path with exact corresponding source, relinking instructions and build materials; this is technical redistribution evidence, not legal certification. Real-account, second-device, native UI and model/cloud acceptance remain NOT_RUN.
 
 ## 0.1.7 license-only rebuild
 
@@ -32,7 +32,7 @@ Ordinary Git HTTPS connectivity failed during preflight; an earlier read-only SS
 - The new installed application was **not launched**. Native UI, live-account conversation display/continuation, second-device and OneDrive checks remain **NOT_RUN**. Prior synthetic browser evidence below is not a native acceptance result.
 - Both verification and packaging retain the linker-output warning about creating the import library/exports. These are successful-command diagnostics, not omitted failures.
 
-Overall task status: **PARTIAL** — local build and publication preflight complete; GitHub publication and native/live acceptance outstanding.
+Overall task status: **PARTIAL** — local build, replacement installation and GitHub publication complete; native/live acceptance outstanding.
 
 ## Current behavior and evidence scope
 

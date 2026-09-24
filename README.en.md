@@ -124,7 +124,7 @@ See [COMPATIBILITY](docs/COMPATIBILITY.md), [UPSTREAM](docs/UPSTREAM.md), and [A
 
 ## 11. Version
 
-Current version: `0.1.8`. This update adds explicit project-root scanning, bounded whole-drive guidance, current-versus-retained result grouping and a select-all-current action while preserving full readable-file backup semantics. File recovery, conversation recognition and one ephemeral-fork probe are separate checks, not a blanket continuation guarantee. See the [changelog](CHANGELOG.md). The planned [0.1.8 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.8) contains only the unsigned Windows x64 installer and SHA-256 file, retaining older releases. A local build is not proof of publication. Real OneDrive, second-device, live conversation continuation and native UI verification remain outside the completed evidence; see [STATUS](docs/STATUS.md) and [ACCEPTANCE](docs/ACCEPTANCE.md).
+Current version: `0.1.8`. This update adds explicit project-root scanning, bounded whole-drive guidance, current-versus-retained result grouping and a select-all-current action while preserving full readable-file backup semantics. File recovery, conversation recognition and one ephemeral-fork probe are separate checks, not a blanket continuation guarantee. See the [changelog](CHANGELOG.md). The [0.1.8 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.8) is published with only the unsigned Windows x64 installer and SHA-256 file, retaining older releases. Verify the checksum before installation. Real OneDrive, second-device, live conversation continuation and native UI verification remain outside the completed evidence; see [STATUS](docs/STATUS.md) and [ACCEPTANCE](docs/ACCEPTANCE.md).
 
 ## 12. Related projects
 
@@ -154,4 +154,4 @@ This project is one tool in the personal generation system I built with AI. If y
 
 This project retains the upstream repository's MIT license. Bundled components and versions are recorded in [THIRD_PARTY](docs/THIRD_PARTY.md).
 
-The 0.1.8 candidate installer includes license texts for offline reading under `resources/licenses` in the application directory. Publication clearance is still pending; see the review above.
+The 0.1.8 installer includes license texts for offline reading under `resources/licenses` in the application directory. The license materials are technical redistribution evidence, not legal advice.

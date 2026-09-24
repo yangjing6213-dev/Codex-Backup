@@ -1,6 +1,6 @@
 # Acceptance mapping
 
-Checkpoint: 2026-09-25; **0.1.8 locally installed, GitHub publication pending**. The complete acceptance baseline is the supplied `ENHE-Codex-Backup-完整开发执行指令.md`. This table separates observable local evidence from unverified native/account/device behavior. Fresh 0.1.8 verification, packaging and authorized current-user replacement installation passed; native launch/click-through, account, second-device and release acceptance remain separate boundaries. Earlier 0.1.7 and 0.1.6 runs remain dated evidence, not native acceptance. See [STATUS](STATUS.md) and [installer verification](verification/installer-latest.md).
+Checkpoint: 2026-09-25; **0.1.8 locally installed, GitHub main push and v0.1.8 Release verified**. The complete acceptance baseline is the supplied `ENHE-Codex-Backup-完整开发执行指令.md`. This table separates observable local evidence from unverified native/account/device behavior. Fresh 0.1.8 verification, packaging, authorized current-user replacement installation and the two-asset Release passed; native launch/click-through, account and second-device acceptance remain separate boundaries. Earlier 0.1.7 and 0.1.6 runs remain dated evidence, not native acceptance. See [STATUS](STATUS.md) and [installer verification](verification/installer-latest.md).
 
 | Case | Evidence and remaining boundary | Status |
 | --- | --- | --- |
@@ -14,7 +14,7 @@ Checkpoint: 2026-09-25; **0.1.8 locally installed, GitHub publication pending**.
 | A08 scheduler/concurrency | Current-user scheduler/DPAPI and operation serialization have local tests; real scheduled task execution is NOT_RUN. | PARTIAL |
 | A09 cloud switch | Default-off and no-remote local adapter behavior have synthetic coverage. Opt-in online Codex verification is distinct from restic cloud backup. Installed-app isolation is NOT_RUN. | PARTIAL |
 | A10 cloud failure/live recovery | rclone protocol implementation exists; no OneDrive account authorization or remote recovery was performed. | NOT_RUN |
-| A11 bilingual UI | Refreshed React suite: 85 passed, including M3's two real bilingual remedy regressions. Controller's pre-M3 synthetic browser PASS plus Task 5 fix recheck covers warning/partial results, modes, consent/context, progress, failure/History and zero-conversation states. M3 was not browser-rechecked. Native folder picker, full native click-through and screen-reader runtime checks are NOT_RUN. | PARTIAL |
+| A11 bilingual UI | Refreshed React suite: 86 passed, including M3's two real bilingual remedy regressions. Controller's pre-M3 synthetic browser PASS plus Task 5 fix recheck covers warning/partial results, modes, consent/context, progress, failure/History and zero-conversation states. M3 was not browser-rechecked. Native folder picker, full native click-through and screen-reader runtime checks are NOT_RUN. | PARTIAL |
 | A12 installer/device | Fresh 0.1.8 Windows x64 packaging and authorized current-user uninstall/install PASS; registry, payload hash, installed binary version and preserved configuration verified. Exact artifact is in STATUS. Installed launch/UI, second device and real-account continuation are NOT_RUN. | PARTIAL |
 
 ## Consolidated feature acceptance
