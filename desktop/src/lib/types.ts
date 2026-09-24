@@ -145,6 +145,17 @@ export interface PlannedOperation {
   rollback_required: boolean;
 }
 
+export interface PlannedSession {
+  package_source: string;
+  target: string;
+  source_task_id: string;
+  target_task_id: string;
+  title: string;
+  source_content_hash: string;
+  expected_final_content_hash: string;
+  action: "skip" | "import" | "import_as_branch";
+}
+
 export interface RestorePlan {
   plan_id: string;
   package_path: string;
@@ -153,7 +164,7 @@ export interface RestorePlan {
   target_codex_home: string;
   projects_root: string;
   operations: PlannedOperation[];
-  sessions: unknown[];
+  sessions: PlannedSession[];
   reference_rewrites: unknown[];
   bridge_verification: {
     session_index: string | null;
@@ -163,9 +174,30 @@ export interface RestorePlan {
   required_bytes: number;
 }
 
+export interface ContinuationProbeOptions {
+  probe_thread_id: string;
+  online_usage_confirmed: boolean;
+}
+
+export interface StartMigrationSelection extends ContinuationProbeOptions {
+  plan_id: string;
+  codex_closed_confirmed: boolean;
+  register_projects: boolean;
+}
+
+export interface CodexAccessVerification {
+  required_threads: number;
+  recognized_threads: number;
+  probe_thread_id: string | null;
+  threads_recognized: boolean;
+  continuation_probe_valid: boolean;
+  ephemeral_fork: boolean;
+}
+
 export interface RestoreOptions {
   codex_closed_confirmed: boolean;
   register_projects: boolean;
+  continuation_probe?: ContinuationProbeOptions | null;
 }
 
 export interface RestoreLocationSelection {
@@ -186,6 +218,7 @@ export interface VerificationReport {
   project_files_valid: boolean;
   app_registration_valid: boolean;
   app_visible_ready: boolean;
+  codex_access: CodexAccessVerification;
 }
 
 export interface ProjectRegistration {
@@ -202,6 +235,36 @@ export interface RestoreReport {
   restored_bytes: number;
   registrations: ProjectRegistration[];
   verification: VerificationReport;
+}
+
+export type MigrationJobStage =
+  | "preflight"
+  | "restoring_files"
+  | "files_verified"
+  | "recognizing_threads"
+  | "probing_continuation"
+  | "committing"
+  | "rolling_back"
+  | "finished";
+
+export type MigrationJobStatus =
+  | "running"
+  | "succeeded"
+  | "failed_before_write"
+  | "rolled_back"
+  | "rollback_failed";
+
+export interface MigrationJobSnapshot {
+  job_id: string;
+  plan_id: string;
+  /** Assigned only after the restore journal is durably prepared. */
+  transaction_id: string | null;
+  stage: MigrationJobStage;
+  status: MigrationJobStatus;
+  report: RestoreReport | null;
+  /** Sanitized by the backend before publication. */
+  error: RehomeError | null;
+  updated_at: string;
 }
 
 export interface RollbackReport {
@@ -292,10 +355,26 @@ export interface SchedulerStatus {
   message?: string | null;
 }
 
+export type BackupIssueKind =
+  | "security_exclusion"
+  | "rebuildable_dependency"
+  | "runtime_ephemeral"
+  | "test_artifact"
+  | "jsonl_integrity"
+  | "missing_source"
+  | "enumeration_failure"
+  | "copy_failure"
+  | "filesystem_redirect"
+  | "unsupported_entry"
+  | "legacy_unknown";
+
+export type BackupIntegrityStatus = "complete" | "warning" | "partial";
+
 export interface BackupIssue {
   path: string;
   reason: string;
   bytes: number;
+  kind?: BackupIssueKind;
 }
 
 export interface BackupManifest {
@@ -314,8 +393,10 @@ export interface BackupManifest {
   byte_count: number;
   fingerprint: string;
   exclusions: BackupIssue[];
+  notices?: BackupIssue[];
+  integrity_warnings?: BackupIssue[];
   missing: BackupIssue[];
-  integrity_status: "complete" | "partial";
+  integrity_status: BackupIntegrityStatus;
 }
 
 export interface LocalSnapshot {
@@ -331,6 +412,7 @@ export interface LocalSnapshotSummary {
   created_at: string;
   file_count: number;
   byte_count: number;
+  integrity_status: BackupIntegrityStatus;
   complete: boolean;
 }
 
@@ -340,6 +422,10 @@ export interface LocalRestoreReport {
   restored_files: number;
   restored_bytes: number;
   complete: boolean;
+  exclusions: BackupIssue[];
+  notices?: BackupIssue[];
+  integrity_warnings?: BackupIssue[];
+  integrity_status: BackupIntegrityStatus;
   missing: BackupIssue[];
 }
 
@@ -412,7 +498,7 @@ const localizedErrorKeys: Record<string, string> = {
   cloud_unavailable: "云端操作失败，本地备份不受影响。",
   codex_not_found: "未找到 Codex 数据，请在数据页选择数据位置。",
   project_conflict: "恢复目标已存在，未覆盖任何资料。",
-  restore_failed: "本地恢复失败，现有资料保持不变。",
+  restore_failed: "恢复未完成，请检查操作状态。",
   package_invalid: "迁移包无效，请重新选择并预览。",
   checksum_mismatch: "迁移包校验失败，未写入目标。",
   unsupported_schema: "迁移包格式暂不支持。",
@@ -420,6 +506,11 @@ const localizedErrorKeys: Record<string, string> = {
   disk_space_insufficient: "磁盘空间不足，既有资料保持不变。",
   rollback_failed: "回滚失败，请保留现场并查看迁移记录。",
   registration_incomplete: "Codex 注册未完成，请按提示手动打开恢复后的项目。",
+  codex_app_server_unavailable: "Codex 验证服务不可用。",
+  codex_authentication_required: "Codex 需要登录。",
+  codex_verification_failed: "Codex 接入验证未完成。",
+  codex_cleanup_unconfirmed: "Codex 辅助进程退出状态未确认。",
+  migration_job_not_found: "迁移任务不存在或已过期。",
 };
 
 const localizedErrorGuidance: Record<string, { cause: string; solution: string }> = {
@@ -444,8 +535,32 @@ const localizedErrorGuidance: Record<string, { cause: string; solution: string }
     solution: "解决方法：请重新选择互不重叠的绝对本地目录；若仍失败，请根据技术详情修正路径。",
   },
   restore_failed: {
-    cause: "原因：备份快照未能恢复到目标目录。",
-    solution: "解决方法：请选择新的空目标目录，确认仓库和恢复密码后重试。",
+    cause: "原因：恢复请求未能完成，可能是其他操作仍在进行、计划已过期或恢复过程出错。",
+    solution: "解决方法：等待其他操作结束，并查看迁移记录；如没有相关记录，请重新预览以重建计划。本地快照恢复请检查仓库、密码和空目标目录。",
+  },
+  codex_app_server_unavailable: {
+    cause: "原因：无法启动或连接 Codex App Server。",
+    solution: "解决方法：检查 Codex 安装及版本是否支持 App Server，修复后完全退出 Codex，再重新预览。",
+  },
+  codex_authentication_required: {
+    cause: "原因：已配置模型服务的身份验证未通过。",
+    solution: "解决方法：打开 Codex 完成登录并检查模型服务配置，保存工作并完全退出后重新预览。",
+  },
+  codex_verification_failed: {
+    cause: "原因：对话识别或临时分支续聊验证未完成。",
+    solution: "解决方法：检查联网同意、所选对话、模型服务和网络；确认 Codex 版本支持临时分支。若启用了 MCP 或其他集成，请在 Codex 中手动检查并处理，或明确选择“仅恢复文件”。处理后重新预览，不会自动改用仅恢复文件。",
+  },
+  codex_cleanup_unconfirmed: {
+    cause: "原因：辅助进程可能仍在运行，未尝试检查点或回滚写入。",
+    solution: "解决方法：完全关闭 Codex 及辅助进程，查看迁移记录和保留副本，再判断如何恢复。继续回滚不保证成功，请勿覆盖较新的数据。",
+  },
+  migration_job_not_found: {
+    cause: "原因：当前应用无法找到此任务的状态记录。",
+    solution: "解决方法：查看迁移记录确认实际结果；状态查询失败不代表迁移失败，也不能证明已回滚。",
+  },
+  rollback_failed: {
+    cause: "原因：本地恢复未能完成，需检查事务记录和保留副本。",
+    solution: "解决方法：完全关闭 Codex 及辅助进程，前往迁移记录检查恢复状态；保留副本，不要覆盖较新的数据。",
   },
   disk_space_insufficient: {
     cause: "原因：目标磁盘没有足够空间完成操作。",

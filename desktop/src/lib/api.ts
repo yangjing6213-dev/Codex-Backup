@@ -28,6 +28,8 @@ import type {
   LocalDiscoveryResult,
   LocalProjectCandidate,
   SchedulerStatus,
+  MigrationJobSnapshot,
+  StartMigrationSelection,
 } from "./types";
 
 export function discoverCodex(codexHome?: string | null): Promise<CodexInventory> {
@@ -126,6 +128,14 @@ export function openRestoredThread(
   return invoke("open_restored_thread", {
     selection: { path, transaction_id: transactionId },
   });
+}
+
+export function startMigrateAndConnect(selection: StartMigrationSelection): Promise<MigrationJobSnapshot> {
+  return invoke("start_migrate_and_connect", { selection });
+}
+
+export function getMigrationJob(jobId: string): Promise<MigrationJobSnapshot> {
+  return invoke("get_migration_job", { jobId });
 }
 
 export function getAppConfig(): Promise<AppConfig> {

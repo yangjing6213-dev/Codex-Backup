@@ -1,5 +1,6 @@
 use crate::core::{
     app_config,
+    app_server::SystemCodexAccessVerifier,
     backup::managed_backup_root,
     bridge::register_project_with_detected_cli,
     discovery::discover_codex as core_discover_codex,
@@ -10,7 +11,8 @@ use crate::core::{
         LocalProjectCandidate, LocalScanRequest,
     },
     models::{
-        CodexInventory, CreatePackageReport, CreatePackageRequest, FileConflictResolution,
+        CodexInventory, ContinuationProbeOptions, CreatePackageReport, CreatePackageRequest,
+        FileConflictResolution, MigrationJobSnapshot, MigrationJobStage, MigrationJobStatus,
         PackagePreview, RecoveryStatus, RegistrationStatus, RestoreOptions, RestorePlan,
         RestoreReport, RollbackReport, SourceOs, TargetInventory, TransactionHistory,
         TransactionSummary,
@@ -22,13 +24,14 @@ use crate::core::{
     paths::user_facing_path,
     planner::build_restore_plan_with_conflict_resolution as core_build_restore_plan,
     restore::{
-        apply_restore_by_id, list_transaction_history as core_list_transaction_history,
-        rollback as core_rollback, transaction_summary as core_transaction_summary,
+        apply_restore_by_id, apply_restore_with_services,
+        list_transaction_history as core_list_transaction_history, rollback as core_rollback,
+        transaction_summary as core_transaction_summary, RestoreProgressEvent, RestoreProgressSink,
     },
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     env, fs,
     path::{Component, Path, PathBuf, Prefix},
     process::Command,
@@ -105,6 +108,16 @@ pub struct ApplyRestoreSelection {
     pub register_projects: bool,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MigrateAndConnectSelection {
+    pub plan_id: Uuid,
+    pub codex_closed_confirmed: bool,
+    pub register_projects: bool,
+    pub probe_thread_id: Uuid,
+    pub online_usage_confirmed: bool,
+}
+
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum RollbackAction {
@@ -136,6 +149,7 @@ pub struct OpenRestoredThreadSelection {
 #[derive(Clone)]
 pub struct WorkflowState {
     inner: Arc<Mutex<WorkflowGrants>>,
+    migration_jobs: MigrationJobs,
     local_discovery_cancel: Arc<AtomicBool>,
 }
 
@@ -143,9 +157,222 @@ impl Default for WorkflowState {
     fn default() -> Self {
         Self {
             inner: Arc::new(Mutex::new(WorkflowGrants::default())),
+            migration_jobs: MigrationJobs::default(),
             local_discovery_cancel: Arc::new(AtomicBool::new(false)),
         }
     }
+}
+
+#[derive(Clone, Default)]
+struct MigrationJobs {
+    inner: Arc<Mutex<MigrationJobStore>>,
+}
+
+#[derive(Default)]
+struct MigrationJobStore {
+    records: HashMap<Uuid, MigrationJobRecord>,
+    terminal_order: VecDeque<Uuid>,
+}
+
+struct MigrationJobRecord {
+    snapshot: MigrationJobSnapshot,
+    rollback_outcome: Option<MigrationJobStatus>,
+}
+
+impl MigrationJobs {
+    fn store(&self) -> std::sync::MutexGuard<'_, MigrationJobStore> {
+        self.inner.lock().unwrap_or_else(|error| error.into_inner())
+    }
+
+    fn start(&self, plan_id: Uuid) -> MigrationJobSnapshot {
+        let snapshot = MigrationJobSnapshot {
+            job_id: Uuid::new_v4(),
+            plan_id,
+            transaction_id: None,
+            stage: MigrationJobStage::Preflight,
+            status: MigrationJobStatus::Running,
+            report: None,
+            error: None,
+            updated_at: chrono::Utc::now().to_rfc3339(),
+        };
+        self.store().records.insert(
+            snapshot.job_id,
+            MigrationJobRecord {
+                snapshot: snapshot.clone(),
+                rollback_outcome: None,
+            },
+        );
+        snapshot
+    }
+
+    fn get(&self, job_id: Uuid) -> Result<MigrationJobSnapshot, RehomeError> {
+        self.store()
+            .records
+            .get(&job_id)
+            .map(|record| record.snapshot.clone())
+            .ok_or_else(migration_job_not_found)
+    }
+
+    fn record_progress(
+        &self,
+        job_id: Uuid,
+        event: RestoreProgressEvent,
+    ) -> Result<(), RehomeError> {
+        let mut store = self.store();
+        let record = store
+            .records
+            .get_mut(&job_id)
+            .ok_or_else(migration_job_not_found)?;
+        if record.snapshot.status != MigrationJobStatus::Running {
+            return Ok(());
+        }
+        match event {
+            RestoreProgressEvent::Stage(stage) => record.snapshot.stage = stage,
+            RestoreProgressEvent::TransactionPrepared(id) => {
+                record.snapshot.transaction_id = Some(id)
+            }
+            RestoreProgressEvent::RollbackCompleted => {
+                record.rollback_outcome = Some(MigrationJobStatus::RolledBack)
+            }
+            RestoreProgressEvent::RollbackFailed => {
+                record.rollback_outcome = Some(MigrationJobStatus::RollbackFailed)
+            }
+        }
+        record.snapshot.updated_at = chrono::Utc::now().to_rfc3339();
+        Ok(())
+    }
+
+    fn finish(
+        &self,
+        job_id: Uuid,
+        result: Result<RestoreReport, RehomeError>,
+    ) -> Result<(), RehomeError> {
+        let mut store = self.store();
+        let record = store
+            .records
+            .get_mut(&job_id)
+            .ok_or_else(migration_job_not_found)?;
+        if record.snapshot.status != MigrationJobStatus::Running {
+            return Ok(());
+        }
+        match result {
+            Ok(report) => {
+                record.snapshot.status = MigrationJobStatus::Succeeded;
+                record.snapshot.report = Some(report);
+            }
+            Err(error) => {
+                record.snapshot.status = if record.snapshot.transaction_id.is_none() {
+                    MigrationJobStatus::FailedBeforeWrite
+                } else {
+                    record
+                        .rollback_outcome
+                        .unwrap_or(MigrationJobStatus::RollbackFailed)
+                };
+                record.snapshot.error = Some(sanitize_migration_error(error));
+            }
+        }
+        record.snapshot.stage = MigrationJobStage::Finished;
+        record.snapshot.updated_at = chrono::Utc::now().to_rfc3339();
+        store.terminal_order.push_back(job_id);
+        while store.terminal_order.len() > 20 {
+            if let Some(oldest) = store.terminal_order.pop_front() {
+                store.records.remove(&oldest);
+            }
+        }
+        Ok(())
+    }
+}
+
+fn migration_job_not_found() -> RehomeError {
+    RehomeError::new(
+        ErrorCode::MigrationJobNotFound,
+        "Migration job was not found or has expired.",
+    )
+}
+
+fn sanitize_migration_error(error: RehomeError) -> RehomeError {
+    // Core/OS errors can embed paths or external payloads. Publish only a known
+    // cause description, keeping the original typed cause and separate job evidence.
+    let message = match error.code {
+        ErrorCode::CodexRunning => "Confirm Codex is fully closed before retrying.",
+        ErrorCode::CodexAppServerUnavailable => "The Codex verification service is unavailable.",
+        ErrorCode::CodexAuthenticationRequired => "Codex authentication is required.",
+        ErrorCode::CodexVerificationFailed => "Codex access verification could not be completed. Confirm online consent and the selected thread.",
+        ErrorCode::CodexCleanupUnconfirmed => "Codex child termination could not be confirmed. Check migration history for manual recovery.",
+        ErrorCode::DiskSpaceInsufficient => "There is insufficient disk space for migration.",
+        ErrorCode::PackageInvalid | ErrorCode::ChecksumMismatch | ErrorCode::UnsupportedSchema => "The migration package could not be validated.",
+        ErrorCode::ProjectConflict => "A project conflict prevents migration.",
+        ErrorCode::UnsafePath => "A migration path failed safety validation.",
+        ErrorCode::RollbackFailed => "Recovery could not be completed. Check migration history.",
+        _ => "Migration could not be completed. Check migration history before retrying.",
+    };
+    RehomeError::new(error.code, message)
+}
+
+struct MigrationWorker {
+    claim: PlanClaim,
+    jobs: MigrationJobs,
+    job_id: Uuid,
+}
+
+impl MigrationWorker {
+    fn run(
+        mut self,
+        check_process: impl FnOnce() -> Result<(), RehomeError>,
+        restore: impl FnOnce(&Path, &mut dyn RestoreProgressSink) -> Result<RestoreReport, RehomeError>,
+    ) {
+        let backup_root = self.claim.backup_root.clone();
+        let result = check_process().and_then(|()| restore(&backup_root, &mut self));
+        let _ = self.jobs.finish(self.job_id, result);
+    }
+}
+
+impl RestoreProgressSink for MigrationWorker {
+    fn update(&mut self, event: RestoreProgressEvent) {
+        let _ = self.jobs.record_progress(self.job_id, event);
+    }
+}
+
+impl Drop for MigrationWorker {
+    fn drop(&mut self) {
+        // Also runs on worker unwind (join failure) or a dropped queued closure.
+        // finish is idempotent; publish terminal evidence before PlanClaim drops.
+        let _ = self.jobs.finish(
+            self.job_id,
+            Err(RehomeError::new(
+                ErrorCode::RestoreFailed,
+                "Migration worker stopped before completion.",
+            )),
+        );
+    }
+}
+
+fn prepare_migration(
+    workflow: &WorkflowState,
+    selection: &MigrateAndConnectSelection,
+    check_process: impl FnOnce() -> Result<(), RehomeError>,
+) -> Result<(MigrationJobSnapshot, MigrationWorker), RehomeError> {
+    if !selection.codex_closed_confirmed {
+        return Err(RehomeError::new(
+            ErrorCode::CodexRunning,
+            "Codex closure confirmation is required.",
+        ));
+    }
+    if !selection.online_usage_confirmed {
+        return Err(RehomeError::new(
+            ErrorCode::CodexVerificationFailed,
+            "Online usage confirmation is required.",
+        ));
+    }
+    check_process()?;
+    let claim = workflow.claim_plan(selection.plan_id)?;
+    let initial = workflow.migration_jobs.start(selection.plan_id);
+    let worker = MigrationWorker {
+        claim,
+        jobs: workflow.migration_jobs.clone(),
+        job_id: initial.job_id,
+    };
+    Ok((initial, worker))
 }
 
 #[derive(Default)]
@@ -376,18 +603,23 @@ impl WorkflowState {
     pub(crate) fn claim_plan(&self, plan_id: Uuid) -> Result<PlanClaim, RehomeError> {
         let mut grants = self.grants();
         grants.prune();
+        if !grants.rollbacks_in_flight.is_empty()
+            || grants
+                .plans
+                .values()
+                .any(|grant| grant.value.state == GrantState::InFlight)
+        {
+            return Err(selection_failed(
+                ErrorCode::RestoreFailed,
+                "a restore or rollback is already in progress",
+            ));
+        }
         let grant = grants.plans.get_mut(&plan_id).ok_or_else(|| {
             selection_failed(
                 ErrorCode::RestoreFailed,
                 "restore plan capability expired or was not found",
             )
         })?;
-        if grant.value.state != GrantState::Available {
-            return Err(selection_failed(
-                ErrorCode::RestoreFailed,
-                "restore plan is already being applied",
-            ));
-        }
         grant.value.state = GrantState::InFlight;
         Ok(PlanClaim {
             workflow: self.clone(),
@@ -416,6 +648,16 @@ impl WorkflowState {
         transaction_id: Uuid,
     ) -> Result<RollbackClaim, RehomeError> {
         let mut grants = self.grants();
+        if grants
+            .plans
+            .values()
+            .any(|grant| grant.value.state == GrantState::InFlight)
+        {
+            return Err(selection_failed(
+                ErrorCode::RollbackFailed,
+                "a restore is already in progress",
+            ));
+        }
         if !grants.rollbacks_in_flight.insert(transaction_id) {
             return Err(selection_failed(
                 ErrorCode::RollbackFailed,
@@ -771,30 +1013,91 @@ pub async fn build_restore_plan(
 }
 
 #[tauri::command]
+pub async fn start_migrate_and_connect(
+    state: State<'_, WorkflowState>,
+    selection: MigrateAndConnectSelection,
+) -> Result<MigrationJobSnapshot, RehomeError> {
+    let state = state.inner().clone();
+    let admission = selection.clone();
+    let (initial, worker) = run_blocking(ErrorCode::RestoreFailed, move || {
+        prepare_migration(&state, &admission, ensure_codex_desktop_is_closed)
+    })
+    .await
+    .map_err(sanitize_migration_error)?;
+    // The worker owns both the job and its plan claim independently of this IPC call.
+    tauri::async_runtime::spawn_blocking(move || {
+        worker.run(ensure_codex_desktop_is_closed, |backup_root, progress| {
+            let plan = crate::core::plan_store::load(selection.plan_id)?;
+            apply_restore_with_services(
+                plan,
+                RestoreOptions {
+                    codex_closed_confirmed: selection.codex_closed_confirmed,
+                    backup_root: backup_root.to_path_buf(),
+                    register_projects: selection.register_projects,
+                    continuation_probe: Some(ContinuationProbeOptions {
+                        probe_thread_id: selection.probe_thread_id,
+                        online_usage_confirmed: selection.online_usage_confirmed,
+                    }),
+                },
+                &mut register_project_with_detected_cli,
+                Some(&mut SystemCodexAccessVerifier),
+                progress,
+            )
+        });
+    });
+    Ok(initial)
+}
+
+#[tauri::command]
+pub async fn get_migration_job(
+    state: State<'_, WorkflowState>,
+    job_id: Uuid,
+) -> Result<MigrationJobSnapshot, RehomeError> {
+    state.migration_jobs.get(job_id)
+}
+
+#[tauri::command]
 pub async fn apply_restore(
     state: State<'_, WorkflowState>,
     selection: ApplyRestoreSelection,
 ) -> Result<RestoreReport, RehomeError> {
     let state = state.inner().clone();
     run_blocking(ErrorCode::RestoreFailed, move || {
-        let claim = state.claim_plan(selection.plan_id)?;
-        let result = apply_restore_by_id(
+        run_file_restore(
+            &state,
+            selection,
+            ensure_codex_desktop_is_closed,
+            |plan_id, options| apply_restore_by_id(plan_id, options),
+        )
+    })
+    .await
+}
+
+fn run_file_restore(
+    state: &WorkflowState,
+    selection: ApplyRestoreSelection,
+    check_process: impl FnOnce() -> Result<(), RehomeError>,
+    restore: impl FnOnce(Uuid, RestoreOptions) -> Result<RestoreReport, RehomeError>,
+) -> Result<RestoreReport, RehomeError> {
+    let claim = state.claim_plan(selection.plan_id)?;
+    let result = check_process().and_then(|()| {
+        restore(
             selection.plan_id,
             RestoreOptions {
                 codex_closed_confirmed: selection.codex_closed_confirmed,
                 backup_root: claim.backup_root.clone(),
                 register_projects: selection.register_projects,
+                continuation_probe: None,
             },
-        );
-        match result {
-            Err(error) if error.code == ErrorCode::CodexRunning => {
-                claim.restore_available();
-                Err(error)
-            }
-            result => result,
+        )
+    });
+    match result {
+        Err(error) if error.code == ErrorCode::CodexRunning => {
+            claim.restore_available();
+            Err(error)
         }
-    })
-    .await
+        result => result,
+    }
 }
 
 #[tauri::command]
@@ -1375,8 +1678,427 @@ fn codex_desktop_is_running() -> Result<bool, RehomeError> {
 }
 
 #[cfg(test)]
+mod migration_tests {
+    use super::*;
+    use crate::core::{
+        models::{MigrationJobStage, MigrationJobStatus},
+        restore::RestoreProgressEvent,
+    };
+    use std::sync::mpsc;
+
+    fn selection(workflow: &WorkflowState) -> MigrateAndConnectSelection {
+        let plan_id = Uuid::new_v4();
+        workflow
+            .grant_plan(plan_id, PathBuf::from("C:/Synthetic/backups"))
+            .unwrap();
+        MigrateAndConnectSelection {
+            plan_id,
+            codex_closed_confirmed: true,
+            register_projects: false,
+            probe_thread_id: Uuid::new_v4(),
+            online_usage_confirmed: true,
+        }
+    }
+
+    fn failure() -> RehomeError {
+        RehomeError::new(
+            ErrorCode::CodexVerificationFailed,
+            "synthetic raw payload SECRET",
+        )
+    }
+
+    fn report(transaction_id: Uuid) -> RestoreReport {
+        serde_json::from_value(serde_json::json!({
+            "transaction_id": transaction_id, "package_id": Uuid::new_v4(),
+            "completed_at": "2026-09-23T00:00:00Z", "restored_files": 1,
+            "restored_bytes": 10, "registrations": [],
+            "verification": {
+                "package_checksum_valid": true, "files_valid": true, "sessions_valid": true,
+                "session_index_valid": true, "sqlite_threads_valid": true, "path_mapping_valid": true,
+                "forbidden_files_absent": true, "project_files_valid": true,
+                "app_registration_valid": true, "app_visible_ready": false
+            }
+        })).unwrap()
+    }
+
+    #[test]
+    fn migration_input_rejects_arbitrary_probe_prompts_and_paths() {
+        let base = serde_json::json!({
+            "plan_id": Uuid::new_v4(), "codex_closed_confirmed": true,
+            "register_projects": false, "probe_thread_id": Uuid::new_v4(),
+            "online_usage_confirmed": true
+        });
+        assert!(serde_json::from_value::<MigrateAndConnectSelection>(base.clone()).is_ok());
+        for field in ["probe_prompt", "target_codex_home", "backup_root"] {
+            let mut value = base.clone();
+            value[field] = "untrusted".into();
+            assert!(serde_json::from_value::<MigrateAndConnectSelection>(value).is_err());
+        }
+    }
+
+    #[test]
+    fn confirmations_and_initial_process_check_precede_job_and_plan_claim() {
+        let workflow = WorkflowState::default();
+        for (closed, online, code) in [
+            (false, true, ErrorCode::CodexRunning),
+            (true, false, ErrorCode::CodexVerificationFailed),
+        ] {
+            let mut input = selection(&workflow);
+            input.codex_closed_confirmed = closed;
+            input.online_usage_confirmed = online;
+            let error =
+                prepare_migration(&workflow, &input, || panic!("must validate consent first"))
+                    .err()
+                    .unwrap();
+            assert_eq!(error.code, code);
+            assert!(workflow.claim_plan(input.plan_id).is_ok());
+        }
+        let input = selection(&workflow);
+        let error = prepare_migration(&workflow, &input, || {
+            Err(RehomeError::new(ErrorCode::CodexRunning, "running"))
+        })
+        .err()
+        .unwrap();
+        assert_eq!(error.code, ErrorCode::CodexRunning);
+        assert!(workflow.claim_plan(input.plan_id).is_ok());
+        assert!(workflow
+            .migration_jobs
+            .inner
+            .lock()
+            .unwrap()
+            .records
+            .is_empty());
+    }
+
+    #[test]
+    fn worker_rechecks_process_before_restore() {
+        let workflow = WorkflowState::default();
+        let input = selection(&workflow);
+        let mut checks = 0;
+        let mut check = || {
+            checks += 1;
+            if checks == 1 {
+                Ok(())
+            } else {
+                Err(RehomeError::new(ErrorCode::CodexRunning, "running"))
+            }
+        };
+        let (initial, worker) = prepare_migration(&workflow, &input, &mut check).unwrap();
+        worker.run(&mut check, |_, _| panic!("restore must not be called"));
+        assert_eq!(checks, 2);
+        let snapshot = workflow.migration_jobs.get(initial.job_id).unwrap();
+        assert_eq!(snapshot.status, MigrationJobStatus::FailedBeforeWrite);
+        assert_eq!(snapshot.transaction_id, None);
+        assert_eq!(snapshot.error.unwrap().code, ErrorCode::CodexRunning);
+    }
+
+    #[test]
+    fn structured_rollback_state_survives_frontend_polling() {
+        for (prepared, events, code, expected) in [
+            (
+                false,
+                vec![],
+                ErrorCode::RollbackFailed,
+                MigrationJobStatus::FailedBeforeWrite,
+            ),
+            (
+                true,
+                vec![],
+                ErrorCode::CodexVerificationFailed,
+                MigrationJobStatus::RollbackFailed,
+            ),
+            (
+                true,
+                vec![RestoreProgressEvent::RollbackCompleted],
+                ErrorCode::RollbackFailed,
+                MigrationJobStatus::RolledBack,
+            ),
+            (
+                true,
+                vec![RestoreProgressEvent::RollbackFailed],
+                ErrorCode::CodexCleanupUnconfirmed,
+                MigrationJobStatus::RollbackFailed,
+            ),
+            (
+                true,
+                vec![
+                    RestoreProgressEvent::RollbackCompleted,
+                    RestoreProgressEvent::RollbackFailed,
+                ],
+                ErrorCode::RestoreFailed,
+                MigrationJobStatus::RollbackFailed,
+            ),
+            (
+                true,
+                vec![
+                    RestoreProgressEvent::RollbackFailed,
+                    RestoreProgressEvent::RollbackCompleted,
+                ],
+                ErrorCode::RestoreFailed,
+                MigrationJobStatus::RolledBack,
+            ),
+        ] {
+            let jobs = MigrationJobs::default();
+            let initial = jobs.start(Uuid::new_v4());
+            let transaction_id = Uuid::new_v4();
+            if prepared {
+                jobs.record_progress(
+                    initial.job_id,
+                    RestoreProgressEvent::TransactionPrepared(transaction_id),
+                )
+                .unwrap();
+                jobs.record_progress(
+                    initial.job_id,
+                    RestoreProgressEvent::Stage(MigrationJobStage::RollingBack),
+                )
+                .unwrap();
+            }
+            for event in events {
+                jobs.record_progress(initial.job_id, event).unwrap();
+            }
+            jobs.finish(
+                initial.job_id,
+                Err(RehomeError::new(
+                    code,
+                    "rollback succeeded; SECRET raw payload",
+                )),
+            )
+            .unwrap();
+            let snapshot = jobs.clone().get(initial.job_id).unwrap();
+            assert_eq!(snapshot.status, expected);
+            assert_eq!(snapshot.stage, MigrationJobStage::Finished);
+            assert_eq!(snapshot.transaction_id, prepared.then_some(transaction_id));
+            let error = snapshot.error.as_ref().unwrap();
+            assert_eq!(error.code, code);
+            assert!(!error.message.contains("SECRET"));
+            assert!(!error.message.contains("rollback succeeded"));
+            assert!(snapshot.report.is_none());
+            jobs.record_progress(
+                initial.job_id,
+                RestoreProgressEvent::Stage(MigrationJobStage::Preflight),
+            )
+            .unwrap();
+            jobs.finish(initial.job_id, Err(failure())).unwrap();
+            assert_eq!(jobs.get(initial.job_id).unwrap(), snapshot);
+        }
+    }
+
+    #[test]
+    fn terminal_storage_prunes_oldest_completion_and_never_running_jobs() {
+        let jobs = MigrationJobs::default();
+        let running: Vec<_> = (0..23).map(|_| jobs.start(Uuid::new_v4())).collect();
+        let late = jobs.start(Uuid::new_v4());
+        let oldest_terminal = jobs.start(Uuid::new_v4());
+        jobs.finish(oldest_terminal.job_id, Err(failure())).unwrap();
+        jobs.finish(late.job_id, Err(failure())).unwrap();
+        let retained: Vec<_> = (0..19)
+            .map(|_| {
+                let job = jobs.start(Uuid::new_v4());
+                jobs.finish(job.job_id, Err(failure())).unwrap();
+                job.job_id
+            })
+            .collect();
+        assert_eq!(
+            jobs.get(oldest_terminal.job_id).unwrap_err().code,
+            ErrorCode::MigrationJobNotFound
+        );
+        assert!(jobs.get(late.job_id).is_ok());
+        for job in retained {
+            assert!(jobs.get(job).is_ok());
+        }
+        for job in running {
+            assert_eq!(
+                jobs.get(job.job_id).unwrap().status,
+                MigrationJobStatus::Running
+            );
+        }
+        assert_eq!(jobs.inner.lock().unwrap().records.len(), 43);
+        assert_eq!(
+            jobs.get(Uuid::new_v4()).unwrap_err().code,
+            ErrorCode::MigrationJobNotFound
+        );
+    }
+
+    #[test]
+    fn running_job_is_pollable_and_outlives_its_caller() {
+        let workflow = WorkflowState::default();
+        let input = selection(&workflow);
+        let other = selection(&workflow);
+        let (initial, worker) = prepare_migration(&workflow, &input, || Ok(())).unwrap();
+        let transaction_id = Uuid::new_v4();
+        let expected = report(transaction_id);
+        let result = expected.clone();
+        let (entered_tx, entered_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let (finished_tx, finished_rx) = mpsc::channel();
+        let handle = tauri::async_runtime::spawn_blocking(move || {
+            worker.run(
+                || Ok(()),
+                |root, sink| {
+                    assert_eq!(root, Path::new("C:/Synthetic/backups"));
+                    sink.update(RestoreProgressEvent::TransactionPrepared(transaction_id));
+                    sink.update(RestoreProgressEvent::Stage(
+                        MigrationJobStage::RecognizingThreads,
+                    ));
+                    entered_tx.send(()).unwrap();
+                    release_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+                    Ok(result)
+                },
+            );
+            finished_tx.send(()).unwrap();
+        });
+        drop(handle);
+        entered_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        let polling_state = workflow.clone();
+        let snapshot = polling_state.migration_jobs.get(initial.job_id).unwrap();
+        assert_eq!(snapshot.status, MigrationJobStatus::Running);
+        assert_eq!(snapshot.stage, MigrationJobStage::RecognizingThreads);
+        assert_eq!(snapshot.transaction_id, Some(transaction_id));
+        assert_ne!(snapshot.updated_at, initial.updated_at);
+        assert!(chrono::DateTime::parse_from_rfc3339(&snapshot.updated_at).is_ok());
+        assert!(workflow.claim_plan(input.plan_id).is_err());
+        assert!(workflow.claim_plan(other.plan_id).is_err());
+        assert!(workflow.claim_rollback(transaction_id).is_err());
+        release_tx.send(()).unwrap();
+        finished_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        let snapshot = polling_state.migration_jobs.get(initial.job_id).unwrap();
+        assert_eq!(snapshot.status, MigrationJobStatus::Succeeded);
+        assert_eq!(snapshot.stage, MigrationJobStage::Finished);
+        assert_eq!(snapshot.report, Some(expected));
+        assert!(snapshot.error.is_none());
+        assert!(workflow.claim_plan(input.plan_id).is_err());
+        assert!(workflow.claim_plan(other.plan_id).is_ok());
+    }
+
+    #[test]
+    fn worker_panic_terminalizes_from_recorded_evidence_and_releases_guard() {
+        for prepared in [false, true] {
+            let workflow = WorkflowState::default();
+            let input = selection(&workflow);
+            let other = selection(&workflow);
+            let (initial, worker) = prepare_migration(&workflow, &input, || Ok(())).unwrap();
+            let transaction_id = Uuid::new_v4();
+            let handle = tauri::async_runtime::spawn_blocking(move || {
+                worker.run(
+                    || Ok(()),
+                    |_, sink| {
+                        if prepared {
+                            sink.update(RestoreProgressEvent::TransactionPrepared(transaction_id));
+                        }
+                        panic!("synthetic worker failure");
+                    },
+                );
+            });
+            assert!(tauri::async_runtime::block_on(handle).is_err());
+            let snapshot = workflow.migration_jobs.get(initial.job_id).unwrap();
+            assert_eq!(
+                snapshot.status,
+                if prepared {
+                    MigrationJobStatus::RollbackFailed
+                } else {
+                    MigrationJobStatus::FailedBeforeWrite
+                }
+            );
+            assert_eq!(snapshot.transaction_id, prepared.then_some(transaction_id));
+            assert_eq!(snapshot.error.unwrap().code, ErrorCode::RestoreFailed);
+            assert!(workflow.claim_plan(other.plan_id).is_ok());
+        }
+    }
+
+    #[test]
+    fn abandoned_worker_terminalizes_before_releasing_plan_claim() {
+        let workflow = WorkflowState::default();
+        let input = selection(&workflow);
+        let (initial, worker) = prepare_migration(&workflow, &input, || Ok(())).unwrap();
+        drop(worker);
+        assert_eq!(
+            workflow.migration_jobs.get(initial.job_id).unwrap().status,
+            MigrationJobStatus::FailedBeforeWrite
+        );
+        assert!(workflow.claim_rollback(Uuid::new_v4()).is_ok());
+    }
+
+    #[test]
+    fn file_only_restore_checks_process_before_core_and_keeps_retry_capability() {
+        let workflow = WorkflowState::default();
+        let input = selection(&workflow);
+        let error = run_file_restore(
+            &workflow,
+            ApplyRestoreSelection {
+                plan_id: input.plan_id,
+                codex_closed_confirmed: true,
+                register_projects: false,
+            },
+            || Err(RehomeError::new(ErrorCode::CodexRunning, "running")),
+            |_, _| panic!("must not restore"),
+        )
+        .unwrap_err();
+        assert_eq!(error.code, ErrorCode::CodexRunning);
+        assert!(workflow.claim_plan(input.plan_id).is_ok());
+    }
+}
+
+#[cfg(test)]
 mod grant_tests {
     use super::*;
+
+    fn granted_plan(workflow: &WorkflowState) -> Uuid {
+        let plan_id = Uuid::new_v4();
+        workflow
+            .grant_plan(plan_id, PathBuf::from("C:/Synthetic/backups"))
+            .unwrap();
+        plan_id
+    }
+
+    #[test]
+    fn claimed_plan_prevents_a_second_migration_job() {
+        let workflow = WorkflowState::default();
+        let plan_id = granted_plan(&workflow);
+        let claim = workflow.claim_plan(plan_id).unwrap();
+        assert_eq!(
+            workflow.claim_plan(plan_id).err().unwrap().code,
+            ErrorCode::RestoreFailed
+        );
+        drop(claim);
+        assert!(workflow.claim_plan(plan_id).is_err());
+    }
+
+    #[test]
+    fn different_restore_plans_are_exclusive_until_guard_release() {
+        let workflow = WorkflowState::default();
+        let first = granted_plan(&workflow);
+        let second = granted_plan(&workflow);
+        let claim = workflow.claim_plan(first).unwrap();
+        assert_eq!(
+            workflow.claim_plan(second).err().unwrap().code,
+            ErrorCode::RestoreFailed
+        );
+        claim.restore_available();
+        drop(workflow.claim_plan(second).unwrap());
+        assert!(workflow.claim_plan(first).is_ok());
+    }
+
+    #[test]
+    fn restore_and_manual_rollback_exclude_each_other_in_both_orders() {
+        let workflow = WorkflowState::default();
+        let first = granted_plan(&workflow);
+        let second = granted_plan(&workflow);
+        let transaction_id = Uuid::new_v4();
+        let plan = workflow.claim_plan(first).unwrap();
+        assert_eq!(
+            workflow.claim_rollback(transaction_id).err().unwrap().code,
+            ErrorCode::RollbackFailed
+        );
+        drop(plan);
+        let rollback = workflow.claim_rollback(transaction_id).unwrap();
+        assert_eq!(
+            workflow.claim_plan(second).err().unwrap().code,
+            ErrorCode::RestoreFailed
+        );
+        assert!(workflow.claim_rollback(transaction_id).is_err());
+        drop(rollback);
+        assert!(workflow.claim_plan(second).is_ok());
+    }
 
     #[test]
     fn pruning_expired_capabilities_keeps_in_flight_restore_plans() {

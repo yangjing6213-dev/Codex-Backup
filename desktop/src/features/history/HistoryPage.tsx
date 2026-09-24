@@ -17,12 +17,16 @@ interface HistoryPageProps {
   headingRef: RefObject<HTMLHeadingElement | null>;
   onOperationStart: () => void;
   onOperationEnd: () => void;
+  operationBusy?: boolean;
+  visible?: boolean;
 }
 
 export default function HistoryPage({
   headingRef,
   onOperationStart,
   onOperationEnd,
+  operationBusy = false,
+  visible = true,
 }: HistoryPageProps) {
   const { locale, t } = useI18n();
   const [transactions, setTransactions] = useState<TransactionSummary[]>([]);
@@ -46,10 +50,11 @@ export default function HistoryPage({
   }, []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    if (visible) void refresh();
+  }, [refresh, visible]);
 
   async function handleRollback(transaction: TransactionSummary, action: RollbackAction) {
+    if (operationBusy || rollingBack) return;
     setRollingBack(transaction.transaction_id);
     setError(null);
     onOperationStart();
@@ -74,10 +79,10 @@ export default function HistoryPage({
   }
 
   return (
-    <div className="page history-page">
+    <div className="page migration-page history-page">
       <header className="page-header page-header-with-action">
         <div><p className="eyebrow">HISTORY</p><h1 ref={headingRef} tabIndex={-1}>{t("迁移记录")}</h1><p className="page-description">{t("查看本机导入记录和自动备份。")}</p></div>
-        <button className="icon-button" type="button" aria-label={t("刷新迁移记录")} title={t("刷新迁移记录")} onClick={() => void refresh()} disabled={loading}><RefreshCw className={loading ? "spin" : ""} aria-hidden="true" /></button>
+        <button className="secondary-button" type="button" aria-label={t("刷新迁移记录")} title={t("刷新迁移记录")} onClick={() => void refresh()} disabled={loading}><RefreshCw className={loading ? "spin" : ""} aria-hidden="true" /></button>
       </header>
 
       {error && <p className="inline-state status-error" role="alert"><AlertTriangle aria-hidden="true" />{error}</p>}
@@ -103,18 +108,18 @@ export default function HistoryPage({
           const rollbackAction: RollbackAction = committed ? "rollback" : "resume";
           const busy = rollingBack === transaction.transaction_id;
           return (
-            <article className="transaction-row" data-testid={`transaction-${transaction.transaction_id}`} key={transaction.transaction_id}>
+            <article className="transaction-row card" data-testid={`transaction-${transaction.transaction_id}`} key={transaction.transaction_id}>
               <div className="transaction-main">
                 <span className={`transaction-icon status-${transaction.status}`}>{committed ? <CheckCircle2 aria-hidden="true" /> : <RotateCcw aria-hidden="true" />}</span>
                 <div><div className="transaction-title"><strong>{statusLabel(transaction.status, t)}</strong><time>{formatDate(transaction.created_at, locale)}</time></div><code>{transaction.transaction_id}</code></div>
               </div>
               <div className="transaction-facts"><span>{t("变更文件")}<strong>{transaction.changed_files}</strong></span><span>{t("项目目录")}<strong>{transaction.projects_root}</strong></span><span>{t("备份目录")}<strong>{transaction.backup_root}</strong></span></div>
               <div className="transaction-actions">
-                <button className="icon-text-button" type="button" onClick={() => void handleReveal(transaction.transaction_backup_path, transaction.transaction_id)}><FolderOpen aria-hidden="true" />{t("显示备份")}</button>
+                <button className="secondary-button small" type="button" onClick={() => void handleReveal(transaction.transaction_backup_path, transaction.transaction_id)}><FolderOpen aria-hidden="true" />{t("显示备份")}</button>
                 {transaction.restored_project_paths.map((path) => (
-                  <button className="icon-text-button" type="button" aria-label={t("显示项目 {path}", { path })} key={path} onClick={() => void handleReveal(path, transaction.transaction_id)}><FolderOpen aria-hidden="true" />{t("显示项目")}</button>
+                  <button className="secondary-button small" type="button" aria-label={t("显示项目 {path}", { path })} key={path} onClick={() => void handleReveal(path, transaction.transaction_id)}><FolderOpen aria-hidden="true" />{t("显示项目")}</button>
                 ))}
-                <button className="rollback-button" type="button" aria-label={t(resumable ? "继续回滚事务" : "回滚此事务")} disabled={(!committed && !resumable) || busy} onClick={() => void handleRollback(transaction, rollbackAction)}>{busy ? <LoaderCircle className="spin" aria-hidden="true" /> : <RotateCcw aria-hidden="true" />}{t(resumable ? "继续回滚" : "回滚")}</button>
+                <button className="secondary-button small" type="button" aria-label={t(resumable ? "继续回滚事务" : "回滚此事务")} disabled={(!committed && !resumable) || operationBusy || rollingBack !== null} onClick={() => void handleRollback(transaction, rollbackAction)}>{busy ? <LoaderCircle className="spin" aria-hidden="true" /> : <RotateCcw aria-hidden="true" />}{t(resumable ? "继续回滚" : "回滚")}</button>
               </div>
             </article>
           );

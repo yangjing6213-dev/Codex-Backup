@@ -34,6 +34,9 @@ foreach ($tool in @("restic.exe", "rclone.exe")) {
     }
 }
 
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ProjectRoot "tests\bundled_licenses_test.ps1")
+if ($LASTEXITCODE -ne 0) { throw "bundled license verification failed" }
+
 Push-Location (Join-Path $ProjectRoot "desktop")
 try {
     & pnpm run build
@@ -43,6 +46,10 @@ try {
 } finally {
     Pop-Location
 }
+
+$nsisScript = Join-Path $ProjectRoot "desktop\src-tauri\target\x86_64-pc-windows-msvc\release\nsis\x64\installer.nsi"
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ProjectRoot "tests\bundled_licenses_test.ps1") -NsisScript $nsisScript
+if ($LASTEXITCODE -ne 0) { throw "installer license inclusion verification failed" }
 
 $bundleRoot = Join-Path $ProjectRoot "desktop\src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis"
 $installer = Get-ChildItem -LiteralPath $bundleRoot -Filter "*.exe" -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1

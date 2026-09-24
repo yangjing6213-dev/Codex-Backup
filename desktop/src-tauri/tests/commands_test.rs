@@ -2,6 +2,8 @@ const WORKFLOW_SOURCE: &str = include_str!("../src/workflow.rs");
 const APP_SOURCE: &str = include_str!("../src/lib.rs");
 
 const COMMANDS: &[&str] = &[
+    "start_migrate_and_connect",
+    "get_migration_job",
     "discover_codex",
     "create_package",
     "inspect_package",
@@ -18,6 +20,8 @@ const COMMANDS: &[&str] = &[
 ];
 
 const REGISTERED_COMMANDS: &[&str] = &[
+    "start_migrate_and_connect",
+    "get_migration_job",
     "discover_codex",
     "create_package",
     "inspect_package",
@@ -35,8 +39,8 @@ const REGISTERED_COMMANDS: &[&str] = &[
 ];
 
 #[test]
-fn desktop_registers_exactly_the_fourteen_reviewed_commands() {
-    assert_eq!(WORKFLOW_SOURCE.matches("#[tauri::command]").count(), 14);
+fn desktop_registers_exactly_the_sixteen_reviewed_commands() {
+    assert_eq!(WORKFLOW_SOURCE.matches("#[tauri::command]").count(), 16);
     for command in REGISTERED_COMMANDS {
         assert!(
             APP_SOURCE.contains(&format!("workflow::{command}")),

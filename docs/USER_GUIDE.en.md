@@ -1,5 +1,7 @@
 # ENHE Codex Backup User Guide
 
+This guide covers 0.1.7 (2026-09-23). Local build or installation does not prove GitHub publication or real-account continuation. See [STATUS](STATUS.md) for the evidence boundary.
+
 ## First run
 
 Open Overview after launch. Seeing cloud marked “off” is the expected default; it does not block local discovery, backup, history, or restore.
@@ -32,11 +34,26 @@ Successful file recovery does not prove that original conversations are visible 
 
 Starting with 0.1.3, full local project backup includes every readable regular file: hidden files, `.git`, uncommitted/untracked/ignored files, `node_modules`, build outputs, caches, and sensitive files such as `.env`, private keys and tokens. There is no extension filter. Recognized worktree metadata is retained. More files increase initial backup time and temporary disk use; keep the backup repository outside your projects.
 
-Sensitive project files go into the encrypted restic repository. Use a strong independent recovery password, keep it separately, and never publish restored files or upload them to GitHub. Cloud remains off by default and nothing is uploaded automatically. **The Codex data location keeps its separate safety exclusions**, including known login credentials, cookies, private keys, `.env`, dependencies, designated caches and runtime locks. Its active JSONL/SQLite capture rules are unchanged. Symbolic links and filesystem redirects are not followed. Unreadable or unsupported entries are recorded as missing and make the backup partial rather than falsely complete.
+Sensitive project files go into the encrypted restic repository. Use a strong independent recovery password, keep it separately, and never publish restored files or upload them to GitHub. Cloud remains off by default and nothing is uploaded automatically. **The Codex data location keeps its separate safety exclusions**: known login credentials, cookies, private keys and `.env` are excluded; dependencies, designated caches and runtime temporary files are reported as notices. Its active JSONL/SQLite capture rules are unchanged. Symbolic links and filesystem redirects are not followed. Recognized rebuildable dependency links and test-artifact links under `.local-audit` become notices; other links and unreadable or unsupported entries remain missing content.
 
 When the project scan directory is `F:\Projects`, each direct child folder is listed by its actual folder name. Nested `.next` and test fixtures contribute files instead of becoming separate projects. Leaving the scope empty uses cancellable whole-disk discovery with depth/time limits. Rescanning replaces current discoveries; saved manual and historical paths are listed separately.
 
 File counts are measured recursively in the background, including hidden files, Git, dependencies, build outputs and secrets. The UI shows “Counting files…” until a real count is available, and marks permission errors, redirects or cancellation as partial with skipped-entry counts. Only genuinely empty folders show zero. Counts measure regular files enumerable at scan time, not proof that their contents remain readable. Final backup counts, extra Git metadata and active-file changes are recorded in `manifest.json`.
+
+## Understand backup and restore results
+
+“Backup completed” (`complete`) means no notices, data warnings or missing items were reported; explicit security exclusions can still exist. “Backup completed with items to review” (`warning`) means no missing content was reported, but automatic handling or data warnings need attention. “Backup partially completed” (`partial`) means content is missing and the snapshot is not a complete copy. Restore carries the manifest's classification forward; it cannot recover content absent from the snapshot.
+
+Open “View result details” and act on the impact:
+
+| Category | Meaning and next action |
+| --- | --- |
+| Security exclusions | Codex sign-in credentials and other protected content were excluded; sign in again normally after restoring. |
+| Handled automatically | Rebuildable dependency links, caches, runtime temporary files or test artifacts were omitted. Dependencies may need reinstalling with the project's package manager; offline operation is not guaranteed. Applications recreate runtime files; regenerate test artifacts as needed. This label does not mean zero impact or that dependencies were already reinstalled. |
+| Data warning | Malformed or truncated JSONL was retained, but the named conversation may be incomplete. Keep the original file and inspect that conversation; this does not mean all project files are lost. |
+| Files missing | A red missing project path means that source project is absent from this snapshot. Correct or reselect the path, reconnect its disk if necessary, and back up again. Deselect only a project you no longer need. Follow the named paths for permission failures, copy failures and ordinary links too. |
+
+Repeated security exclusions and automatic handling are aggregated by count; data warnings and missing files retain affected paths and remedies. The new classification does not rewrite old `manifest.json` files. Older manifests may show an unclassified issue and retain their original partial status; upgrading must not conceal genuinely missing data.
 
 ## Move a complete backup to another computer
 
@@ -48,7 +65,26 @@ Export ReHome migration package and Import ReHome migration package handle only 
 
 To import, choose the `.rehome` file and review its contents and the displayed Codex data location. Choose a project destination when the package contains projects. Preview the exact paths to be written: projects go into `<project destination>/<packaged project name>/`, while sessions and indexes go into the plan's target Codex location. This differs from the local snapshot restore layout above. Save work and fully exit the target Codex before confirming import. Review conflicts before choosing to keep local files or use package files; the app manages safety backups before replacement.
 
-If import fails, inspect the error and migration records and use available recovery or rollback actions. Do not manually overwrite the real `.codex` directory. Even after files and indexes pass validation, reopen Codex and independently verify that the original conversation is visible and accepts a new message. Conversation continuation remains unverified until then.
+After previewing, choose a restore mode:
+
+- **Restore files only** restores files, sessions and indexes with local checks. It does not start online access verification or prove Codex recognition or continuation. If no conversations map to the plan, only this mode is available; the result explicitly says conversations were not verified.
+- **Migrate and connect to Codex (recommended)** requires a network connection and sign-in or authentication as required by the configured model service. Save work and fully close the target Codex and its helpers. Select one planned conversation and explicitly consent to online verification and usage before starting. Keep ENHE Codex Backup open until the job finishes.
+
+Connection progresses through “Files restored”, “Conversations recognized by Codex” and “Temporary branch can continue messaging”. Recognition covers every planned target conversation ID. Continuation sends one fixed neutral verification message only on a separate temporary fork of the selected conversation and requires a matching nonempty reply and completion result. It does not append the message to an original conversation, test each other conversation, or prove full history, tool use or every project workflow. Recognition is an App Server result, not pixel-level proof of visibility in the desktop UI.
+
+The temporary fork uses the selected conversation's context with the configured model service, not just an isolated neutral prompt, and may incur model usage. Local rollback cannot undo processing of transmitted content or usage. Turning off restic cloud backup does not block online connection verification that you explicitly consent to.
+
+Codex App Server must support the required capabilities and safety restrictions. Verification stops if temporary forks, read-only restrictions or other required capabilities cannot be confirmed; incompatible configuration such as enabled MCP integrations can also block it. Follow the error guidance to check configuration or update Codex through official channels, then preview again. There is no automatic fallback to messaging an original conversation or restoring files only. CLI `0.155.0-alpha.16` protocol schemas were checked offline during development; this is neither a minimum supported version nor advice to install an alpha. See the [official Codex App Server reference](https://learn.chatgpt.com/docs/app-server) for protocol background.
+
+## Migration failures and History
+
+Errors include a cause and remedy. For an unavailable service, check the Codex installation and App Server capabilities. For authentication failures, sign in normally, check the model service configuration, then fully exit Codex. For recognition or continuation failures, check consent, the selected conversation, service and network, then preview again. If MCP or other integrations are enabled, inspect and resolve issues manually in Codex, or explicitly choose “Restore files only”. A generic verification failure is not necessarily caused by integrations; the app does not automatically disable them or change restore mode. A temporarily unavailable job status does not mean migration failed or prove rollback; do not start the job again.
+
+An ordinary verification failure after confirmed helper termination triggers an automatic local rollback attempt. Use the final “Local changes were rolled back” or failure status, not an earlier “Files restored” progress step, to assess the resulting files. Rollback can fail, including when files have changed since migration.
+
+“Codex helper termination is unconfirmed” means a helper may still be writing. The app stops database checkpoint and rollback writes, retaining the transaction, current files and automatic backups for manual recovery instead of rolling back against a live writer. Fully close Codex and its helpers, open History using the transaction ID, and inspect status and retained copies before deciding whether an available rollback or continue-rollback action is appropriate. Preserve the material and do not force an overwrite of newer data; continuing rollback is not guaranteed to succeed. Another rollback cannot start while migration is running.
+
+Real-account, second-device, original-conversation desktop visibility and online continuation checks for this development build are `NOT_RUN`. Passing synthetic protocol or browser checks does not replace them.
 
 ## Optional cloud
 

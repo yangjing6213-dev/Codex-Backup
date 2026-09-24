@@ -21,6 +21,8 @@ pub fn run() {
             workflow::inspect_package,
             workflow::build_restore_plan,
             workflow::apply_restore,
+            workflow::start_migrate_and_connect,
+            workflow::get_migration_job,
             workflow::list_transactions,
             workflow::rollback_transaction,
             workflow::open_path,

@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-09-23
+
+- Separate automatic/security exclusions, rebuildable dependency/runtime notices, integrity warnings and genuinely missing files. Keep missing project roots visible with remedies instead of treating every skipped cache or dependency link as lost source.
+- Validate copied Codex JSONL without the former per-line 8 MiB false-warning limit; retain malformed files and warn about the affected conversation.
+- Add explicit file-only and migrate-and-connect ReHome import modes. The latter verifies restored files, App Server recognition of all planned conversations, and one user-selected ephemeral-fork probe, without messaging the original thread.
+- Require closed-Codex confirmation and separate online consent for context transmission and possible model usage. Reject unavailable capabilities or unconfirmed safety settings, including enabled integrations; never silently downgrade verification.
+- Keep migration jobs running across navigation and expose progress, transaction history, causes and remedies. Roll back ordinary failures after confirmed helper termination; preserve recovery material and stop database writes when termination cannot be confirmed.
+- Document that recognition is not pixel-level desktop visibility, one probe is not full-history/tool validation, and local rollback cannot undo online processing or usage. Real-account, second-device and native UI acceptance remain NOT_RUN.
+- Align metadata, visible labels, bilingual guides and unsigned Windows x64 packaging at 0.1.7. Older releases remain unchanged.
+- Include offline program and third-party license/notice texts in the installer, and reject missing or stale notice inventories before packaging. This packaging correction does not change application behavior.
+- Treat the pinned `github.com/cloudsoda/sddl` revision conservatively under LGPL-3.0: include the exact rclone/SDDL source bundle, relinking instructions and build manifest in the installer. This release-preparation change does not change application behavior or dependency versions.
+
 ## [0.1.6] - 2026-09-20
 
 - Reject a non-empty ordinary folder before restic runs unless it has a complete restic repository layout, leaving every existing file unchanged.

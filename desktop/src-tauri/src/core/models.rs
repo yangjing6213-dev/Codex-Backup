@@ -1,3 +1,4 @@
+use crate::core::error::RehomeError;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use uuid::Uuid;
@@ -261,10 +262,28 @@ pub struct RestorePlan {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ContinuationProbeOptions {
+    pub probe_thread_id: Uuid,
+    pub online_usage_confirmed: bool,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CodexAccessVerification {
+    pub required_threads: u64,
+    pub recognized_threads: u64,
+    pub probe_thread_id: Option<Uuid>,
+    pub threads_recognized: bool,
+    pub continuation_probe_valid: bool,
+    pub ephemeral_fork: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RestoreOptions {
     pub codex_closed_confirmed: bool,
     pub backup_root: PathBuf,
     pub register_projects: bool,
+    #[serde(default)]
+    pub continuation_probe: Option<ContinuationProbeOptions>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -280,6 +299,8 @@ pub struct VerificationReport {
     pub app_registration_valid: bool,
     /// True only after application-level visibility verification, not registration.
     pub app_visible_ready: bool,
+    #[serde(default)]
+    pub codex_access: CodexAccessVerification,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -298,6 +319,43 @@ pub struct RestoreReport {
     pub restored_bytes: u64,
     pub registrations: Vec<ProjectRegistration>,
     pub verification: VerificationReport,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MigrationJobStage {
+    Preflight,
+    RestoringFiles,
+    FilesVerified,
+    RecognizingThreads,
+    ProbingContinuation,
+    Committing,
+    RollingBack,
+    Finished,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MigrationJobStatus {
+    Running,
+    Succeeded,
+    FailedBeforeWrite,
+    RolledBack,
+    RollbackFailed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MigrationJobSnapshot {
+    pub job_id: Uuid,
+    pub plan_id: Uuid,
+    /// Assigned only after the restore journal is durably prepared.
+    pub transaction_id: Option<Uuid>,
+    pub stage: MigrationJobStage,
+    pub status: MigrationJobStatus,
+    pub report: Option<RestoreReport>,
+    /// Producers must sanitize errors before exposing them in a snapshot.
+    pub error: Option<RehomeError>,
+    pub updated_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

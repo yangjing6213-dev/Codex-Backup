@@ -26,7 +26,9 @@ import {
 } from "lucide-react";
 
 import ReceivePage from "./features/receive/ReceivePage";
+import HistoryPage from "./features/history/HistoryPage";
 import SendPage from "./features/send/SendPage";
+import { BackupResultSummary, backupResultTone } from "./features/backup/BackupResultSummary";
 import {
   discoverCodex,
   getAppConfig,
@@ -51,12 +53,12 @@ import {
   errorMessage,
   type AppConfig,
   type Appearance,
-  type BackupIssue,
   type CloudConfig,
   type CloudConfigQuestion,
   type CodexInventory,
   type LocalSnapshot,
   type LocalSnapshotSummary,
+  type LocalRestoreReport,
   type LocalDiscoveryResult,
   type LocalProjectCandidate,
   type SchedulerStatus,
@@ -64,7 +66,7 @@ import {
 import "./App.css";
 
 export type View = "overview" | "projects" | "data" | "backups" | "settings" | "guide" | "about";
-type BackupView = "local" | "export" | "import";
+type BackupView = "local" | "export" | "import" | "history";
 type LocalScanState = "idle" | "running" | "complete" | "partial" | "failed";
 type ProjectFileCounts = Record<string, LocalProjectCandidate | "counting" | "failed">;
 type ProjectRow = { path: string; name: string; label: string; available: boolean; current: boolean; count?: LocalProjectCandidate };
@@ -397,7 +399,7 @@ function AppContent() {
       <aside className="sidebar">
         <button className="brand" type="button" onClick={() => setView("overview")} aria-label={t("ENHE Codex Backup")}>
           <img className="brand-mark" src="/app-icon.png" alt="" />
-          <span className="brand-copy"><small className="brand-version">v0.1.6</small><strong>ENHE</strong><small>Codex Backup</small></span>
+          <span className="brand-copy"><small className="brand-version">v0.1.7</small><strong>ENHE</strong><small>Codex Backup</small></span>
         </button>
 
         <nav className="navigation" aria-label={t("主导航")}>
@@ -437,7 +439,7 @@ function AppContent() {
         </div>
       </aside>
 
-      <main className="workspace" data-view={view} aria-busy={activeOperations > 0}>
+      <main className="workspace" data-view={view} aria-busy={loading}>
         <header className="topbar">
           <span className="topbar-title">{t(viewTitles[view])}</span>
           {loading ? (
@@ -519,6 +521,7 @@ function AppContent() {
           />
         </div>}
         {view === "settings" && (
+          <fieldset className="migration-control-guard" disabled={activeOperations > 0}>
           <SettingsPage
             headingRef={headingRef}
             config={config}
@@ -539,6 +542,7 @@ function AppContent() {
             onNotice={setNotice}
             onError={setError}
           />
+          </fieldset>
         )}
         {view === "guide" && <GuidePage headingRef={headingRef} />}
         {view === "about" && <AboutPage headingRef={headingRef} />}
@@ -910,9 +914,11 @@ interface BackupsPageProps {
 function BackupsPage({ headingRef, visible, operationBusy, inventory, config, onRepositoryChange, onNavigate, onOperationStart, onOperationEnd, onNotice, onError }: BackupsPageProps) {
   const { t, locale } = useI18n();
   const [subview, setSubview] = useState<BackupView>("local");
-  const [openedViews, setOpenedViews] = useState({ export: false, import: false });
+  const [openedViews, setOpenedViews] = useState({ export: false, import: false, history: false });
+  const [migrationJobId, setMigrationJobId] = useState<string | null>(null);
   const exportHeadingRef = useRef<HTMLHeadingElement>(null);
   const importHeadingRef = useRef<HTMLHeadingElement>(null);
+  const historyHeadingRef = useRef<HTMLHeadingElement>(null);
   const [repository, setRepository] = useState(config.local_repository ?? "");
   const [password, setPassword] = useState("");
   const [restoreTarget, setRestoreTarget] = useState("");
@@ -920,18 +926,16 @@ function BackupsPage({ headingRef, visible, operationBusy, inventory, config, on
   const [snapshots, setSnapshots] = useState<LocalSnapshotSummary[]>([]);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<LocalSnapshot | null>(null);
-  const [restoreResult, setRestoreResult] = useState<string | null>(null);
-  const [restoreComplete, setRestoreComplete] = useState(false);
-  const [restoreMissing, setRestoreMissing] = useState<BackupIssue[]>([]);
+  const [restoreResult, setRestoreResult] = useState<LocalRestoreReport | null>(null);
 
-  function openMigration(next: "export" | "import") {
+  function openMigration(next: "export" | "import" | "history") {
     setOpenedViews(current => ({ ...current, [next]: true }));
     setSubview(next);
   }
 
   useEffect(() => {
     if (visible) {
-      (subview === "export" ? exportHeadingRef : subview === "import" ? importHeadingRef : headingRef).current?.focus();
+      (subview === "export" ? exportHeadingRef : subview === "import" ? importHeadingRef : subview === "history" ? historyHeadingRef : headingRef).current?.focus();
       document.documentElement.scrollTop = 0;
     }
   }, [subview]);
@@ -949,6 +953,7 @@ function BackupsPage({ headingRef, visible, operationBusy, inventory, config, on
   const projectPaths = config.selected_project_paths;
 
   async function startBackup() {
+    if (busy || operationBusy) return;
     onError(null);
     onNotice(null);
     if (!repository.trim()) return onError(t("需要先填写完整的本地备份设置。"));
@@ -961,7 +966,8 @@ function BackupsPage({ headingRef, visible, operationBusy, inventory, config, on
       const backup = await runLocalBackup({ codex_home: codexHome, project_paths: projectPaths, repository, recovery_password: password, remember_password: rememberPassword, source_device_id: inventory?.source_device_id });
       setResult(backup);
       setSnapshots((current) => [summaryFromSnapshot(backup), ...current.filter((item) => item.restic_snapshot_id !== backup.restic_snapshot_id)]);
-      onNotice(t(backup.complete ? "本地备份已完成" : "本地备份已完成但存在缺失内容"));
+      const tone = backupResultTone(backup.manifest);
+      onNotice(t(tone === "success" ? "本地备份已完成" : tone === "warning" ? "本地备份已完成，存在注意事项" : "本地备份已部分完成"));
     } catch (caught) {
       onError(errorMessage(caught, t));
     } finally {
@@ -971,6 +977,7 @@ function BackupsPage({ headingRef, visible, operationBusy, inventory, config, on
   }
 
   async function refreshBackups() {
+    if (busy || operationBusy) return;
     onError(null);
     if (!repository.trim()) return onError(t("需要先填写完整的本地备份设置。"));
     setBusy(true);
@@ -987,16 +994,16 @@ function BackupsPage({ headingRef, visible, operationBusy, inventory, config, on
   }
 
   async function restore(snapshot: LocalSnapshotSummary) {
+    if (busy || operationBusy) return;
     onError(null);
     if (!repository.trim() || !restoreTarget.trim()) return onError(t("需要先填写完整的本地备份设置。"));
     setBusy(true);
     onOperationStart();
     try {
       const report = await restoreLocalBackup({ snapshot_id: snapshot.restic_snapshot_id, repository, recovery_password: password, target: restoreTarget });
-      setRestoreResult(`${report.restored_root} · ${report.restored_files} ${t("文件")}`);
-      setRestoreComplete(report.complete);
-      setRestoreMissing(report.missing);
-      onNotice(t(report.complete ? "恢复完成" : "恢复已结束，但备份中存在缺失内容"));
+      setRestoreResult(report);
+      const tone = backupResultTone(report);
+      onNotice(t(tone === "success" ? "恢复完成" : tone === "warning" ? "恢复完成，存在注意事项" : "恢复已部分完成"));
     } catch (caught) {
       onError(errorMessage(caught, t));
     } finally {
@@ -1006,6 +1013,7 @@ function BackupsPage({ headingRef, visible, operationBusy, inventory, config, on
   }
 
   async function upload(snapshot: LocalSnapshotSummary) {
+    if (busy || operationBusy) return;
     onError(null);
     if (!config.cloud.enabled) return onError(t("云端备份已关闭"));
     if (!password.trim()) return onError(t("请输入恢复密码。"));
@@ -1030,19 +1038,21 @@ function BackupsPage({ headingRef, visible, operationBusy, inventory, config, on
 
   return (
     <>
-    <div className="migration-return" hidden={subview === "local"}><button className="secondary-button" type="button" disabled={operationBusy} onClick={() => setSubview("local")}><RotateCcw aria-hidden="true" />{t("返回本地备份")}</button></div>
-    {openedViews.export && <div hidden={subview !== "export"}><SendPage headingRef={exportHeadingRef} inventory={inventory} onOperationStart={onOperationStart} onOperationEnd={onOperationEnd} /></div>}
-    {openedViews.import && <div hidden={subview !== "import"}><ReceivePage headingRef={importHeadingRef} inventory={inventory} onOperationStart={onOperationStart} onOperationEnd={onOperationEnd} /></div>}
+    <div className="migration-return" hidden={subview === "local"}><button className="secondary-button" type="button" onClick={() => setSubview("local")}><RotateCcw aria-hidden="true" />{t("返回本地备份")}</button></div>
+    {openedViews.export && <div hidden={subview !== "export"}><fieldset className="migration-control-guard" disabled={operationBusy}><SendPage headingRef={exportHeadingRef} inventory={inventory} onOperationStart={onOperationStart} onOperationEnd={onOperationEnd} /></fieldset></div>}
+    {openedViews.import && <div hidden={subview !== "import"}><ReceivePage headingRef={importHeadingRef} inventory={inventory} operationBusy={operationBusy} initialJobId={migrationJobId} onJobIdChange={setMigrationJobId} onOpenHistory={() => openMigration("history")} onOperationStart={onOperationStart} onOperationEnd={onOperationEnd} /></div>}
+    {openedViews.history && <div hidden={subview !== "history"}><HistoryPage headingRef={historyHeadingRef} visible={visible && subview === "history"} operationBusy={operationBusy} onOperationStart={onOperationStart} onOperationEnd={onOperationEnd} /></div>}
     <div className="page" hidden={subview !== "local"}>
       <header className="page-header page-header-with-action">
         <div><p className="eyebrow">BACKUP & MIGRATION</p><h1 ref={headingRef} tabIndex={-1}>{t("备份与迁移")}</h1><p className="page-description">{t("本地备份不会访问云端。")}</p></div>
-        <button className="secondary-button" type="button" onClick={() => void refreshBackups()} disabled={busy}><RefreshCw aria-hidden="true" />{t("刷新本地备份")}</button>
+        <button className="secondary-button" type="button" onClick={() => void refreshBackups()} disabled={busy || operationBusy}><RefreshCw aria-hidden="true" />{t("刷新本地备份")}</button>
       </header>
 
       <div className="subnav" role="tablist" aria-label={t("迁移能力")}>
         <button role="tab" aria-selected={subview === "local"} className={subview === "local" ? "subnav-item active" : "subnav-item"} type="button" onClick={() => setSubview("local")}>{t("本地备份")}</button>
-        <button role="tab" aria-selected={false} className="subnav-item" type="button" disabled={busy} onClick={() => openMigration("export")}>{t("导出 ReHome 迁移包")}</button>
-        <button role="tab" aria-selected={false} className="subnav-item" type="button" disabled={busy} onClick={() => openMigration("import")}>{t("导入 ReHome 迁移包")}</button>
+        <button role="tab" aria-selected={false} className="subnav-item" type="button" onClick={() => openMigration("export")}>{t("导出 ReHome 迁移包")}</button>
+        <button role="tab" aria-selected={false} className="subnav-item" type="button" onClick={() => openMigration("import")}>{t("导入 ReHome 迁移包")}</button>
+        <button role="tab" aria-selected={false} className="subnav-item" type="button" onClick={() => openMigration("history")}>{t("迁移记录")}</button>
       </div>
       {(openedViews.export || openedViews.import) && <p className="help-text">{t("迁移结果保留在对应的导出或导入页面，重新打开即可查看。")}</p>}
 
@@ -1050,35 +1060,31 @@ function BackupsPage({ headingRef, visible, operationBusy, inventory, config, on
         <div className="section-heading"><HardDrive aria-hidden="true" /><h2>{t("完整本地备份")}</h2></div>
         <p className="help-text">{t("操作说明")}: {t("选择本地目录后，应用用 restic 加密、去重并校验快照。恢复会先进入独立目录，不覆盖现有资料。")}</p>
         <div className="form-grid">
-          <PathField label={t("备份目录")} description={t("备份目录用于存放加密备份仓库，不是待备份的项目目录；恢复时请选择同一个仓库。")} value={repository} onChange={setRepository} title={t("选择备份目录")} placeholder="D:\\ENHE\\backups" onError={onError} disabled={busy} />
-          <label><span>{t("恢复密码")}</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" disabled={busy} /></label>
+          <PathField label={t("备份目录")} description={t("备份目录用于存放加密备份仓库，不是待备份的项目目录；恢复时请选择同一个仓库。")} value={repository} onChange={setRepository} title={t("选择备份目录")} placeholder="D:\\ENHE\\backups" onError={onError} disabled={busy || operationBusy} />
+          <label><span>{t("恢复密码")}</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" disabled={busy || operationBusy} /></label>
         </div>
-        <label className="checkbox-row"><input type="checkbox" checked={rememberPassword} onChange={(event) => setRememberPassword(event.target.checked)} disabled={busy} /><span><strong>{t("记住密码（仅此 Windows 用户）")}</strong><small>{t("使用 DPAPI 保护密码，供计划任务使用。")}</small></span></label>
+        <label className="checkbox-row"><input type="checkbox" checked={rememberPassword} onChange={(event) => setRememberPassword(event.target.checked)} disabled={busy || operationBusy} /><span><strong>{t("记住密码（仅此 Windows 用户）")}</strong><small>{t("使用 DPAPI 保护密码，供计划任务使用。")}</small></span></label>
         <div className="path-line"><span>{t("Codex 数据位置")}</span><code>{codexHome || t("未检测")}</code></div>
         <div className="path-line"><span>{t("项目")}</span><code>{projectPaths.length} · {projectPaths.join("; ") || t("仅备份 Codex 数据")}</code></div>
         <p className="help-text">{t("项目按全量备份，包含 .env、私钥和 Token；Codex 登录凭据仍排除。请保护仓库和恢复密码，缺失项会单独报告。")}</p>
-        <button className="primary-button" type="button" onClick={() => void startBackup()} disabled={busy}>{busy ? <LoaderCircle className="spin" aria-hidden="true" /> : <LockKeyhole aria-hidden="true" />}{busy ? t("备份进行中") : t("开始本地备份")}</button>
-        {result && <div className={result.complete ? "result success" : "result warning"} role="status">{result.complete ? <CheckCircle2 aria-hidden="true" /> : <TriangleAlert aria-hidden="true" />}<span>{t(result.complete ? "本地备份已完成" : "本地备份已完成但存在缺失内容")} · {result.manifest.file_count} {t("文件")} · {result.restic_snapshot_id}</span></div>}
-        {result && <details className="backup-details"><summary>{t("查看排除与缺失清单")}</summary>
-          <p>{t("安全排除")}: {result.manifest.exclusions?.length ?? 0} · {t("缺失文件")}: {result.manifest.missing?.length ?? 0}</p>
-          <ul>{[...(result.manifest.exclusions ?? []), ...(result.manifest.missing ?? [])].map((issue, index) => <li key={index}><code>{issue.path}</code> — {issue.reason}</li>)}</ul>
-        </details>}
+        <button className="primary-button" type="button" onClick={() => void startBackup()} disabled={busy || operationBusy}>{busy ? <LoaderCircle className="spin" aria-hidden="true" /> : <LockKeyhole aria-hidden="true" />}{busy ? t("备份进行中") : t("开始本地备份")}</button>
+        {result && <><BackupResultSummary manifest={result.manifest} /><p className="backup-result-meta">{result.manifest.file_count} {t("文件")} · {result.restic_snapshot_id}</p></>}
       </section>
 
       <section className="card">
         <div className="section-heading"><Archive aria-hidden="true" /><h2>{t("最近的本地备份")}</h2></div>
-        {snapshots.length === 0 ? <p className="empty-state">{t("还没有本地备份")}</p> : <div className="snapshot-list">{snapshots.map((snapshot) => (
-          <div className="snapshot-row" key={snapshot.restic_snapshot_id}>
+        {snapshots.length === 0 ? <p className="empty-state">{t("还没有本地备份")}</p> : <div className="snapshot-list">{snapshots.map((snapshot) => {
+          const status = snapshot.integrity_status === "warning" ? "warning" : snapshot.integrity_status === "partial" || !snapshot.complete ? "partial" : "complete";
+          return <div className="snapshot-row" key={snapshot.restic_snapshot_id}>
             <div><strong>{formatDate(snapshot.created_at, locale)}</strong><code>{snapshot.restic_snapshot_id}</code></div>
-            <span className={snapshot.complete ? "tag complete" : "tag partial"}>{snapshot.complete ? t("完整") : t("部分完成")}</span>
+            <span className={`tag ${status}`}>{t(status === "warning" ? "注意事项" : status === "complete" ? "完整" : "部分完成")}</span>
             <span>{snapshot.file_count} {t("文件")}</span>
-            <div className="snapshot-actions"><button className="secondary-button small" type="button" disabled={busy} onClick={() => void restore(snapshot)}><RotateCcw aria-hidden="true" />{t("恢复")}</button>{config.cloud.enabled && <button className="secondary-button small" type="button" disabled={busy} onClick={() => void upload(snapshot)}><CloudUpload aria-hidden="true" />{t("上传此快照")}</button>}</div>
-          </div>
-        ))}</div>}
-        <PathField className="restore-target" label={t("恢复目标目录")} description={t("选择新的空目录；恢复不会覆盖你正在使用的项目或 Codex 数据。")} value={restoreTarget} onChange={setRestoreTarget} title={t("选择恢复目标目录")} placeholder="D:\\ENHE\\restored" onError={onError} disabled={busy} />
-        {restoreResult && <div className={restoreComplete ? "result success" : "result warning"} role="status">{t(restoreComplete ? "恢复完成" : "恢复已结束，但备份中存在缺失内容")} · {restoreResult}</div>}
+            <div className="snapshot-actions"><button className="secondary-button small" type="button" disabled={busy || operationBusy} onClick={() => void restore(snapshot)}><RotateCcw aria-hidden="true" />{t("恢复")}</button>{config.cloud.enabled && <button className="secondary-button small" type="button" disabled={busy || operationBusy} onClick={() => void upload(snapshot)}><CloudUpload aria-hidden="true" />{t("上传此快照")}</button>}</div>
+          </div>;
+        })}</div>}
+        <PathField className="restore-target" label={t("恢复目标目录")} description={t("选择新的空目录；恢复不会覆盖你正在使用的项目或 Codex 数据。")} value={restoreTarget} onChange={setRestoreTarget} title={t("选择恢复目标目录")} placeholder="D:\\ENHE\\restored" onError={onError} disabled={busy || operationBusy} />
+        {restoreResult && <><BackupResultSummary manifest={restoreResult} operation="restore" /><p className="backup-result-meta">{restoreResult.restored_root} · {restoreResult.restored_files} {t("文件")}</p></>}
         {restoreResult && <p className="help-text">{t("恢复目录内的 manifest.json 记录来源路径、排除和缺失项；它不计入项目文件数。")}</p>}
-        {restoreResult && restoreMissing.length > 0 && <details className="backup-details"><summary>{t("查看恢复缺失清单")}</summary><ul>{restoreMissing.map((issue, index) => <li key={`${issue.path}-${index}`}><code>{displayPath(issue.path)}</code> · {issue.reason}</li>)}</ul></details>}
         <button type="button" className="text-button" onClick={() => onNavigate("guide")}>{t("如何恢复到本机或另一台设备？")}</button>
       </section>
 
@@ -1089,7 +1095,7 @@ function BackupsPage({ headingRef, visible, operationBusy, inventory, config, on
 }
 
 function summaryFromSnapshot(snapshot: LocalSnapshot): LocalSnapshotSummary {
-  return { logical_backup_id: snapshot.logical_backup_id, restic_snapshot_id: snapshot.restic_snapshot_id, created_at: snapshot.manifest.created_at, file_count: snapshot.manifest.file_count, byte_count: snapshot.manifest.byte_count, complete: snapshot.complete };
+  return { logical_backup_id: snapshot.logical_backup_id, restic_snapshot_id: snapshot.restic_snapshot_id, created_at: snapshot.manifest.created_at, file_count: snapshot.manifest.file_count, byte_count: snapshot.manifest.byte_count, integrity_status: snapshot.manifest.integrity_status, complete: snapshot.complete };
 }
 
 function mergeAutomaticConfig(config: AppConfig, inventory: CodexInventory): AppConfig {
@@ -1285,7 +1291,7 @@ function SettingsPage({ headingRef, config, scheduler, onSave, onConfigChange, o
         </div>}
       </section>
 
-      <section className="settings-footer"><button className="primary-button" type="button" onClick={() => { onConfigChange(draft); void onSave(draft); }}>{t("保存设置")}</button><span>{t("当前版本")} 0.1.6</span></section>
+      <section className="settings-footer"><button className="primary-button" type="button" onClick={() => { onConfigChange(draft); void onSave(draft); }}>{t("保存设置")}</button><span>{t("当前版本")} 0.1.7</span></section>
     </div>
   );
 }

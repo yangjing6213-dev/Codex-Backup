@@ -147,3 +147,27 @@
 @media (prefers-reduced-motion: reduce) {
   .migration-page .spin { animation: none; }
 }
+
+.migration-control-guard { min-width: 0; margin: 0; padding: 0; border: 0; }
+.migration-page .restore-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 10px; margin: 18px 0; padding: 0; border: 0; }
+.migration-page .restore-modes legend { margin-bottom: 10px; font-weight: 650; }
+.migration-page .restore-mode { display: flex; align-items: center; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: 9px; }
+.migration-page .restore-mode:has(input:checked) { background: var(--accent-soft); border-color: var(--accent); }
+.migration-page .restore-mode input { width: 17px; height: 17px; margin: 0; accent-color: var(--accent); }
+.migration-page .probe-choice { display: grid; gap: 8px; }
+.migration-page .probe-choice select { width: 100%; max-width: 100%; padding: 10px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
+.migration-page select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.migration-page .access-steps { display: grid; gap: 14px; padding: 0; list-style: none; }
+.migration-page .access-steps li { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--muted); }
+.migration-page .access-steps :is(.passed, .running) { color: var(--accent-strong); }
+.migration-page .access-steps small { margin-left: auto; }
+.migration-page .result-panel code { overflow-wrap: anywhere; }
+.history-page :is(.transaction-main, .transaction-title, .transaction-actions) { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.history-page .transaction-main { margin-bottom: 14px; }
+.history-page .transaction-title { margin-bottom: 6px; }
+.history-page :is(time, code, .transaction-facts > span) { color: var(--muted); font-size: 12px; }
+.history-page .transaction-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 14px; margin-bottom: 18px; }
+.history-page .transaction-facts > span { display: grid; gap: 6px; }
+.history-page :is(.history-empty, .history-warning-details) { display: grid; gap: 10px; padding: 18px 0; }
+.history-page .status-rollback_failed { color: var(--danger); }
+.history-page .status-committed { color: var(--accent-strong); }

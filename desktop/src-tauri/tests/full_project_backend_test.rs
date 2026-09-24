@@ -1,8 +1,8 @@
 use rehome_desktop_lib::core::{
     local_discovery::{discover_local_candidates, LocalScanRequest},
     restic::{
-        backup_local, file_fingerprint, list_local_snapshots, restore_local, BackupManifest,
-        LocalBackupRequest,
+        backup_local, file_fingerprint, list_local_snapshots, restore_local, BackupIssueKind,
+        BackupManifest, LocalBackupRequest,
     },
 };
 use std::{
@@ -361,7 +361,14 @@ fn bundled_restic_partial_sources_never_reuse_a_complete_snapshot() {
     write(&project, "accessible", b"synthetic");
     write(&project, "locked", b"synthetic-locked");
     write(root.path(), "outside/never-follow", b"synthetic-outside");
+    fs::create_dir_all(project.join("node_modules")).unwrap();
+    fs::create_dir_all(project.join(".local-audit").join("fixtures")).unwrap();
     fs::create_dir(root.path().join("codex")).unwrap();
+    let dependency_redirect = project.join("node_modules").join("dependency-link");
+    let audit_redirect = project
+        .join(".local-audit")
+        .join("fixtures")
+        .join("reparse");
     let request = LocalBackupRequest {
         project_paths: vec![project.clone()],
         codex_home: root.path().join("codex"),
@@ -373,6 +380,8 @@ fn bundled_restic_partial_sources_never_reuse_a_complete_snapshot() {
     let complete = backup_local(request.clone(), &executable).unwrap();
     assert!(complete.complete);
     junction(&project.join("escape"), &root.path().join("outside"));
+    junction(&dependency_redirect, &root.path().join("outside"));
+    junction(&audit_redirect, &root.path().join("outside"));
     let lock = fs::OpenOptions::new()
         .read(true)
         .share_mode(0)
@@ -391,6 +400,16 @@ fn bundled_restic_partial_sources_never_reuse_a_complete_snapshot() {
         .missing
         .iter()
         .any(|issue| issue.path.ends_with("escape")));
+    assert!(partial.manifest.notices.iter().any(|issue| {
+        issue.path.ends_with("dependency-link")
+            && issue.kind == BackupIssueKind::RebuildableDependency
+    }));
+    assert!(partial.manifest.notices.iter().any(|issue| {
+        issue.path.ends_with("reparse") && issue.kind == BackupIssueKind::TestArtifact
+    }));
+    assert!(!partial.manifest.missing.iter().any(|issue| {
+        issue.path.ends_with("dependency-link") || issue.path.ends_with("reparse")
+    }));
     let restored = restore_local(
         &partial.restic_snapshot_id,
         &request.repository,
@@ -408,9 +427,20 @@ fn bundled_restic_partial_sources_never_reuse_a_complete_snapshot() {
         .path();
     assert!(restored_project.join("accessible").is_file());
     assert!(!restored_project.join("escape").exists());
+    assert!(!restored_project
+        .join("node_modules")
+        .join("dependency-link")
+        .exists());
+    assert!(!restored_project
+        .join(".local-audit")
+        .join("fixtures")
+        .join("reparse")
+        .exists());
     assert!(!restored_project.join("locked").exists());
     drop(lock);
     fs::remove_dir(project.join("escape")).unwrap();
+    fs::remove_dir(dependency_redirect).unwrap();
+    fs::remove_dir(audit_redirect).unwrap();
 }
 
 #[test]

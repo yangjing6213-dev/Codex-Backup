@@ -20,6 +20,11 @@ pub enum ErrorCode {
     ChecksumMismatch,
     UnsupportedSchema,
     CodexRunning,
+    CodexAppServerUnavailable,
+    CodexAuthenticationRequired,
+    CodexVerificationFailed,
+    CodexCleanupUnconfirmed,
+    MigrationJobNotFound,
     DiskSpaceInsufficient,
     ProjectConflict,
     RestoreFailed,
@@ -49,3 +54,15 @@ impl fmt::Display for RehomeError {
 }
 
 impl Error for RehomeError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cleanup_unconfirmed_error_has_stable_serialization() {
+        let value = serde_json::json!({"code": "codex_cleanup_unconfirmed", "message": "synthetic cleanup failure"});
+        let error: RehomeError = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(serde_json::to_value(error).unwrap(), value);
+    }
+}

@@ -39,7 +39,7 @@ Codex data location: C:\Users\<user>\.codex
 Local backup repository: %LOCALAPPDATA%\ENHE\Codex Backup\backups
 Discovered project: demo (.git, package.json)
 Conversations: counted from Codex sessions / archived_sessions
-Cloud: off; no remote call
+Cloud backup: off; local backup makes no remote call
 ```
 
 Candidates are shown for user confirmation and are not automatically added to the backup scope. The folder button beside a path opens the Windows native folder picker; canceling leaves the old value unchanged. Inaccessible folders are safely skipped and summarized.
@@ -48,7 +48,7 @@ Projects includes a Request administrator permission for restricted folders opti
 
 ## 6. Installation
 
-1. Open the [GitHub Releases installer download page](https://github.com/yangjing6213-dev/Codex-Backup/releases), or directly download the [Windows x64 installer (0.1.6)](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.6/ENHE.Codex.Backup_0.1.6_x64-setup.exe) and [SHA-256 checksum](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.6/ENHE.Codex.Backup_0.1.6_x64-setup.exe.sha256). This installer is unsigned; verify its SHA-256 checksum before installation.
+1. Open [GitHub Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) for actually published versions. The planned 0.1.7 assets are the [Windows x64 installer](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.7/ENHE.Codex.Backup_0.1.7_x64-setup.exe) and [SHA-256 checksum](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.7/ENHE.Codex.Backup_0.1.7_x64-setup.exe.sha256), available only after that release is published. The installer is unsigned; verify its SHA-256 before installation.
 2. Compare the installer SHA-256 with the sidecar in PowerShell.
 3. Run the installer for the Windows current user.
 4. Confirm the local data location on first launch; cloud may remain off.
@@ -83,7 +83,11 @@ scan fixed-drive project candidates -> summarize inaccessible folders -> user co
 restic snapshot -> verify/list -> restore to an independent directory
 ```
 
-ReHome export/import is a separate migration entry point. Cloud does not participate in the local workflow; remote operations start only after an explicit cloud test or upload action.
+ReHome export/import is a separate entry point. File-only restore sends no model request. Migrate and connect requires Codex to be closed, a reviewed restore scope, and separate online consent covering selected conversation context and possible model usage. Cloud backup being off does not disable this explicitly authorized online verification.
+
+The wizard checks restored files, App Server recognition of every planned target conversation, and one fixed-message probe on a user-selected ephemeral fork. It does not message an original conversation or certify every history item, tool or native-window display. Ordinary errors attempt rollback after confirmed helper shutdown. Unconfirmed shutdown stops database writes and preserves manual-recovery material; rollback cannot undo online processing or usage. History shows transaction outcomes and remedies.
+
+Backup results aggregate rebuildable dependencies, caches and safety exclusions as informational handling; integrity concerns remain warnings and genuinely missing projects/files remain visible. Dependencies may need reinstallation and excluded Codex credentials require sign-in again; fully offline project operation is not guaranteed.
 
 ## 9. Project directory structure
 
@@ -114,13 +118,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
 ```
 
-The scripts pin and verify the Windows amd64 release archives for restic 0.19.1 and rclone 1.75.1. The current evidence includes an unsigned current-user NSIS package that was installed and started in the authorized test profile; it is not code-signed or auto-updated. See [STATUS](docs/STATUS.md) and [verification](docs/verification/).
+The scripts pin and verify the Windows amd64 release archives for restic 0.19.1 and rclone 1.75.1. Version-specific build and replacement-installation evidence is recorded in [STATUS](docs/STATUS.md) and [installer verification](docs/verification/installer-latest.md). Historical startup evidence is not transferred to 0.1.7. This package is unsigned and has no auto-updater; native UI, real-account continuation and second-device acceptance remain unverified.
 
 See [COMPATIBILITY](docs/COMPATIBILITY.md), [UPSTREAM](docs/UPSTREAM.md), and [ACCEPTANCE](docs/ACCEPTANCE.md) for the compatibility and verification boundaries.
 
 ## 11. Version
 
-Current version: `0.1.6`. It detects a non-empty ordinary folder that is not a complete backup repository before restic starts, leaving existing files unchanged. Backup and restore failures now show a cause, solution, and sanitized technical details while distinguishing repository, recovery-password, and disk-space problems. The planned [0.1.6 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.6) will provide an unsigned Windows x64 installer and its SHA-256 checksum; older releases remain available. Real OneDrive, second-device, live conversation continuation, and clean-profile verification remain outside the completed evidence boundary; see [STATUS](docs/STATUS.md) and [ACCEPTANCE](docs/ACCEPTANCE.md).
+Current version: `0.1.7`. This update improves backup-result classification and adds migrate-and-connect verification, navigation-safe job progress, transaction history and recovery guidance. File recovery, conversation recognition and one ephemeral-fork probe are separate checks, not a blanket continuation guarantee. See the [changelog](CHANGELOG.md). The planned [0.1.7 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.7) contains only the unsigned Windows x64 installer and SHA-256 file, retaining older releases. A local build is not proof of publication. Real OneDrive, second-device, live conversation continuation and native UI verification remain outside the completed evidence; see [STATUS](docs/STATUS.md) and [ACCEPTANCE](docs/ACCEPTANCE.md).
 
 ## 12. Related projects
 
@@ -149,3 +153,5 @@ This project is one tool in the personal generation system I built with AI. If y
 ## License
 
 This project retains the upstream repository's MIT license. Bundled components and versions are recorded in [THIRD_PARTY](docs/THIRD_PARTY.md).
+
+The 0.1.7 candidate installer includes license texts for offline reading under `resources/licenses` in the application directory. Publication clearance is still pending; see the review above.

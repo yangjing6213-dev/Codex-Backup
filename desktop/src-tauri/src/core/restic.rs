@@ -23,7 +23,6 @@ const PAYLOAD_ROOT: &str = "enhe-payload";
 const SQLITE_SIDECAR_ROOT: &str = ".enhe-sqlite-sidecars";
 const RESTIC_TAG: &str = "enhe-codex-backup";
 const HASH_BUFFER_BYTES: usize = 64 * 1024;
-const MAX_JSONL_RECORD_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct LocalBackupRequest {
@@ -51,15 +50,38 @@ pub struct BackupManifest {
     pub byte_count: u64,
     pub fingerprint: String,
     pub exclusions: Vec<BackupIssue>,
+    #[serde(default)]
+    pub notices: Vec<BackupIssue>,
+    #[serde(default)]
+    pub integrity_warnings: Vec<BackupIssue>,
     pub missing: Vec<BackupIssue>,
     pub integrity_status: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum BackupIssueKind {
+    SecurityExclusion,
+    RebuildableDependency,
+    RuntimeEphemeral,
+    TestArtifact,
+    JsonlIntegrity,
+    MissingSource,
+    EnumerationFailure,
+    CopyFailure,
+    FilesystemRedirect,
+    UnsupportedEntry,
+    #[default]
+    LegacyUnknown,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BackupIssue {
     pub path: String,
     pub reason: String,
     pub bytes: u64,
+    #[serde(default)]
+    pub kind: BackupIssueKind,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -77,7 +99,13 @@ pub struct LocalSnapshotSummary {
     pub created_at: String,
     pub file_count: u64,
     pub byte_count: u64,
+    #[serde(default = "default_integrity_status")]
+    pub integrity_status: String,
     pub complete: bool,
+}
+
+fn default_integrity_status() -> String {
+    "complete".to_owned()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -87,6 +115,10 @@ pub struct LocalRestoreReport {
     pub restored_files: u64,
     pub restored_bytes: u64,
     pub complete: bool,
+    pub exclusions: Vec<BackupIssue>,
+    pub notices: Vec<BackupIssue>,
+    pub integrity_warnings: Vec<BackupIssue>,
+    pub integrity_status: String,
     pub missing: Vec<BackupIssue>,
 }
 
@@ -101,19 +133,27 @@ struct StageStats {
     files: u64,
     bytes: u64,
     exclusions: Vec<BackupIssue>,
+    notices: Vec<BackupIssue>,
+    integrity_warnings: Vec<BackupIssue>,
     missing: Vec<BackupIssue>,
     git_metadata_paths: Vec<String>,
 }
 
-/// Codex-home policy only. Full encrypted project backups use `SourcePolicy::Project`.
-pub fn is_excluded_backup_path(path: &Path) -> bool {
-    let components: Vec<String> = path
-        .iter()
-        .map(|component| component.to_string_lossy().to_ascii_lowercase())
-        .collect();
-    let name = components.last().map(String::as_str).unwrap_or_default();
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CodexPathDisposition {
+    Include,
+    SecurityExclusion,
+    Notice(BackupIssueKind),
+}
 
-    if matches!(
+fn lowercase_components(path: &Path) -> Vec<String> {
+    path.iter()
+        .map(|component| component.to_string_lossy().to_ascii_lowercase())
+        .collect()
+}
+
+fn is_codex_credential_path(_components: &[String], name: &str) -> bool {
+    matches!(
         name,
         "auth.json"
             | "cookies"
@@ -123,36 +163,61 @@ pub fn is_excluded_backup_path(path: &Path) -> bool {
             | "credentials.json"
             | "credentials.db"
             | "secrets.json"
-    ) {
-        return true;
+            | "id_rsa"
+            | "id_ed25519"
+            | "private.key"
+            | "private.pem"
+    ) || name == ".env"
+        || (name.starts_with(".env.") && name != ".env.example")
+}
+
+fn is_codex_runtime_or_cache_path(components: &[String], name: &str) -> bool {
+    name.ends_with(".pid")
+        || name.ends_with(".sock")
+        || name.ends_with(".lock.runtime")
+        || match components {
+            [directory, filename] if directory == "thread-writer-locks" => filename
+                .strip_suffix(".lock")
+                .is_some_and(|id| id.len() == 36 && Uuid::parse_str(id).is_ok()),
+            [tmp, arg0, directory, filename] => {
+                tmp == "tmp"
+                    && arg0 == "arg0"
+                    && directory
+                        .strip_prefix("codex-arg0")
+                        .is_some_and(|suffix| !suffix.is_empty())
+                    && filename == ".lock"
+            }
+            _ => false,
+        }
+        || components.iter().any(|component| {
+            matches!(
+                component.as_str(),
+                "node_modules"
+                    | ".venv"
+                    | "venv"
+                    | "__pycache__"
+                    | ".codex-cache"
+                    | ".pytest_cache"
+                    | ".mypy_cache"
+            )
+        })
+}
+
+fn codex_path_disposition(relative: &Path) -> CodexPathDisposition {
+    let components = lowercase_components(relative);
+    let name = components.last().map(String::as_str).unwrap_or_default();
+    if is_codex_credential_path(&components, name) {
+        CodexPathDisposition::SecurityExclusion
+    } else if is_codex_runtime_or_cache_path(&components, name) {
+        CodexPathDisposition::Notice(BackupIssueKind::RuntimeEphemeral)
+    } else {
+        CodexPathDisposition::Include
     }
-    if matches!(
-        name,
-        "id_rsa" | "id_ed25519" | "private.key" | "private.pem"
-    ) {
-        return true;
-    }
-    if name == ".env" || (name.starts_with(".env.") && name != ".env.example") {
-        return true;
-    }
-    if matches!(name, "node_modules" | ".venv" | "venv" | "__pycache__") {
-        return true;
-    }
-    if name.ends_with(".pid") || name.ends_with(".sock") || name.ends_with(".lock.runtime") {
-        return true;
-    }
-    components.iter().any(|component| {
-        matches!(
-            component.as_str(),
-            "node_modules"
-                | ".venv"
-                | "venv"
-                | "__pycache__"
-                | ".codex-cache"
-                | ".pytest_cache"
-                | ".mypy_cache"
-        )
-    })
+}
+
+/// Codex-home policy only. Full encrypted project backups use `SourcePolicy::Project`.
+pub fn is_excluded_backup_path(path: &Path) -> bool {
+    codex_path_disposition(path) != CodexPathDisposition::Include
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -163,7 +228,38 @@ enum SourcePolicy {
 
 impl SourcePolicy {
     fn excludes(self, relative: &Path) -> bool {
-        self == Self::Codex && is_excluded_backup_path(relative)
+        self == Self::Codex && codex_path_disposition(relative) != CodexPathDisposition::Include
+    }
+}
+
+fn redirect_notice_kind(relative: &Path) -> Option<BackupIssueKind> {
+    let components = lowercase_components(relative);
+    if components
+        .iter()
+        .any(|component| component == ".local-audit")
+    {
+        Some(BackupIssueKind::TestArtifact)
+    } else if components
+        .iter()
+        .any(|component| matches!(component.as_str(), "node_modules" | ".pnpm"))
+    {
+        Some(BackupIssueKind::RebuildableDependency)
+    } else {
+        None
+    }
+}
+
+fn backup_issue(
+    path: &Path,
+    reason: impl Into<String>,
+    bytes: u64,
+    kind: BackupIssueKind,
+) -> BackupIssue {
+    BackupIssue {
+        path: path.display().to_string(),
+        reason: reason.into(),
+        bytes,
+        kind,
     }
 }
 
@@ -269,6 +365,19 @@ pub fn build_backup_args(
     args
 }
 
+fn can_reuse_cached_snapshot(previous: &BackupState, fingerprint: &str) -> bool {
+    let manifest = &previous.snapshot.manifest;
+    previous.fingerprint == fingerprint
+        && previous.snapshot.complete
+        && manifest
+            .exclusions
+            .iter()
+            .chain(&manifest.notices)
+            .chain(&manifest.integrity_warnings)
+            .chain(&manifest.missing)
+            .all(|issue| issue.kind != BackupIssueKind::LegacyUnknown)
+}
+
 pub fn backup_local(
     request: LocalBackupRequest,
     executable: &Path,
@@ -285,10 +394,7 @@ pub fn backup_local(
     if request.repository.is_dir() && repository_has_entries(&request.repository)? {
         ensure_repository(&request.repository, &request.password, executable)?;
         if let Some(previous) = read_state(&request.repository)? {
-            if source_fingerprint.is_some()
-                && previous.fingerprint == fingerprint
-                && previous.snapshot.complete
-            {
+            if source_fingerprint.is_some() && can_reuse_cached_snapshot(&previous, &fingerprint) {
                 return Ok(previous.snapshot);
             }
         }
@@ -324,11 +430,12 @@ pub fn backup_local(
     )?;
 
     let logical_backup_id = Uuid::new_v4();
-    let missing = stats.missing;
-    let integrity_status = if missing.is_empty() {
-        "complete".to_owned()
-    } else {
+    let integrity_status = if !stats.missing.is_empty() {
         "partial".to_owned()
+    } else if !stats.notices.is_empty() || !stats.integrity_warnings.is_empty() {
+        "warning".to_owned()
+    } else {
+        "complete".to_owned()
     };
     let manifest = BackupManifest {
         format: BACKUP_FORMAT.to_owned(),
@@ -350,7 +457,9 @@ pub fn backup_local(
         byte_count: stats.bytes,
         fingerprint: fingerprint.clone(),
         exclusions: stats.exclusions,
-        missing,
+        notices: stats.notices,
+        integrity_warnings: stats.integrity_warnings,
+        missing: stats.missing,
         integrity_status,
     };
     let manifest_bytes = serde_json::to_vec_pretty(&manifest)
@@ -535,6 +644,10 @@ fn restore_local_inner(
         restored_files: restored_files.0,
         restored_bytes,
         complete: manifest.missing.is_empty(),
+        exclusions: manifest.exclusions,
+        notices: manifest.notices,
+        integrity_warnings: manifest.integrity_warnings,
+        integrity_status: manifest.integrity_status,
         missing: manifest.missing,
     })
 }
@@ -591,12 +704,12 @@ fn stage_tree(
     policy: SourcePolicy,
 ) -> Result<(), RehomeError> {
     if has_redirect_ancestor(source).unwrap_or(true) || !source.is_dir() {
-        stats.missing.push(BackupIssue {
-            path: source.display().to_string(),
-            reason: "source is unavailable, not a directory, or contains a filesystem redirect"
-                .into(),
-            bytes: 0,
-        });
+        stats.missing.push(backup_issue(
+            source,
+            "source is unavailable, not a directory, or contains a filesystem redirect",
+            0,
+            BackupIssueKind::MissingSource,
+        ));
         return Ok(());
     }
     fs::create_dir_all(destination).map_err(|error| backup_io("create staged root", error))?;
@@ -608,11 +721,12 @@ fn stage_tree(
         let entry = match entry {
             Ok(entry) => entry,
             Err(error) => {
-                stats.missing.push(BackupIssue {
-                    path: error.path().unwrap_or(source).display().to_string(),
-                    reason: "source entry could not be enumerated".into(),
-                    bytes: 0,
-                });
+                stats.missing.push(backup_issue(
+                    error.path().unwrap_or(source),
+                    "source entry could not be enumerated",
+                    0,
+                    BackupIssueKind::EnumerationFailure,
+                ));
                 continue;
             }
         };
@@ -626,35 +740,60 @@ fn stage_tree(
         let metadata = match fs::symlink_metadata(entry.path()) {
             Ok(metadata) => metadata,
             Err(_) => {
-                stats.missing.push(BackupIssue {
-                    path: entry.path().display().to_string(),
-                    reason: "source metadata could not be read".into(),
-                    bytes: 0,
-                });
+                stats.missing.push(backup_issue(
+                    entry.path(),
+                    "source metadata could not be read",
+                    0,
+                    BackupIssueKind::EnumerationFailure,
+                ));
                 continue;
             }
         };
-        if policy.excludes(relative) {
-            stats.exclusions.push(BackupIssue {
-                path: relative.display().to_string(),
-                reason: "Codex credential, cache or runtime data".to_owned(),
-                bytes: metadata.len(),
-            });
-            if metadata.is_dir() {
-                entries.skip_current_dir();
-            }
-            continue;
-        }
         if is_filesystem_redirect(&metadata) {
             if metadata.is_dir() {
                 entries.skip_current_dir();
             }
-            stats.missing.push(BackupIssue {
-                path: entry.path().display().to_string(),
-                reason: "symbolic link or filesystem redirect was not followed".to_owned(),
-                bytes: 0,
-            });
+            let kind = redirect_notice_kind(relative);
+            let issue = backup_issue(
+                entry.path(),
+                "symbolic link or filesystem redirect was not followed",
+                0,
+                kind.unwrap_or(BackupIssueKind::FilesystemRedirect),
+            );
+            if kind.is_some() {
+                stats.notices.push(issue);
+            } else {
+                stats.missing.push(issue);
+            }
             continue;
+        }
+        if policy == SourcePolicy::Codex {
+            let disposition = codex_path_disposition(relative);
+            match disposition {
+                CodexPathDisposition::SecurityExclusion => {
+                    stats.exclusions.push(backup_issue(
+                        relative,
+                        "Codex credential data was excluded",
+                        metadata.len(),
+                        BackupIssueKind::SecurityExclusion,
+                    ));
+                }
+                CodexPathDisposition::Notice(kind) => {
+                    stats.notices.push(backup_issue(
+                        relative,
+                        "Codex cache or runtime data was not backed up",
+                        metadata.len(),
+                        kind,
+                    ));
+                }
+                CodexPathDisposition::Include => {}
+            }
+            if disposition != CodexPathDisposition::Include {
+                if metadata.is_dir() {
+                    entries.skip_current_dir();
+                }
+                continue;
+            }
         }
         if metadata.is_dir() {
             fs::create_dir_all(destination.join(relative))
@@ -662,11 +801,12 @@ fn stage_tree(
             continue;
         }
         if !metadata.is_file() {
-            stats.missing.push(BackupIssue {
-                path: entry.path().display().to_string(),
-                reason: "unsupported filesystem entry".into(),
-                bytes: 0,
-            });
+            stats.missing.push(backup_issue(
+                entry.path(),
+                "unsupported filesystem entry",
+                0,
+                BackupIssueKind::UnsupportedEntry,
+            ));
             continue;
         }
         let target = if policy == SourcePolicy::Codex
@@ -691,22 +831,27 @@ fn stage_tree(
         })();
         if copied.is_err() {
             let _ = fs::remove_file(&target);
-            stats.missing.push(BackupIssue {
-                path: entry.path().display().to_string(),
-                reason: "source file could not be copied consistently".into(),
-                bytes: metadata.len(),
-            });
+            stats.missing.push(backup_issue(
+                entry.path(),
+                "source file could not be copied consistently",
+                metadata.len(),
+                BackupIssueKind::CopyFailure,
+            ));
             continue;
         }
         if policy == SourcePolicy::Codex && is_jsonl_file(entry.path()) {
-            match inspect_jsonl(entry.path(), metadata.len()) {
-                Ok(Some(issue)) => stats.missing.push(issue),
+            match inspect_jsonl(&target, metadata.len()) {
+                Ok(Some(mut issue)) => {
+                    issue.path = entry.path().display().to_string();
+                    stats.integrity_warnings.push(issue);
+                }
                 Ok(None) => {}
-                Err(error) => stats.missing.push(BackupIssue {
-                    path: entry.path().display().to_string(),
-                    reason: format!("JSONL could not be checked: {}", error.message),
-                    bytes: metadata.len(),
-                }),
+                Err(error) => stats.integrity_warnings.push(backup_issue(
+                    entry.path(),
+                    format!("JSONL could not be checked: {}", error.message),
+                    metadata.len(),
+                    BackupIssueKind::JsonlIntegrity,
+                )),
             }
         }
         stats.files += 1;
@@ -874,16 +1019,13 @@ fn inspect_jsonl(path: &Path, bytes: u64) -> Result<Option<BackupIssue>, RehomeE
         if record.is_empty() {
             continue;
         }
-        if record.len() > MAX_JSONL_RECORD_BYTES
-            || serde_json::from_slice::<serde_json::Value>(record).is_err()
-        {
-            return Ok(Some(BackupIssue {
-                path: path.display().to_string(),
-                reason: format!(
-                    "JSONL contains an incomplete or invalid record at line {line_number}"
-                ),
+        if serde_json::from_slice::<serde_json::Value>(record).is_err() {
+            return Ok(Some(backup_issue(
+                path,
+                format!("JSONL contains an incomplete or invalid record at line {line_number}"),
                 bytes,
-            }));
+                BackupIssueKind::JsonlIntegrity,
+            )));
         }
     }
     Ok(None)
@@ -1224,10 +1366,12 @@ fn parse_snapshot_summaries(bytes: &[u8]) -> Result<Vec<LocalSnapshotSummary>, R
             tag.strip_prefix("logical_backup_id=")
                 .and_then(|id| Uuid::parse_str(id).ok())
         });
-        let complete = tags
+        let integrity_status = tags
             .iter()
             .find_map(|tag| tag.strip_prefix("integrity_status="))
-            .map_or(true, |status| status == "complete");
+            .unwrap_or("complete")
+            .to_owned();
+        let complete = integrity_status != "partial";
         summaries.push(LocalSnapshotSummary {
             logical_backup_id,
             restic_snapshot_id: snapshot_id.to_owned(),
@@ -1248,6 +1392,7 @@ fn parse_snapshot_summaries(bytes: &[u8]) -> Result<Vec<LocalSnapshotSummary>, R
                 .and_then(|summary| summary.get("bytes_added"))
                 .and_then(serde_json::Value::as_u64)
                 .unwrap_or_default(),
+            integrity_status,
             complete,
         });
     }
@@ -1515,12 +1660,252 @@ fn backup_engine_failed(
 #[cfg(test)]
 mod tests {
     use super::{
-        ensure_repository, inspect_jsonl, parse_snapshot_summaries, stage_tree, SourcePolicy,
-        StageStats,
+        can_reuse_cached_snapshot, ensure_repository, inspect_jsonl, parse_snapshot_summaries,
+        redirect_notice_kind, stage_tree, BackupIssue, BackupIssueKind, BackupManifest,
+        BackupState, LocalSnapshot, SourcePolicy, StageStats, BACKUP_FORMAT, BACKUP_SCHEMA_VERSION,
     };
     use crate::core::error::ErrorCode;
-    use std::fs;
+    use std::{fs, path::Path};
     use tempfile::tempdir;
+    use uuid::Uuid;
+
+    #[test]
+    fn observed_runtime_locks_are_notices_only_for_codex_home() {
+        let source = tempdir().expect("source directory");
+        let paths = [
+            "thread-writer-locks/12345678-1234-4234-8234-123456789abc.lock",
+            "tmp/arg0/codex-arg0Synthetic7/.lock",
+        ];
+        for relative in paths {
+            let path = source.path().join(relative);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, b"synthetic runtime lock").unwrap();
+        }
+
+        for policy in [SourcePolicy::Codex, SourcePolicy::Project] {
+            let destination = tempdir().expect("staging directory");
+            let mut stats = StageStats::default();
+            stage_tree(source.path(), destination.path(), &mut stats, policy).unwrap();
+
+            assert!(stats.missing.is_empty());
+            assert!(stats.exclusions.is_empty());
+            assert!(stats.integrity_warnings.is_empty());
+            if policy == SourcePolicy::Codex {
+                assert_eq!(stats.notices.len(), 2);
+                assert_eq!(stats.files, 0);
+                assert_eq!(stats.bytes, 0);
+                for relative in paths {
+                    assert!(!destination.path().join(relative).exists());
+                    assert!(stats.notices.iter().any(|issue| {
+                        Path::new(&issue.path) == Path::new(relative)
+                            && issue.kind == BackupIssueKind::RuntimeEphemeral
+                    }));
+                }
+            } else {
+                assert!(stats.notices.is_empty());
+                assert_eq!(stats.files, 2);
+                for relative in paths {
+                    assert_eq!(
+                        fs::read(destination.path().join(relative)).unwrap(),
+                        b"synthetic runtime lock"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn runtime_lock_neighbors_are_retained() {
+        let source = tempdir().expect("source directory");
+        let paths = [
+            "Cargo.lock",
+            "package-lock.json",
+            "pnpm-lock.yaml",
+            "arbitrary.lock",
+            "thread-writer-locks/.lock",
+            "thread-writer-locks/not-a-uuid.lock",
+            "thread-writer-locks/12345678-1234-4234-8234-123456789abg.lock",
+            "thread-writer-locks/12345678123442348234123456789abc.lock",
+            "thread-writer-locks/12345678-1234-4234-8234-123456789abc.txt",
+            "thread-writer-locks/nested/12345678-1234-4234-8234-123456789abc.lock",
+            "nested/thread-writer-locks/12345678-1234-4234-8234-123456789abc.lock",
+            "other/12345678-1234-4234-8234-123456789abc.lock",
+            "tmp/keep.txt",
+            "tmp/arg0/.lock",
+            "tmp/arg0/codex-arg0/.lock",
+            "tmp/arg0/otherSynthetic7/.lock",
+            "tmp/arg0/codex-arg0Synthetic7/keep.txt",
+            "tmp/arg0/codex-arg0Synthetic7/other.lock",
+            "tmp/arg0/codex-arg0Synthetic7/nested/.lock",
+            "tmp/arg1/codex-arg0Synthetic7/.lock",
+            "nested/tmp/arg0/codex-arg0Synthetic7/.lock",
+        ];
+        for relative in paths {
+            let path = source.path().join(relative);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, b"retained content").unwrap();
+        }
+
+        for policy in [SourcePolicy::Codex, SourcePolicy::Project] {
+            let destination = tempdir().expect("staging directory");
+            let mut stats = StageStats::default();
+            stage_tree(source.path(), destination.path(), &mut stats, policy).unwrap();
+
+            assert_eq!(stats.files, paths.len() as u64);
+            assert!(stats.notices.is_empty());
+            assert!(stats.missing.is_empty());
+            assert!(stats.exclusions.is_empty());
+            assert!(stats.integrity_warnings.is_empty());
+            for relative in paths {
+                assert_eq!(
+                    fs::read(destination.path().join(relative)).unwrap(),
+                    b"retained content",
+                    "fixture {relative} must be retained"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn legacy_manifest_defaults_new_issue_fields() {
+        let manifest: BackupManifest = serde_json::from_value(serde_json::json!({
+            "format": BACKUP_FORMAT,
+            "schema_version": 1,
+            "logical_backup_id": Uuid::nil(),
+            "batch_id": Uuid::nil(),
+            "created_at": "2026-09-20T00:00:00Z",
+            "app_version": "0.1.6",
+            "restic_version": "restic synthetic",
+            "source_device_id": Uuid::nil(),
+            "source_codex_home": "C:/Synthetic/.codex",
+            "project_paths": ["C:/Synthetic/project"],
+            "git_metadata_paths": [],
+            "file_count": 1,
+            "byte_count": 7,
+            "fingerprint": "synthetic",
+            "exclusions": [{"path":"auth.json","reason":"legacy exclusion","bytes":7}],
+            "missing": [],
+            "integrity_status": "complete"
+        }))
+        .expect("legacy manifest");
+
+        assert!(manifest.notices.is_empty());
+        assert!(manifest.integrity_warnings.is_empty());
+        assert_eq!(manifest.exclusions[0].kind, BackupIssueKind::LegacyUnknown);
+    }
+
+    #[test]
+    fn dependency_and_local_audit_redirects_are_notices() {
+        assert_eq!(
+            redirect_notice_kind(Path::new("node_modules/.pnpm/pkg/node_modules/pkg")),
+            Some(BackupIssueKind::RebuildableDependency)
+        );
+        assert_eq!(
+            redirect_notice_kind(Path::new(".local-audit/fixtures/reparse")),
+            Some(BackupIssueKind::TestArtifact)
+        );
+    }
+
+    #[test]
+    fn ordinary_redirect_remains_missing() {
+        assert_eq!(redirect_notice_kind(Path::new("src/shared")), None);
+    }
+
+    #[test]
+    fn legacy_issue_kinds_invalidate_cache_reuse() {
+        let legacy_issue = BackupIssue {
+            path: "auth.json".into(),
+            reason: "legacy exclusion".into(),
+            bytes: 7,
+            kind: BackupIssueKind::LegacyUnknown,
+        };
+        let mut previous = cached_state(BackupManifest {
+            format: BACKUP_FORMAT.into(),
+            schema_version: BACKUP_SCHEMA_VERSION,
+            logical_backup_id: Uuid::nil(),
+            batch_id: Uuid::nil(),
+            created_at: "2026-09-20T00:00:00Z".into(),
+            app_version: "0.1.6".into(),
+            restic_version: "restic synthetic".into(),
+            source_device_id: Uuid::nil(),
+            source_codex_home: "C:/Synthetic/.codex".into(),
+            project_paths: vec!["C:/Synthetic/project".into()],
+            git_metadata_paths: vec![],
+            file_count: 1,
+            byte_count: 7,
+            fingerprint: "synthetic".into(),
+            exclusions: vec![legacy_issue.clone()],
+            notices: vec![],
+            integrity_warnings: vec![],
+            missing: vec![],
+            integrity_status: "complete".into(),
+        });
+
+        assert!(!can_reuse_cached_snapshot(&previous, "synthetic"));
+        previous.snapshot.manifest.exclusions.clear();
+        previous
+            .snapshot
+            .manifest
+            .notices
+            .push(legacy_issue.clone());
+        assert!(!can_reuse_cached_snapshot(&previous, "synthetic"));
+        previous.snapshot.manifest.notices.clear();
+        previous
+            .snapshot
+            .manifest
+            .integrity_warnings
+            .push(legacy_issue.clone());
+        assert!(!can_reuse_cached_snapshot(&previous, "synthetic"));
+        previous.snapshot.manifest.integrity_warnings.clear();
+        previous.snapshot.manifest.missing.push(legacy_issue);
+        assert!(!can_reuse_cached_snapshot(&previous, "synthetic"));
+    }
+
+    #[test]
+    fn current_typed_issue_kinds_allow_cache_reuse() {
+        let mut previous = cached_state(BackupManifest {
+            format: BACKUP_FORMAT.into(),
+            schema_version: BACKUP_SCHEMA_VERSION,
+            logical_backup_id: Uuid::nil(),
+            batch_id: Uuid::nil(),
+            created_at: "2026-09-20T00:00:00Z".into(),
+            app_version: "0.1.6".into(),
+            restic_version: "restic synthetic".into(),
+            source_device_id: Uuid::nil(),
+            source_codex_home: "C:/Synthetic/.codex".into(),
+            project_paths: vec!["C:/Synthetic/project".into()],
+            git_metadata_paths: vec![],
+            file_count: 1,
+            byte_count: 7,
+            fingerprint: "synthetic".into(),
+            exclusions: vec![BackupIssue {
+                path: "auth.json".into(),
+                reason: "credential excluded".into(),
+                bytes: 7,
+                kind: BackupIssueKind::SecurityExclusion,
+            }],
+            notices: vec![],
+            integrity_warnings: vec![],
+            missing: vec![],
+            integrity_status: "complete".into(),
+        });
+
+        assert!(can_reuse_cached_snapshot(&previous, "synthetic"));
+        previous.snapshot.manifest.exclusions.clear();
+        assert!(can_reuse_cached_snapshot(&previous, "synthetic"));
+    }
+
+    fn cached_state(manifest: BackupManifest) -> BackupState {
+        BackupState {
+            fingerprint: manifest.fingerprint.clone(),
+            snapshot: LocalSnapshot {
+                logical_backup_id: manifest.logical_backup_id,
+                restic_snapshot_id: "snapshot".into(),
+                manifest,
+                complete: true,
+            },
+        }
+    }
 
     #[test]
     fn rejects_non_repository_directory_without_modifying_it() {
@@ -1645,12 +2030,34 @@ mod tests {
     }
 
     #[test]
-    fn invalid_jsonl_is_preserved_and_marked_missing() {
+    fn warning_snapshot_summary_remains_complete() {
+        let summaries =
+            parse_snapshot_summaries(br#"[{"id":"12345678","tags":["integrity_status=warning"]}]"#)
+                .unwrap();
+
+        assert_eq!(summaries[0].integrity_status, "warning");
+        assert!(summaries[0].complete);
+    }
+
+    #[test]
+    fn large_valid_jsonl_is_not_an_issue() {
+        let root = tempdir().expect("temp directory");
+        let path = root.path().join("large.jsonl");
+        let value = serde_json::json!({"text": "x".repeat(8 * 1024 * 1024 + 1)});
+        fs::write(&path, format!("{}\n", value)).expect("write large JSONL");
+
+        assert_eq!(
+            inspect_jsonl(&path, fs::metadata(&path).unwrap().len()).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn invalid_jsonl_is_preserved_as_integrity_warning() {
         let root = tempdir().expect("source directory");
         let destination = tempdir().expect("staging directory");
-        let source = root.path().join("session.jsonl");
         fs::write(
-            &source,
+            root.path().join("session.jsonl"),
             br#"{"ok":true}
 {"incomplete":"#,
         )
@@ -1667,8 +2074,11 @@ mod tests {
 
         assert!(destination.path().join("session.jsonl").is_file());
         assert_eq!(stats.files, 1);
-        assert_eq!(stats.missing.len(), 1);
-        assert!(stats.missing[0].reason.contains("line 2"));
-        assert!(inspect_jsonl(&source, 24).unwrap().is_some());
+        assert!(stats.missing.is_empty());
+        assert_eq!(stats.integrity_warnings.len(), 1);
+        assert_eq!(
+            stats.integrity_warnings[0].kind,
+            BackupIssueKind::JsonlIntegrity
+        );
     }
 }

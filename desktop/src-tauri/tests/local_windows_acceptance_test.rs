@@ -126,6 +126,7 @@ fn local_windows_to_windows_acceptance() -> Result<(), Box<dyn Error>> {
             codex_closed_confirmed: true,
             backup_root: sandbox.path().join("transaction-backups"),
             register_projects: false,
+            continuation_probe: None,
         },
     )?;
 

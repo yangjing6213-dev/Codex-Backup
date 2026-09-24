@@ -171,12 +171,19 @@ pub fn register_project_with_detected_cli(
 }
 
 pub fn detect_registration_cli(target_os: SourceOs) -> Option<PathBuf> {
-    registration_cli_candidates(target_os)
-        .into_iter()
-        .find(|candidate| candidate.is_file())
+    select_registration_cli(registration_cli_candidates(target_os), |_| true)
 }
 
-fn registration_cli_candidates(target_os: SourceOs) -> Vec<PathBuf> {
+pub(crate) fn select_registration_cli(
+    candidates: Vec<PathBuf>,
+    eligible: impl Fn(&Path) -> bool,
+) -> Option<PathBuf> {
+    candidates
+        .into_iter()
+        .find(|candidate| candidate.is_file() && eligible(candidate))
+}
+
+pub(crate) fn registration_cli_candidates(target_os: SourceOs) -> Vec<PathBuf> {
     match target_os {
         SourceOs::Macos => {
             let mut roots = vec![];

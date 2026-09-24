@@ -1,20 +1,47 @@
 # Windows installer verification
 
-Generated: 2026-09-20
+Generated: 2026-09-24. The latest 0.1.7 artifact is the final local candidate after the conservative LGPL source/relinking update. It was not installed; the prior 0.1.7 installation evidence below applies to a different installer hash.
+
+## Latest license-only candidate (not installed)
+
+| Item | Result |
+| --- | --- |
+| Target/version | Windows x64 / 0.1.7; application file/product version confirmed |
+| Candidate filename | `ENHE.Codex.Backup_0.1.7_x64-setup.exe` |
+| Size | 51,249,947 bytes |
+| SHA-256 | `825e74e59be3954f091d829761cb01f673f9c9330a05d910946ddf3ba10170c0` |
+| Candidate checksum sidecar | PASS; correct hash and exact candidate filename |
+| Package command | PASS; exit 0, Cargo offline, existing MSVC and runtime binaries |
+| License payload | Five offline notice files plus `manifest.json`, exact rclone/SDDL source and relinking materials, and `RCLONE-BUILD-MANIFEST.json`; exact hashes and generated-NSIS inclusion checks PASS |
+| License regression fixtures | Ten cases PASS, including missing/altered notices and LGPL source materials, stale inputs, omitted resources, duplicate input and LF/CRLF portability |
+| Application behavior | No application source, application test, dependency version or runtime binary change in this conservative LGPL packaging correction |
+| Code signing | NotSigned; unsigned |
+| Uninstall/install/startup | NOT_RUN by current instruction; previously installed executable remains unchanged |
+| Installer extraction/native UI | NOT_RUN; compilation and generated inclusion instructions are not an installed-file or pixel-level verification |
+| Technical publication readiness | READY; the pinned SDDL discrepancy is handled through the documented conservative LGPL path, with corresponding source, relinking instructions and build materials included. This is not a legal certification; exact user authorization is still required. See [third-party review](../THIRD_PARTY.md#017-lgpl-source-and-relinking-material) |
+
+The earlier package is retained locally. No commit, push, tag, release or asset upload was performed. The output bundle path below now contains the final local candidate; historical installation proof is bound to the earlier hash, not that reused path.
+
+## Earlier 0.1.7 installation (historical evidence)
 
 | Item | Result |
 | --- | --- |
 | Target | Windows x64 / `x86_64-pc-windows-msvc` |
-| Bundle | `desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/ENHE Codex Backup_0.1.6_x64-setup.exe` |
-| Size | 33,247,826 bytes |
-| SHA-256 | `9ddf7bb14a54153ecc23dd46b2197b31bc9cd75f67fab06d8a17bb8d7d16c058` |
-| Adjacent checksum file | PASS; value matches the installer |
-| Tauri release build and NSIS bundling | PASS |
+| Bundle | `desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/ENHE Codex Backup_0.1.7_x64-setup.exe` |
+| Earlier local copy | `ENHE.Codex.Backup_0.1.7_x64-setup.exe` and matching `.sha256`; retained but superseded as a publication candidate |
+| Size | 33,292,697 bytes |
+| SHA-256 | `0678d177527c9f8f54b83468d158b275572d80055c899401f0cdbf68bcb373e8` |
+| Adjacent checksum file | PASS; matches installer, release copy and filename |
+| Tauri release build and NSIS bundling | PASS; exit 0, cached tools, Cargo offline |
 | Code signing | NOT_RUN; package is unsigned |
-| Current-user uninstall/reinstall | PASS; prior installation removed and 0.1.6 installed using the authorized current-user path |
-| Installed version/startup | PASS; registry and binary file/product version reported 0.1.6, and the captured running window showed `ENHE Codex Backup · v0.1.6` in both title bar and sidebar |
-| Synthetic application backup round trip | PASS; bundled restic completed backup, snapshot listing, and restore through asynchronous application commands using temporary synthetic data only |
-| Native picker and full desktop UI flow | NOT_RUN; native startup and overview visual verification passed, but directory-picker and full backup-button click-through were not exercised with personal data |
+| Current-user uninstall/reinstall | PASS; 0.1.6 removed and 0.1.7 installed, both exit 0; no application-data deletion selected |
+| Installed version/resources | PASS; registry and executable version 0.1.7; main executable matches the single documented Tauri UNK-to-NSS bundle marker; restic/rclone SHA-256 match exactly |
+| Installed main executable SHA-256 | `e0c4448f86fc4edd8b30d4a45ee4b9753c297ac59db1959ea89b0bb9ceda1f84` |
+| Configuration / DPAPI password file | PASS; unchanged by hash; configuration recovery copy retained locally only |
+| Desktop / Start Menu shortcuts | PASS for target metadata; both target the new executable and inherit its icon; visual icon rendering NOT_RUN |
+| Installed startup | NOT_RUN; not launched against a real Codex profile |
+| Synthetic application backup round trip | Default canonical run does not enable the ignored bundled-restic application test; separate isolated restic CLI acceptance is reported in STATUS |
+| Native picker and full desktop UI flow | UI NOT VISUALLY VERIFIED; do not transfer historical native startup evidence |
 | Clean-profile WebView2 flow | NOT_RUN |
 | Real account, OneDrive, second device, and live Codex continuation | NOT_RUN |
 

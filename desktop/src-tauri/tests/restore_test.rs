@@ -3,17 +3,21 @@ mod common;
 
 use common::{synthetic_codex_fixture, SyntheticCodexFixture, THREAD_ID};
 use rehome_desktop_lib::core::{
+    app_server::{CodexAccessRequest, CodexAccessVerifier},
     backup::claim_transaction_rollback,
-    error::ErrorCode,
+    error::{ErrorCode, RehomeError},
     models::{
-        ChangeKind, ContentCounts, ConversationEntry, CreatePackageRequest, FileConflictResolution,
+        ChangeKind, CodexAccessVerification, ContentCounts, ContinuationProbeOptions,
+        ConversationEntry, CreatePackageRequest, FileConflictResolution, MigrationJobStage,
         RecoveryStatus, RegistrationStatus, RestoreOptions, RestorePlan, SourceOs, TargetInventory,
     },
     package::{create_package, inspect_package},
     planner::{build_restore_plan, build_restore_plan_with_conflict_resolution},
     restore::{
-        apply_restore, apply_restore_by_id, apply_restore_with_registrar, list_transaction_history,
-        list_transactions, recover_incomplete_transactions, rollback, transaction_summary,
+        apply_restore, apply_restore_by_id, apply_restore_with_registrar,
+        apply_restore_with_services, list_transaction_history, list_transactions,
+        recover_incomplete_transactions, rollback, transaction_summary, RestoreProgressEvent,
+        RestoreProgressSink,
     },
 };
 use rusqlite::Connection;
@@ -27,13 +31,727 @@ use std::{
     fs,
     io::Write,
     path::{Path, PathBuf},
-    sync::{Mutex, MutexGuard},
+    sync::{Arc, Mutex, MutexGuard},
 };
 use tempfile::TempDir;
 use uuid::Uuid;
 use zip::{write::SimpleFileOptions, CompressionMethod, DateTime, ZipArchive, ZipWriter};
 
 static APP_DATA_ENV_LOCK: Mutex<()> = Mutex::new(());
+
+#[derive(Default)]
+struct Progress(Vec<RestoreProgressEvent>);
+
+impl RestoreProgressSink for Progress {
+    fn update(&mut self, event: RestoreProgressEvent) {
+        if let RestoreProgressEvent::TransactionPrepared(id) = &event {
+            let path = PathBuf::from(env::var_os("LOCALAPPDATA").unwrap())
+                .join("com.rehome.desktop/transactions")
+                .join(format!("{id}.json"));
+            let journal: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+            assert_eq!(journal["status"], "prepared");
+        }
+        self.0.push(event);
+    }
+}
+
+#[derive(Default)]
+struct FakeVerifier {
+    preflight_error: Option<RehomeError>,
+    verify_error: Option<RehomeError>,
+    recognition_fails: bool,
+    result_override: Option<CodexAccessVerification>,
+    expected_request: Option<CodexAccessRequest>,
+    verify_hook: Option<Box<dyn FnMut(&CodexAccessRequest) + Send>>,
+    calls: Vec<&'static str>,
+}
+
+impl CodexAccessVerifier for FakeVerifier {
+    fn preflight(&mut self) -> Result<(), RehomeError> {
+        self.calls.push("preflight");
+        self.preflight_error.clone().map_or(Ok(()), Err)
+    }
+
+    fn verify(
+        &mut self,
+        request: &CodexAccessRequest,
+        on_threads_recognized: &mut dyn FnMut(),
+    ) -> Result<CodexAccessVerification, RehomeError> {
+        self.calls.push("verify");
+        if let Some(expected) = &self.expected_request {
+            assert_eq!(request, expected);
+        }
+        let transactions = PathBuf::from(env::var_os("LOCALAPPDATA").unwrap())
+            .join("com.rehome.desktop/transactions");
+        let journals: Vec<_> = fs::read_dir(transactions)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
+            .collect();
+        let verifying = journals
+            .iter()
+            .filter(|path| {
+                let journal: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+                journal["status"] == "verifying"
+            })
+            .count();
+        assert_eq!(
+            verifying, 1,
+            "verifier must run inside an uncommitted transaction"
+        );
+        if !self.recognition_fails {
+            on_threads_recognized();
+        }
+        if let Some(hook) = &mut self.verify_hook {
+            hook(request);
+        }
+        self.calls.push("shutdown");
+        if let Some(error) = &self.verify_error {
+            return Err(error.clone());
+        }
+        Ok(self
+            .result_override
+            .clone()
+            .unwrap_or(CodexAccessVerification {
+                required_threads: request.required_thread_ids.len() as u64,
+                recognized_threads: request.required_thread_ids.len() as u64,
+                probe_thread_id: Some(request.probe_thread_id),
+                threads_recognized: true,
+                continuation_probe_valid: true,
+                ephemeral_fork: true,
+            }))
+    }
+}
+
+fn probe_options(harness: &RestoreHarness) -> RestoreOptions {
+    let mut options = harness.options();
+    options.continuation_probe = Some(ContinuationProbeOptions {
+        probe_thread_id: harness.plan.sessions[0].target_task_id,
+        online_usage_confirmed: true,
+    });
+    options
+}
+
+fn probe_error(code: ErrorCode) -> RehomeError {
+    RehomeError::new(code, "synthetic verifier failure")
+}
+
+fn prepared_id(progress: &Progress) -> Uuid {
+    match progress.0[1] {
+        RestoreProgressEvent::TransactionPrepared(id) => id,
+        _ => panic!("expected durable preparation before restoring"),
+    }
+}
+
+fn rollback_events(progress: &Progress, recognized: bool, rollback_ok: bool) {
+    use MigrationJobStage::*;
+    use RestoreProgressEvent::*;
+    let mut expected = vec![
+        Stage(Preflight),
+        TransactionPrepared(prepared_id(progress)),
+        Stage(RestoringFiles),
+        Stage(FilesVerified),
+        Stage(RecognizingThreads),
+    ];
+    if recognized {
+        expected.push(Stage(ProbingContinuation));
+    }
+    expected.extend([
+        Stage(RollingBack),
+        if rollback_ok {
+            RollbackCompleted
+        } else {
+            RollbackFailed
+        },
+    ]);
+    assert_eq!(progress.0, expected);
+}
+
+#[test]
+fn app_server_preflight_failure_writes_nothing() -> Result<(), Box<dyn Error>> {
+    let harness = RestoreHarness::new(DatabaseSchema::Compatible)?;
+    let before = snapshot_mutable_targets(&harness.plan)?;
+    let mut verifier = FakeVerifier {
+        preflight_error: Some(probe_error(ErrorCode::CodexAppServerUnavailable)),
+        ..Default::default()
+    };
+    let mut progress = Progress::default();
+    let error = apply_restore_with_services(
+        harness.plan.clone(),
+        probe_options(&harness),
+        &mut |_, _| panic!("registration before commit"),
+        Some(&mut verifier),
+        &mut progress,
+    )
+    .unwrap_err();
+    assert_eq!(error.code, ErrorCode::CodexAppServerUnavailable);
+    assert_eq!(snapshot_mutable_targets(&harness.plan)?, before);
+    assert!(!harness.transactions_dir().exists());
+    assert!(!harness.backup_root.exists());
+    assert_eq!(verifier.calls, ["preflight"]);
+    assert_eq!(
+        progress.0,
+        [RestoreProgressEvent::Stage(MigrationJobStage::Preflight)]
+    );
+    Ok(())
+}
+
+fn assert_verifier_rollback(code: ErrorCode, recognized: bool) -> Result<(), Box<dyn Error>> {
+    let harness = RestoreHarness::new_with_setup(DatabaseSchema::Compatible, |package, _| {
+        add_forbidden_payload(package, "agents/skills/shared/SKILL.md", b"incoming\n")
+    })?;
+    let before = snapshot_mutable_targets(&harness.plan)?;
+    let mut verifier = FakeVerifier {
+        verify_error: Some(probe_error(code)),
+        recognition_fails: !recognized,
+        ..Default::default()
+    };
+    let mut progress = Progress::default();
+    let error = apply_restore_with_services(
+        harness.plan.clone(),
+        probe_options(&harness),
+        &mut |_, _| panic!("registration before commit"),
+        Some(&mut verifier),
+        &mut progress,
+    )
+    .unwrap_err();
+    assert_eq!(error.code, code);
+    assert_eq!(snapshot_mutable_targets(&harness.plan)?, before);
+    assert_eq!(harness.single_journal_status()?, RecoveryStatus::RolledBack);
+    rollback_events(&progress, recognized, true);
+    Ok(())
+}
+
+#[test]
+fn authentication_failure_rolls_back_every_target() -> Result<(), Box<dyn Error>> {
+    assert_verifier_rollback(ErrorCode::CodexAuthenticationRequired, false)
+}
+
+#[test]
+fn recognition_failure_rolls_back_every_target() -> Result<(), Box<dyn Error>> {
+    assert_verifier_rollback(ErrorCode::CodexVerificationFailed, false)
+}
+
+#[test]
+fn probe_failure_rolls_back_index_and_sqlite() -> Result<(), Box<dyn Error>> {
+    assert_verifier_rollback(ErrorCode::CodexVerificationFailed, true)
+}
+
+fn create_verifier_wal(request: &CodexAccessRequest) {
+    let database = request.codex_home.join("state_5.sqlite");
+    let connection = Connection::open(&database).unwrap();
+    connection
+        .pragma_update(None, "journal_mode", "WAL")
+        .unwrap();
+    connection
+        .set_db_config(
+            rusqlite::config::DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE,
+            true,
+        )
+        .unwrap();
+    connection.execute_batch("CREATE TABLE probe_marker (value TEXT); INSERT INTO probe_marker VALUES ('synthetic');").unwrap();
+    drop(connection); // All handles closed before the verifier returns.
+    assert!(sqlite_sidecar(&database, "-wal").exists());
+}
+
+#[test]
+fn probe_failure_after_wal_sidecar_creation_still_rolls_back() -> Result<(), Box<dyn Error>> {
+    let harness = RestoreHarness::new(DatabaseSchema::Compatible)?;
+    let before = snapshot_mutable_targets(&harness.plan)?;
+    let mut verifier = FakeVerifier {
+        verify_error: Some(probe_error(ErrorCode::CodexVerificationFailed)),
+        verify_hook: Some(Box::new(create_verifier_wal)),
+        ..Default::default()
+    };
+    let mut progress = Progress::default();
+    let error = apply_restore_with_services(
+        harness.plan.clone(),
+        probe_options(&harness),
+        &mut |_, _| panic!("registration before commit"),
+        Some(&mut verifier),
+        &mut progress,
+    )
+    .unwrap_err();
+    assert_eq!(error.code, ErrorCode::CodexVerificationFailed, "{error:?}");
+    assert_eq!(snapshot_mutable_targets(&harness.plan)?, before);
+    rollback_events(&progress, true, true);
+    Ok(())
+}
+
+#[test]
+fn successful_probe_runs_before_commit() -> Result<(), Box<dyn Error>> {
+    use MigrationJobStage::*;
+    use RestoreProgressEvent::*;
+    let harness = RestoreHarness::new(DatabaseSchema::Compatible)?;
+    let before = snapshot_mutable_targets(&harness.plan)?;
+    let mut options = probe_options(&harness);
+    options.register_projects = true;
+    let mut verifier = FakeVerifier {
+        expected_request: Some(CodexAccessRequest {
+            codex_home: harness.plan.target_codex_home.clone(),
+            required_thread_ids: harness
+                .plan
+                .sessions
+                .iter()
+                .map(|s| s.target_task_id)
+                .collect(),
+            probe_thread_id: options.continuation_probe.as_ref().unwrap().probe_thread_id,
+        }),
+        verify_hook: Some(Box::new(create_verifier_wal)),
+        ..Default::default()
+    };
+    let mut progress = Progress::default();
+    let report = apply_restore_with_services(
+        harness.plan.clone(),
+        options,
+        &mut |_, _| {
+            assert_eq!(
+                harness.single_journal_status().unwrap(),
+                RecoveryStatus::Committed
+            );
+            RegistrationStatus::CommandUnavailable
+        },
+        Some(&mut verifier),
+        &mut progress,
+    )?;
+    assert_eq!(verifier.calls, ["preflight", "verify", "shutdown"]);
+    assert_eq!(
+        progress.0,
+        [
+            Stage(Preflight),
+            TransactionPrepared(report.transaction_id),
+            Stage(RestoringFiles),
+            Stage(FilesVerified),
+            Stage(RecognizingThreads),
+            Stage(ProbingContinuation),
+            Stage(Committing),
+            Stage(Finished)
+        ]
+    );
+    assert!(report.verification.app_visible_ready);
+    assert!(!report.verification.app_registration_valid);
+    assert!(report.verification.codex_access.ephemeral_fork);
+    assert!(rollback(report.transaction_id)?.success);
+    assert_eq!(snapshot_mutable_targets(&harness.plan)?, before);
+    Ok(())
+}
+
+#[test]
+fn probe_thread_must_belong_to_plan() -> Result<(), Box<dyn Error>> {
+    let harness = RestoreHarness::new(DatabaseSchema::Compatible)?;
+    let mut options = probe_options(&harness);
+    options.continuation_probe.as_mut().unwrap().probe_thread_id = Uuid::new_v4();
+    let mut verifier = FakeVerifier::default();
+    let mut progress = Progress::default();
+    assert!(apply_restore_with_services(
+        harness.plan.clone(),
+        options,
+        &mut |_, _| unreachable!(),
+        Some(&mut verifier),
+        &mut progress
+    )
+    .is_err());
+    assert!(verifier.calls.is_empty());
+    assert!(!harness.transactions_dir().exists());
+    assert!(!harness.backup_root.exists());
+    Ok(())
+}
+
+#[test]
+fn probe_requires_consent_and_an_injected_verifier() -> Result<(), Box<dyn Error>> {
+    let harness = RestoreHarness::new(DatabaseSchema::Compatible)?;
+    let before = snapshot_mutable_targets(&harness.plan)?;
+    let mut options = probe_options(&harness);
+    options
+        .continuation_probe
+        .as_mut()
+        .unwrap()
+        .online_usage_confirmed = false;
+    let mut verifier = FakeVerifier::default();
+    assert!(apply_restore_with_services(
+        harness.plan.clone(),
+        options,
+        &mut |_, _| unreachable!(),
+        Some(&mut verifier),
+        &mut Progress::default()
+    )
+    .is_err());
+    assert!(verifier.calls.is_empty());
+    assert!(apply_restore(harness.plan.clone(), probe_options(&harness)).is_err());
+    assert_eq!(snapshot_mutable_targets(&harness.plan)?, before);
+    assert!(!harness.transactions_dir().exists());
+    Ok(())
+}
+
+#[test]
+fn file_only_restore_does_not_start_app_server() -> Result<(), Box<dyn Error>> {
+    use MigrationJobStage::*;
+    use RestoreProgressEvent::*;
+    let harness = RestoreHarness::new(DatabaseSchema::Compatible)?;
+    let mut verifier = FakeVerifier {
+        preflight_error: Some(probe_error(ErrorCode::CodexAppServerUnavailable)),
+        ..Default::default()
+    };
+    let mut progress = Progress::default();
+    let report = apply_restore_with_services(
+        harness.plan.clone(),
+        harness.options(),
+        &mut |_, _| unreachable!(),
+        Some(&mut verifier),
+        &mut progress,
+    )?;
+    assert!(verifier.calls.is_empty());
+    assert!(!report.verification.app_visible_ready);
+    assert_eq!(
+        report.verification.codex_access,
+        CodexAccessVerification::default()
+    );
+    assert_eq!(
+        progress.0,
+        [
+            Stage(Preflight),
+            TransactionPrepared(report.transaction_id),
+            Stage(RestoringFiles),
+            Stage(FilesVerified),
+            Stage(Committing),
+            Stage(Finished)
+        ]
+    );
+    Ok(())
+}
+
+#[test]
+fn probe_rejects_incomplete_or_mismatched_access_proof() -> Result<(), Box<dyn Error>> {
+    for field in 0..6 {
+        let harness = RestoreHarness::new(DatabaseSchema::Compatible)?;
+        let before = snapshot_mutable_targets(&harness.plan)?;
+        let mut proof = CodexAccessVerification {
+            required_threads: 1,
+            recognized_threads: 1,
+            probe_thread_id: Some(harness.plan.sessions[0].target_task_id),
+            threads_recognized: true,
+            continuation_probe_valid: true,
+            ephemeral_fork: true,
+        };
+        match field {
+            0 => proof.required_threads = 0,
+            1 => proof.recognized_threads = 0,
+            2 => proof.probe_thread_id = Some(Uuid::new_v4()),
+            3 => proof.threads_recognized = false,
+            4 => proof.continuation_probe_valid = false,
+            _ => proof.ephemeral_fork = false,
+        }
+        let mut verifier = FakeVerifier {
+            result_override: Some(proof),
+            ..Default::default()
+        };
+        let error = apply_restore_with_services(
+            harness.plan.clone(),
+            probe_options(&harness),
+            &mut |_, _| unreachable!(),
+            Some(&mut verifier),
+            &mut Progress::default(),
+        )
+        .unwrap_err();
+        assert_eq!(error.code, ErrorCode::CodexVerificationFailed);
+        assert_eq!(snapshot_mutable_targets(&harness.plan)?, before);
+    }
+    Ok(())
+}
+
+#[test]
+fn services_reject_forged_plan_before_verifier_or_writes() -> Result<(), Box<dyn Error>> {
+    let harness = RestoreHarness::new(DatabaseSchema::Compatible)?;
+    let mut plan = harness.plan.clone();
+    plan.sessions[0].target_task_id = Uuid::new_v4();
+    let mut verifier = FakeVerifier::default();
+    let error = apply_restore_with_services(
+        plan,
+        probe_options(&harness),
+        &mut |_, _| unreachable!(),
+        Some(&mut verifier),
+        &mut Progress::default(),
+    )
+    .unwrap_err();
+    assert!(error.message.contains("server-held plan"));
+    assert!(verifier.calls.is_empty());
+    assert!(!harness.transactions_dir().exists());
+    Ok(())
+}
+
+#[test]
+fn probe_rollback_failure_is_structured_and_preserves_cause() -> Result<(), Box<dyn Error>> {
+    let harness = RestoreHarness::new(DatabaseSchema::Compatible)?;
+    let target = harness.plan.sessions[0].target.clone();
+    let edited = target.clone();
+    let mut verifier = FakeVerifier {
+        verify_error: Some(probe_error(ErrorCode::CodexVerificationFailed)),
+        verify_hook: Some(Box::new(move |_| {
+            fs::write(&edited, b"newer external edit").unwrap();
+        })),
+        ..Default::default()
+    };
+    let mut progress = Progress::default();
+    let error = apply_restore_with_services(
+        harness.plan.clone(),
+        probe_options(&harness),
+        &mut |_, _| unreachable!(),
+        Some(&mut verifier),
+        &mut progress,
+    )
+    .unwrap_err();
+    assert_eq!(error.code, ErrorCode::RollbackFailed);
+    assert!(error.message.contains("synthetic verifier failure"));
+    assert!(error.message.contains("automatic rollback failed"));
+    assert_eq!(fs::read(target)?, b"newer external edit");
+    rollback_events(&progress, true, false);
+    Ok(())
+}
+
+#[test]
+fn probe_checkpoint_failure_keeps_verifier_cause_and_safe_rollback() -> Result<(), Box<dyn Error>> {
+    for verifier_failed in [true, false] {
+        let harness = RestoreHarness::new(DatabaseSchema::Compatible)?;
+        let mut verifier = FakeVerifier {
+            verify_error: verifier_failed.then(|| probe_error(ErrorCode::CodexVerificationFailed)),
+            verify_hook: Some(Box::new(|request| {
+                let database = request.codex_home.join("state_5.sqlite");
+                fs::remove_file(&database).unwrap();
+                fs::create_dir(&database).unwrap();
+            })),
+            ..Default::default()
+        };
+        let mut progress = Progress::default();
+        let error = apply_restore_with_services(
+            harness.plan.clone(),
+            probe_options(&harness),
+            &mut |_, _| unreachable!(),
+            Some(&mut verifier),
+            &mut progress,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, ErrorCode::RollbackFailed);
+        assert_eq!(
+            error.message.contains("synthetic verifier failure"),
+            verifier_failed
+        );
+        assert!(error.message.contains("checkpoint"));
+        assert!(error.message.contains("automatic rollback failed"));
+        assert!(harness
+            .plan
+            .target_codex_home
+            .join("state_5.sqlite")
+            .is_dir());
+        rollback_events(&progress, true, false);
+    }
+    Ok(())
+}
+
+#[test]
+fn probe_on_existing_sessions_protects_sqlite_even_without_a_bridge_write(
+) -> Result<(), Box<dyn Error>> {
+    let harness = RestoreHarness::new(DatabaseSchema::Compatible)?;
+    let plan = ready_restore_plan(&harness)?;
+    let database = plan.target_codex_home.join("state_5.sqlite");
+    let read_thread = || -> rusqlite::Result<(String, String, String, String)> {
+        Connection::open(&database)?.query_row(
+            "SELECT id, cwd, rollout_path, title FROM threads",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+    };
+    let before = read_thread()?;
+    let index = fs::read(plan.target_codex_home.join("session_index.jsonl"))?;
+    let session = fs::read(&plan.sessions[0].target)?;
+    let mut verifier = FakeVerifier {
+        verify_error: Some(probe_error(ErrorCode::CodexVerificationFailed)),
+        verify_hook: Some(Box::new(create_verifier_wal)),
+        ..Default::default()
+    };
+    let mut progress = Progress::default();
+    let error = apply_restore_with_services(
+        plan.clone(),
+        probe_options(&harness),
+        &mut |_, _| unreachable!(),
+        Some(&mut verifier),
+        &mut progress,
+    )
+    .unwrap_err();
+    assert_eq!(error.code, ErrorCode::CodexVerificationFailed, "{error:?}");
+    for suffix in ["-wal", "-shm", "-journal"] {
+        assert!(!sqlite_sidecar(&database, suffix).exists());
+    }
+    // SQLite's coherent backup can normalize header counters; compare the data,
+    // schema and integrity, while index/rollout must remain byte-for-byte unchanged.
+    assert_eq!(read_thread()?, before);
+    let connection = Connection::open(&database)?;
+    assert_eq!(
+        connection.query_row(
+            "SELECT count(*) FROM sqlite_schema WHERE name = 'probe_marker'",
+            [],
+            |row| row.get::<_, i64>(0)
+        )?,
+        0
+    );
+    assert_eq!(
+        connection.query_row("PRAGMA integrity_check", [], |row| row.get::<_, String>(0))?,
+        "ok"
+    );
+    assert_eq!(
+        fs::read(plan.target_codex_home.join("session_index.jsonl"))?,
+        index
+    );
+    assert_eq!(fs::read(&plan.sessions[0].target)?, session);
+    assert_eq!(
+        harness.read_journal(prepared_id(&progress))?["status"],
+        "rolled_back"
+    );
+    rollback_events(&progress, true, true);
+    Ok(())
+}
+
+#[test]
+fn file_verification_failure_never_emits_files_verified_or_calls_verifier(
+) -> Result<(), Box<dyn Error>> {
+    use MigrationJobStage::*;
+    use RestoreProgressEvent::*;
+    let harness = RestoreHarness::new_with_setup(DatabaseSchema::Compatible, |package, _| {
+        replace_selected_session_payload(package,
+            format!("{{\"type\":\"session_meta\",\"payload\":{{\"id\":\"{THREAD_ID}\",\"title\":\"Synthetic\"}}}}\n").as_bytes())
+    })?;
+    let before = snapshot_mutable_targets(&harness.plan)?;
+    let mut verifier = FakeVerifier::default();
+    let mut progress = Progress::default();
+    let error = apply_restore_with_services(
+        harness.plan.clone(),
+        probe_options(&harness),
+        &mut |_, _| unreachable!(),
+        Some(&mut verifier),
+        &mut progress,
+    )
+    .unwrap_err();
+    assert!(error.message.contains("path_mapping_valid: false"));
+    assert_eq!(verifier.calls, ["preflight"]);
+    assert_eq!(
+        progress.0,
+        [
+            Stage(Preflight),
+            TransactionPrepared(prepared_id(&progress)),
+            Stage(RestoringFiles),
+            Stage(RollingBack),
+            RollbackCompleted
+        ]
+    );
+    assert_eq!(snapshot_mutable_targets(&harness.plan)?, before);
+    Ok(())
+}
+
+#[test]
+fn cleanup_unconfirmed_preserves_database_checkpoints_and_backups_for_manual_recovery(
+) -> Result<(), Box<dyn Error>> {
+    let harness = RestoreHarness::new(DatabaseSchema::Compatible)?;
+    let plan = harness.plan.clone();
+    let roots = [harness.transactions_dir(), harness.backup_root.clone()];
+    let capture_control = move || -> BTreeMap<PathBuf, Vec<u8>> {
+        roots
+            .iter()
+            .flat_map(|root| walkdir::WalkDir::new(root).into_iter())
+            .map(|entry| entry.unwrap())
+            .filter(|entry| entry.file_type().is_file())
+            .map(|entry| (entry.path().to_owned(), fs::read(entry.path()).unwrap()))
+            .collect()
+    };
+    let captured = Arc::new(Mutex::new(None));
+    let captured_by_verifier = Arc::clone(&captured);
+    let before_hook = capture_control.clone();
+    let mut verifier = FakeVerifier {
+        verify_error: Some(RehomeError::new(
+            ErrorCode::CodexCleanupUnconfirmed,
+            "synthetic protocol failure; synthetic termination unconfirmed",
+        )),
+        verify_hook: Some(Box::new(move |request| {
+            create_verifier_wal(request);
+            *captured_by_verifier.lock().unwrap() =
+                Some((snapshot_mutable_targets(&plan).unwrap(), before_hook()));
+        })),
+        ..Default::default()
+    };
+    let mut progress = Progress::default();
+    let error = apply_restore_with_services(
+        harness.plan.clone(),
+        probe_options(&harness),
+        &mut |_, _| unreachable!(),
+        Some(&mut verifier),
+        &mut progress,
+    )
+    .unwrap_err();
+    assert_eq!(error.code, ErrorCode::CodexCleanupUnconfirmed);
+    let captured = captured.lock().unwrap();
+    let (targets, control) = captured.as_ref().unwrap();
+    assert_eq!(
+        &snapshot_mutable_targets(&harness.plan)?,
+        targets,
+        "possible writer's files must not be rolled back"
+    );
+    assert_eq!(
+        &capture_control(),
+        control,
+        "journal, applied checkpoints and backups must not be rewritten"
+    );
+    assert!(error.message.contains("synthetic protocol failure"));
+    assert!(error.message.contains("synthetic termination unconfirmed"));
+    assert!(error.message.contains("manual recovery"));
+    assert_eq!(
+        harness.read_journal(prepared_id(&progress))?["status"],
+        "verifying"
+    );
+    use MigrationJobStage::*;
+    use RestoreProgressEvent::*;
+    assert_eq!(
+        progress.0,
+        [
+            Stage(Preflight),
+            TransactionPrepared(prepared_id(&progress)),
+            Stage(RestoringFiles),
+            Stage(FilesVerified),
+            Stage(RecognizingThreads),
+            Stage(ProbingContinuation),
+            RollbackFailed
+        ]
+    );
+    Ok(())
+}
+
+#[test]
+fn cleanup_unconfirmed_in_preflight_still_writes_no_restore_data() -> Result<(), Box<dyn Error>> {
+    let harness = RestoreHarness::new(DatabaseSchema::Compatible)?;
+    let before = snapshot_mutable_targets(&harness.plan)?;
+    let mut verifier = FakeVerifier {
+        preflight_error: Some(RehomeError::new(
+            ErrorCode::CodexCleanupUnconfirmed,
+            "synthetic preflight termination unconfirmed",
+        )),
+        ..Default::default()
+    };
+    let mut progress = Progress::default();
+    let error = apply_restore_with_services(
+        harness.plan.clone(),
+        probe_options(&harness),
+        &mut |_, _| unreachable!(),
+        Some(&mut verifier),
+        &mut progress,
+    )
+    .unwrap_err();
+    assert_eq!(error.code, ErrorCode::CodexCleanupUnconfirmed);
+    assert_eq!(snapshot_mutable_targets(&harness.plan)?, before);
+    assert_eq!(
+        progress.0,
+        [RestoreProgressEvent::Stage(MigrationJobStage::Preflight)]
+    );
+    assert!(!harness.transactions_dir().exists());
+    assert!(!harness.backup_root.exists());
+    Ok(())
+}
 
 #[cfg(windows)]
 #[test]
@@ -748,6 +1466,7 @@ fn backup_root_must_not_overlap_projects_root() -> Result<(), Box<dyn Error>> {
             codex_closed_confirmed: true,
             backup_root: harness.plan.projects_root.clone(),
             register_projects: false,
+            continuation_probe: None,
         },
     )
     .unwrap_err();
@@ -1657,6 +2376,7 @@ impl RestoreHarness {
             codex_closed_confirmed: true,
             backup_root: self.backup_root.clone(),
             register_projects: false,
+            continuation_probe: None,
         }
     }
 

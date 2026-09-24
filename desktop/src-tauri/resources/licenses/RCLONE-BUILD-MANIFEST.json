@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "component": "github.com/rclone/rclone",
+  "licenseTreatment": "Conservative LGPL-3.0 treatment for the linked SDDL revision; no MIT-only assumption is used.",
+  "licenseResolution": {
+    "selectedGrant": "LGPL-3.0",
+    "basis": [
+      "The exact SDDL revision LICENSE is LGPL-3.0.",
+      "The upstream SDDL repository is classified as LGPL-3.0 at https://github.com/CloudSoda/sddl."
+    ],
+    "conflictingDocumentation": "The exact revision README contains an MIT statement; it is retained in the third-party notice record and is not used to reduce the redistribution obligations."
+  },
+  "rclone": {
+    "version": "1.75.1",
+    "sourceCommit": "687d264b689b8c49a67e2e52a8a5e0caa01c04ce",
+    "sourceUrl": "https://github.com/rclone/rclone/archive/687d264b689b8c49a67e2e52a8a5e0caa01c04ce.zip",
+    "sourceArchiveSha256": "f1ded7997e864b859b7ab800ecf119bac9b8faa87b51d7677e280c036b3003d1",
+    "binarySha256": "033eee51c9ad47c2de2624b6674d355274bcd6cf0027a5f85db4437ba24ae81c",
+    "goVersion": "go1.26.8",
+    "buildSettings": [
+      "-buildmode=exe",
+      "-compiler=gc",
+      "-tags=cmount",
+      "-trimpath=true",
+      "DefaultGODEBUG=x509negativeserial=1",
+      "CGO_ENABLED=0",
+      "GOARCH=amd64",
+      "GOOS=windows",
+      "GOAMD64=v1",
+      "vcs.modified=false"
+    ]
+  },
+  "sddl": {
+    "module": "github.com/cloudsoda/sddl",
+    "moduleVersion": "v0.0.0-20250224235906-926454e91efc",
+    "sourceCommit": "926454e91efc95daf839e9112b09b6b2344c9e83",
+    "sourceUrl": "https://github.com/cloudsoda/sddl/archive/926454e91efc95daf839e9112b09b6b2344c9e83.zip",
+    "sourceArchiveSha256": "3b58a39cbf5fcceba5b512e26b3f10c4fb8ea9527fd9b297a8458c5244e95537",
+    "licenseFileSha256": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118",
+    "licenseEvidence": "The exact revision has an LGPL-3.0 LICENSE and an MIT statement in README; the package uses the conservative LGPL path."
+  },
+  "relinking": {
+    "correspondingSource": "RCLONE-LGPL-SOURCE-BUNDLE.zip contains the exact rclone application source and the exact SDDL linked source.",
+    "command": "go build -trimpath -tags cmount -ldflags=\"-s -w\" -o rclone.exe .",
+    "environment": {
+      "CGO_ENABLED": "0",
+      "GOOS": "windows",
+      "GOARCH": "amd64",
+      "GOAMD64": "v1",
+      "GODEBUG": "x509negativeserial=1"
+    },
+    "steps": [
+      "Extract the source bundle.",
+      "Verify rclone go.mod/go.sum and the SDDL commit before resolving modules.",
+      "Run the command from the rclone source directory with Go 1.26.8 or a compatible Go 1.26 toolchain.",
+      "Verify the rebuilt binary and third-party notices before redistribution."
+    ]
+  },
+  "limitations": [
+    "The source bundle enables source review and relinking; it does not promise byte-for-byte reproducibility.",
+    "The upstream SDDL LICENSE/README discrepancy remains recorded and is not presented as resolved by this manifest."
+  ]
+}

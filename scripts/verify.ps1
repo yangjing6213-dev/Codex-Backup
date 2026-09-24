@@ -48,6 +48,10 @@ Invoke-Verification "installer desktop icon contract" {
     & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ProjectRoot "tests\installer_icon_test.ps1")
 }
 
+Invoke-Verification "bundled license contract" {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ProjectRoot "tests\bundled_licenses_test.ps1")
+}
+
 if (-not $SkipRust) {
     $cargo = Get-Command cargo -ErrorAction SilentlyContinue
     if ($cargo) {

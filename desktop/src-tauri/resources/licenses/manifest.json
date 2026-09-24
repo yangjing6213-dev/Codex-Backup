@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "applicationVersion": "0.1.7",
+  "target": "x86_64-pc-windows-msvc",
+  "noticePolicy": "Preserve exact upstream notices; refresh after dependency changes. Not a legal certification.",
+  "notices": [
+    {
+      "path": "LICENSE.txt",
+      "bytes": 1086,
+      "sha256": "de1103eb660788e988b1b8c88388de08bd5f4645abd4d3ec30512ff990808051"
+    },
+    {
+      "path": "THIRD-PARTY-NOTICES.txt",
+      "bytes": 24784,
+      "sha256": "556ddb92755bdc94deb81cdcc6f0392ca41e20ca0333f7bec78d9fe3d61ada69"
+    },
+    {
+      "path": "JS-THIRD-PARTY-NOTICES.txt",
+      "bytes": 29333,
+      "sha256": "50b0bc1885b7868287e889eb583d91faaf4090934deb0c2db3992be80154993b"
+    },
+    {
+      "path": "RUST-THIRD-PARTY-NOTICES.txt",
+      "bytes": 4718947,
+      "sha256": "0aca855728e379e886577cf82adacfadd54f94d40f4afe00dd272e7ea0e1b97d"
+    },
+    {
+      "path": "GO-THIRD-PARTY-NOTICES.txt",
+      "bytes": 1794170,
+      "sha256": "6428a9b90cfdc1461fbb0b88f2df7d3239ee55df751e0f9e29e16325f731c188"
+    }
+  ],
+  "sourceMaterials": [
+    {
+      "path": "RCLONE-LGPL-SOURCE-AND-RELINKING.txt",
+      "bytes": 2397,
+      "sha256": "33d7f18d6f926d7a986564c1daf32b10e79c40742535cf2a8f86fac68fc88061"
+    },
+    {
+      "path": "RCLONE-BUILD-MANIFEST.json",
+      "bytes": 2947,
+      "sha256": "dc772204cc3e9a3ff25473d9b2818ec5765c1facd85bd9bc01241ae43b3ae213"
+    },
+    {
+      "path": "RCLONE-LGPL-SOURCE-BUNDLE.zip",
+      "bytes": 17963997,
+      "sha256": "c4f00a819d416ecb269f529f306a398fa64c3d03d6f399c2c396e94d380ce831"
+    }
+  ],
+  "inputs": [
+    {
+      "path": "LICENSE",
+      "hashMode": "utf8-lf",
+      "sha256": "082c2611a92b9190c714993362d4cbbdbaf0b9a8635c581d97efe1e2c4c05983"
+    },
+    {
+      "path": "desktop/pnpm-lock.yaml",
+      "hashMode": "utf8-lf",
+      "sha256": "200c62ee1b650348f8106c35995ea3a8d529cbdd38e077e2adfd33be9ebbac0f"
+    },
+    {
+      "path": "desktop/src-tauri/Cargo.lock",
+      "hashMode": "utf8-lf",
+      "sha256": "b791065aecd4b4d05e28c985294e25cb86564bf3b0dd19240cf0ff4d799659e4"
+    },
+    {
+      "path": "desktop/src-tauri/resources/restic.exe",
+      "hashMode": "raw",
+      "sha256": "b0dd1fd21eea5d8fe1325f55f7118213c21f36de8a261e04c0624a5ab9fd7830"
+    },
+    {
+      "path": "desktop/src-tauri/resources/rclone.exe",
+      "hashMode": "raw",
+      "sha256": "033eee51c9ad47c2de2624b6674d355274bcd6cf0027a5f85db4437ba24ae81c"
+    }
+  ]
+}

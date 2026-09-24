@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 import appCapability from "../src-tauri/capabilities/default.json";
+import type { MigrationJobSnapshot, PackagePreview, RestorePlan } from "./lib/types";
 
 const api = vi.hoisted(() => ({
   discoverCodex: vi.fn(),
@@ -24,6 +25,14 @@ const api = vi.hoisted(() => ({
   testCloudConnection: vi.fn(),
   uploadLocalSnapshot: vi.fn(),
   setScheduler: vi.fn(),
+  inspectPackage: vi.fn(),
+  selectRestoreDestinations: vi.fn(),
+  buildRestorePlan: vi.fn(),
+  applyRestore: vi.fn(),
+  startMigrateAndConnect: vi.fn(),
+  getMigrationJob: vi.fn(),
+  listTransactions: vi.fn(),
+  rollbackTransaction: vi.fn(),
 }));
 
 vi.mock("./lib/api", () => api);
@@ -103,6 +112,7 @@ beforeEach(() => {
   api.countProjectFiles.mockImplementation(async (paths: string[]) => paths.map(path => ({ path, name: path.split(/[\\/]/).pop(), markers: [], file_count: 3, file_count_complete: true, skipped_entries: 0 })));
   api.getSchedulerStatus.mockResolvedValue({ enabled: false, task_name: "ENHE Codex Backup - Current User" });
   api.listLocalBackups.mockResolvedValue([]);
+  api.listTransactions.mockResolvedValue({ transactions: [], warnings: [] });
   api.saveAppConfig.mockImplementation(async (next) => next);
   api.pickDirectory.mockResolvedValue(null);
   api.requestAdminLocalDiscovery.mockResolvedValue({
@@ -114,6 +124,94 @@ beforeEach(() => {
 });
 
 describe("ENHE Codex Backup shell", () => {
+  function mockMigration() {
+    const conversation = { task_id: "source-1", project_id: null, title: "Synthetic conversation", updated_at: "2026-09-20T00:00:00Z", content_hash: "synthetic", archive_path: "sessions/source.jsonl", classification: null };
+    const preview: PackagePreview = {
+      selection_id: "selection-1", package_path: "C:/Synthetic/demo.rehome", archive_hash: "synthetic", checksum_valid: true, entries: [], forbidden_files_total: 0,
+      manifest: { format: "rehome", schema_version: 1, package_id: "package-1", created_at: "2026-09-20T00:00:00Z", source_os: "windows", source_arch: "x86_64", source_device_id: "synthetic-device", mode: "full", parent_checkpoint: null, counts: { projects: 0, project_files: 0, conversations: 1, skills: 0, plugins: 0, generated_images: 0, sqlite_threads: 1 }, projects: [], conversations: [conversation], exclusions: { excluded_files: 0, excluded_bytes: 0, rules: [] } },
+    };
+    const plan: RestorePlan = {
+      plan_id: "plan-1", package_path: preview.package_path, package_id: "package-1", archive_hash: "synthetic", target_codex_home: "C:/Synthetic/target", projects_root: "C:/Synthetic/projects", operations: [],
+      sessions: [{ package_source: conversation.archive_path, target: "C:/Synthetic/target/session.jsonl", source_task_id: "source-1", target_task_id: "target-1", title: conversation.title, source_content_hash: "synthetic", expected_final_content_hash: "synthetic", action: "import" }], reference_rewrites: [], bridge_verification: { session_index: null, sqlite_database: null }, conflict_count: 0, required_bytes: 100,
+    };
+    const current: MigrationJobSnapshot = { job_id: "job-1", plan_id: "plan-1", transaction_id: "transaction-1", stage: "recognizing_threads", status: "running", report: null, error: null, updated_at: "2026-09-20T00:00:00Z" };
+    api.inspectPackage.mockResolvedValue(preview);
+    api.selectRestoreDestinations.mockResolvedValue({ selection_id: "destinations", target_codex_home: plan.target_codex_home, projects_root: plan.projects_root, backup_root: "C:/Synthetic/backups" });
+    api.buildRestorePlan.mockResolvedValue(plan);
+    api.startMigrateAndConnect.mockResolvedValue({ ...current });
+    api.getMigrationJob.mockImplementation(async () => ({ ...current }));
+    api.listTransactions.mockResolvedValue({ transactions: [{ transaction_id: "transaction-1", package_id: "package-1", created_at: current.updated_at, status: "rollback_failed", backup_root: "C:/Synthetic/backups", transaction_backup_path: "C:/Synthetic/backups/transaction-1", target_codex_home: plan.target_codex_home, projects_root: plan.projects_root, restored_project_paths: [], changed_files: 1 }], warnings: [] });
+    return current;
+  }
+
+  async function startMigration(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("tab", { name: "导入 ReHome 迁移包" }));
+    await user.click(screen.getByRole("button", { name: "选择迁移包" }));
+    await user.click(screen.getByRole("button", { name: "预览导入内容" }));
+    await user.click(screen.getByRole("checkbox", { name: "确认已保存工作并完全退出 Codex" }));
+    await user.click(screen.getByRole("checkbox", { name: "同意在线验证及用量" }));
+    await user.click(screen.getByRole("button", { name: "开始迁移并接入" }));
+  }
+
+  it("keeps polling across navigation and disables competing starts while allowing local/history navigation", async () => {
+    const user = userEvent.setup();
+    const current = mockMigration();
+    api.listLocalBackups.mockResolvedValue([{ restic_snapshot_id: "synthetic-snapshot", logical_backup_id: null, created_at: current.updated_at, file_count: 1, byte_count: 100, complete: true, integrity_status: "complete" }]);
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "前往备份与迁移" }));
+    await user.click(screen.getByRole("button", { name: "刷新本地备份" }));
+    await startMigration(user);
+    expect(await screen.findByText("任务进行中，切换页面不会中断；请勿退出应用。")).toBeVisible();
+    expect(screen.getByRole("main")).not.toHaveAttribute("aria-busy", "true");
+    await user.click(screen.getByRole("button", { name: "返回本地备份" }));
+    expect(screen.getByRole("button", { name: "开始本地备份" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "恢复" })).toBeDisabled();
+    await user.click(screen.getByRole("tab", { name: "迁移记录" }));
+    expect(await screen.findByRole("button", { name: "继续回滚事务" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "返回本地备份" }));
+    await user.click(screen.getByRole("tab", { name: "导出 ReHome 迁移包" }));
+    expect(screen.getByRole("button", { name: "创建迁移包" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "返回本地备份" }));
+    await user.click(screen.getByRole("tab", { name: "导入 ReHome 迁移包" }));
+    expect(screen.getByRole("button", { name: "选择迁移包" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "开始迁移并接入" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "前往设置" }));
+    expect(screen.getByRole("button", { name: "保存设置" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "开始 OneDrive 配置" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "前往项目" }));
+    current.stage = "probing_continuation";
+    await waitFor(() => expect(screen.getByText("临时分支可继续发送消息").closest("li")).toHaveTextContent("进行中"));
+    await user.click(screen.getByRole("button", { name: "前往备份与迁移" }));
+    expect(screen.getByRole("status", { name: "接入验证进度" })).toBeVisible();
+    expect(api.startMigrateAndConnect).toHaveBeenCalledTimes(1);
+    current.status = "rolled_back"; current.stage = "finished";
+    current.error = { code: "codex_verification_failed", message: "fixed category" };
+    await screen.findByText("本地更改已回滚");
+    await waitFor(() => expect(screen.queryByText("任务进行中，切换页面不会中断；请勿退出应用。")).not.toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "返回本地备份" }));
+    expect(screen.getByRole("button", { name: "开始本地备份" })).toBeEnabled();
+    expect(api.runLocalBackup).not.toHaveBeenCalled();
+    expect(api.restoreLocalBackup).not.toHaveBeenCalled();
+    expect(api.createPackage).not.toHaveBeenCalled();
+    expect(api.applyRestore).not.toHaveBeenCalled();
+  });
+
+  it("opens the existing recovery history from failed-job guidance and returns to local backup", async () => {
+    const user = userEvent.setup();
+    const current = mockMigration();
+    current.status = "rollback_failed"; current.stage = "finished";
+    current.error = { code: "codex_cleanup_unconfirmed", message: "fixed category" };
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "前往备份与迁移" }));
+    await startMigration(user);
+    await user.click(await screen.findByRole("button", { name: "前往迁移记录" }));
+    expect(await screen.findByRole("heading", { name: "迁移记录" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "继续回滚事务" })).toBeEnabled();
+    expect(screen.getByText("transaction-1", { selector: ".transaction-title + code" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "返回本地备份" }));
+    expect(screen.getByRole("tab", { name: "本地备份" })).toHaveAttribute("aria-selected", "true");
+  });
+
   it("shows exact scan folder names and counts grouped by storage location", async () => {
     const user = userEvent.setup();
     api.discoverLocalCandidates.mockResolvedValue({ candidates: [{ path: "F:\\Projects\\Product-video（推广视频生成）", name: "Product-video（推广视频生成）", markers: [], file_count: 1234, file_count_complete: true, skipped_entries: 0 }], codex_homes: [], conversation_count: 0, scanned_roots: ["F:\\Projects"], skipped_roots: [], warnings: [], permission_denied_count: 0, other_warning_count: 0, cancelled: false });
@@ -386,8 +484,8 @@ describe("ENHE Codex Backup shell", () => {
 
   it("does not claim a partial restore is complete", async () => {
     const user = userEvent.setup();
-    api.listLocalBackups.mockResolvedValue([{restic_snapshot_id:"partial-fixture",created_at:"2026-09-19T00:00:00Z",file_count:2,complete:false}]);
-    api.restoreLocalBackup.mockResolvedValue({restored_root:"F:\\Synthetic\\restored",restored_files:2,complete:false,missing:[{path:"synthetic-locked.txt",reason:"synthetic locked-file detail",bytes:3}]});
+    api.listLocalBackups.mockResolvedValue([{logical_backup_id:null,restic_snapshot_id:"partial-fixture",created_at:"2026-09-19T00:00:00Z",file_count:2,byte_count:3,integrity_status:"partial",complete:false}]);
+    api.restoreLocalBackup.mockResolvedValue({restic_snapshot_id:"partial-fixture",restored_root:"F:\\Synthetic\\restored",restored_files:2,restored_bytes:3,complete:false,exclusions:[],notices:[],integrity_warnings:[],integrity_status:"partial",missing:[{path:"synthetic-locked.txt",reason:"synthetic locked-file detail",bytes:3,kind:"copy_failure"}]});
     render(<App />);
     await user.click(await screen.findByRole("button", { name: "前往备份与迁移" }));
     await user.click(screen.getByRole("button", { name: "刷新本地备份" }));
@@ -395,11 +493,12 @@ describe("ENHE Codex Backup shell", () => {
     await user.type(target, "F:\\Synthetic\\empty");
     await user.click(screen.getByRole("button", { name: "恢复" }));
     await waitFor(() => expect(api.restoreLocalBackup).toHaveBeenCalledTimes(1));
-    expect(screen.getAllByText(/恢复已结束，但备份中存在缺失内容/).length).toBeGreaterThan(0);
-    expect(screen.queryByText(/^恢复完成/)).not.toBeInTheDocument();
-    await user.click(screen.getByText("查看恢复缺失清单"));
+    expect(screen.getAllByText("恢复已部分完成").length).toBeGreaterThan(0);
+    expect(screen.queryByText("恢复完整完成")).not.toBeInTheDocument();
+    await user.click(screen.getByText("查看详细结果"));
     expect(screen.getByText(/synthetic-locked.txt/)).toBeVisible();
-    expect(screen.getByText(/synthetic locked-file detail/)).toBeVisible();
+    expect(screen.getByText(/关闭占用文件的程序后重试/)).toBeVisible();
+    expect(screen.queryByText(/synthetic locked-file detail/)).not.toBeInTheDocument();
     expect(screen.getByText(/manifest.json/)).toBeVisible();
   });
   it("returns from both migration pages and defaults to local backup on reentry", async () => {
@@ -438,10 +537,11 @@ describe("ENHE Codex Backup shell", () => {
     await user.click(screen.getByRole("button", { name: "保存项目选择" }));
     await act(async () => finish({
       logical_backup_id: "fixture-backup", restic_snapshot_id: "fixture-snapshot", complete: true,
-      manifest: { created_at: "2026-09-19T00:00:00Z", file_count: 4, byte_count: 300 },
+      manifest: { created_at: "2026-09-19T00:00:00Z", file_count: 4, byte_count: 300, exclusions: [], notices: [], integrity_warnings: [], missing: [], integrity_status: "complete" },
     }));
     await user.click(screen.getByRole("button", { name: "前往备份与迁移" }));
-    expect(screen.getByText(/本地备份已完成 · 4/)).toBeVisible();
+    expect(screen.getByRole("status", { name: "备份完整完成" })).toBeVisible();
+    expect(screen.getByText(/4 文件 · fixture-snapshot/)).toBeVisible();
     expect(api.runLocalBackup).toHaveBeenCalledTimes(1);
     await user.click(screen.getByRole("button", { name: "前往项目" }));
     expect(screen.queryByRole("checkbox", { name: "选择项目 demo" })).not.toBeInTheDocument();
@@ -559,7 +659,7 @@ describe("ENHE Codex Backup shell", () => {
     expect(screen.getByRole("button", { name: "前往操作说明" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "前往关于作者" })).toBeInTheDocument();
     expect(screen.getAllByText("云端备份已关闭").length).toBeGreaterThan(0);
-    expect(screen.getByText("v0.1.6")).toBeInTheDocument();
+    expect(screen.getByText("v0.1.7")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Codex 数据备份&迁移" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "开始本地备份" })).toBeInTheDocument();
   });
@@ -808,7 +908,9 @@ describe("ENHE Codex Backup shell", () => {
         byte_count: 10,
         fingerprint: "fingerprint",
         exclusions: [],
-        missing: [{ path: "C:\\Work\\missing", reason: "missing", bytes: 0 }],
+        notices: [],
+        integrity_warnings: [],
+        missing: [{ path: "C:\\Work\\missing", reason: "missing", bytes: 0, kind: "missing_source" }],
         integrity_status: "partial",
       },
     });
@@ -818,8 +920,48 @@ describe("ENHE Codex Backup shell", () => {
     await user.type(screen.getByLabelText("恢复密码"), "synthetic-password");
     await user.click(screen.getByRole("button", { name: "开始本地备份" }));
 
-    expect((await screen.findAllByText(/本地备份已完成但存在缺失内容/)).length).toBeGreaterThanOrEqual(2);
-    expect(screen.queryByText(/^本地备份已完成 ·/)).not.toBeInTheDocument();
+    expect(await screen.findByText("本地备份已部分完成")).toBeVisible();
+    expect(screen.getByRole("status", { name: "备份已部分完成" })).toHaveClass("error");
+    expect(screen.queryByText("本地备份已完成")).not.toBeInTheDocument();
+  });
+
+  it("shows a warning result when a complete backup only has notices", async () => {
+    const user = userEvent.setup();
+    api.runLocalBackup.mockResolvedValue({
+      logical_backup_id: "55555555-5555-5555-5555-555555555555",
+      restic_snapshot_id: "warning-snapshot",
+      complete: true,
+      manifest: {
+        format: "enhe-codex-backup",
+        schema_version: 1,
+        logical_backup_id: "55555555-5555-5555-5555-555555555555",
+        batch_id: "66666666-6666-6666-6666-666666666666",
+        created_at: "2026-09-20T00:00:00Z",
+        app_version: "0.1.6",
+        restic_version: "restic synthetic",
+        source_device_id: inventory.source_device_id,
+        source_codex_home: inventory.codex_home,
+        project_paths: inventory.project_paths,
+        git_metadata_paths: [],
+        file_count: 2,
+        byte_count: 20,
+        fingerprint: "warning-fingerprint",
+        exclusions: [],
+        notices: [{ path: "C:\\Work\\demo\\node_modules", reason: "synthetic", bytes: 0, kind: "rebuildable_dependency" }],
+        integrity_warnings: [],
+        missing: [],
+        integrity_status: "warning",
+      },
+    });
+
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "前往备份与迁移" }));
+    await user.type(screen.getByLabelText("恢复密码"), "synthetic-password");
+    await user.click(screen.getByRole("button", { name: "开始本地备份" }));
+
+    expect(await screen.findByText("本地备份已完成，存在注意事项")).toBeVisible();
+    expect(screen.getByRole("status", { name: "备份完成，存在注意事项" })).toHaveClass("warning");
+    expect(screen.getByText("注意事项")).toBeVisible();
   });
 
   it("renders and submits a real rclone configuration question", async () => {

@@ -6,7 +6,7 @@
 
 ENHE Codex Backup 是一个独立的 Windows x64 本地优先备份、恢复和离线迁移工具。它可以在没有云端配置、没有 GPT 登录的条件下保存 Codex 资料、项目文件、Git 状态、对话和开发交接资料，并在本机或另一台设备上恢复。
 
-它不是 OpenAI 或 ReHome 官方产品。云端默认关闭；OneDrive/rclone 只在用户完成配置并主动执行测试或上传时使用。
+它不是 OpenAI 或 ReHome 官方产品。云端默认关闭；OneDrive/rclone 只在用户完成配置并主动执行测试或上传时使用。“迁移并接入 Codex”的联网验证是独立选项，必须另行同意发送所选对话上下文，可能产生模型用量；关闭云端备份不等于禁止该验证联网。
 
 ## 二、适合谁用？
 
@@ -45,7 +45,7 @@ Codex 数据位置：C:\Users\<用户>\.codex
 本地备份目录：%LOCALAPPDATA%\ENHE\Codex Backup\backups
 已发现项目：demo（.git、package.json）
 对话：按 Codex sessions / archived_sessions 统计
-云端：已关闭，不产生远端调用
+云端备份：已关闭；本地备份不产生远端调用
 ```
 
 候选项目只会展示并等待用户勾选，不会把整个磁盘内容自动纳入备份。路径字段旁的文件夹按钮会打开 Windows 原生选择窗口；取消不会改变原值。
@@ -54,7 +54,7 @@ Codex 数据位置：C:\Users\<用户>\.codex
 
 ## 六、安装方法
 
-1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases)，或直接下载 [Windows x64 安装包（0.1.6）](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.6/ENHE.Codex.Backup_0.1.6_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.6/ENHE.Codex.Backup_0.1.6_x64-setup.exe.sha256)。此安装包未进行代码签名；安装前请核对 SHA-256 校验值。
+1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases) 查看实际已发布版本。0.1.7 的预定资产为 [Windows x64 安装包](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.7/ENHE.Codex.Backup_0.1.7_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.7/ENHE.Codex.Backup_0.1.7_x64-setup.exe.sha256)，仅在该 Release 发布后可用。安装包未进行代码签名；安装前请核对 SHA-256 校验值。
 2. 使用 PowerShell 计算安装包 SHA-256，并与校验文件比对。
 3. 运行安装包，按 Windows 当前用户范围完成安装。
 4. 首次启动后确认本机数据位置；云端保持关闭即可完成本地备份。
@@ -85,7 +85,11 @@ powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
 restic 加密快照 → 校验/列出 → 独立目录恢复
 ```
 
-迁移包使用单独的 ReHome 导出/导入入口。云端流程不参与本地流程；只有用户主动配置并点击云端测试或上传时才启动远端操作。
+迁移包使用单独的 ReHome 导出/导入入口。默认“仅恢复文件”不发送模型请求；“迁移并接入 Codex”需要关闭 Codex、检查恢复范围并单独同意联网验证。向导依次检查文件、所有计划迁移对话的 App Server 识别结果，再在一个用户选定对话的临时副本中发送固定验证消息，不向原对话发送测试消息。这不等于逐项验证全部历史、工具或原生窗口显示。
+
+普通失败会在确认辅助进程已退出后尝试回滚；若无法确认进程结束，将停止数据库写入并保留材料供人工恢复。回滚不能撤销已经发生的联网处理或用量。“历史记录”可查看事务结果和处理建议。完整说明见 [使用指南](docs/USER_GUIDE.zh-CN.md)。
+
+备份结果将可重建依赖、缓存和安全排除汇总为说明；数据完整性疑点显示警告，真实缺失的项目或文件仍保留缺失提示。恢复后依赖可能需要重新安装、Codex 需要重新登录，不承诺完全离线即可运行。
 
 ## 九、项目目录结构
 
@@ -100,7 +104,7 @@ scripts/                    环境引导、验证、本地验收和打包脚本
 tests/                      隔离测试与文档契约测试
 ```
 
-## 十、注意实现
+## 十、注意事项
 
 - 完整备份不会照搬 ReHome 对 `.git` 的排除规则，会保留 Git 数据和相关 worktree 资料。
 - 从 0.1.3 起，完整本地项目备份包含项目中所有可读取的普通文件，包括隐藏文件、依赖、构建产物、`.env`、私钥和 Token；Codex 数据位置仍独立排除已知登录凭据等高风险数据。敏感项目文件只进入加密的 restic 仓库，请使用独立强密码并禁止把恢复结果公开或提交到 GitHub。
@@ -112,7 +116,7 @@ tests/                      隔离测试与文档契约测试
 
 ## 十一、版本说明
 
-当前版本：`0.1.6`。本版本会在启动 restic 前识别非空但不是完整备份仓库的普通目录，避免改动已有文件；备份与恢复失败会显示原因、解决方法和脱敏技术详情，并区分仓库、恢复密码和磁盘空间问题。[0.1.6 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.6) 计划提供未签名的 Windows x64 安装包及 SHA-256 校验文件，旧版本继续保留。真实 OneDrive、第二设备、真实会话续接和干净用户配置文件验证不在已完成证据范围内，详见 [STATUS](docs/STATUS.md) 与 [ACCEPTANCE](docs/ACCEPTANCE.md)。
+当前版本：`0.1.7`。本次改进备份结果分类，新增“迁移并接入 Codex”向导、跨页面任务进度、事务历史和失败恢复指引。文件恢复、对话识别与一次临时副本发送验证分别记录，不把文件已恢复宣称为真实会话续接成功。详见 [版本更新说明](CHANGELOG.md)。[0.1.7 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.7) 计划仅提供未签名的 Windows x64 安装包及 SHA-256 文件，旧版本保留；本地构建不代表已发布。真实 OneDrive、第二设备、真实会话续接和原生界面验证仍不在已完成证据范围内，详见 [STATUS](docs/STATUS.md) 与 [ACCEPTANCE](docs/ACCEPTANCE.md)。
 
 ## 十二、相关项目
 
@@ -141,3 +145,5 @@ ReHome：本项目内置其适用的离线迁移能力，但完整本地备份�
 ## 许可证
 
 本项目沿用上游仓库的 MIT 许可；内置组件、版本和来源见 [THIRD_PARTY](docs/THIRD_PARTY.md)。
+
+0.1.7 候选安装包随附许可与第三方声明文件，安装后可在程序目录的 `resources/licenses` 文件夹离线查看；当前发布许可待核实，详见上述说明。
