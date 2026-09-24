@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-09-25
+
+- Add explicit project-root scanning guidance and a native folder picker so `F:\Projects` can be scanned as a complete direct-child project collection instead of relying on bounded whole-drive discovery.
+- Show current scan results separately from retained/manual folders, expose a select-all-current-scan action, and surface when whole-drive discovery may be incomplete.
+- Preserve recursive all-file counting and full local backup inclusion semantics, including hidden files, dependencies, build outputs, `.env`, private keys and tokens; this release only improves discovery clarity and selection control.
+- Align application metadata, visible labels, bundled license headers, bilingual documentation and unsigned Windows x64 packaging at 0.1.8.
+
 ## [0.1.7] - 2026-09-23
 
 - Separate automatic/security exclusions, rebuildable dependency/runtime notices, integrity warnings and genuinely missing files. Keep missing project roots visible with remedies instead of treating every skipped cache or dependency link as lost source.

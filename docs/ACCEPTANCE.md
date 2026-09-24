@@ -1,6 +1,6 @@
 # Acceptance mapping
 
-Checkpoint: 2026-09-23; **0.1.7 locally installed, publication pending**. The complete acceptance baseline is the supplied `ENHE-Codex-Backup-完整开发执行指令.md`. This table separates observable local evidence from unverified native/account/device behavior. Fresh 0.1.7 verification passed all 10 checks (frontend 85, Rust 400 passed/9 ignored, restic 8); authorized uninstall/install, registry/binary/resource/shortcut checks and configuration preservation passed. The installed app was not launched. See [STATUS](STATUS.md) and [installer verification](verification/installer-latest.md). Earlier 0.1.6 development runs below remain dated evidence, not native acceptance.
+Checkpoint: 2026-09-25; **0.1.8 candidate, publication pending**. The complete acceptance baseline is the supplied `ENHE-Codex-Backup-完整开发执行指令.md`. This table separates observable local evidence from unverified native/account/device behavior. The 0.1.8 verification record will be updated only after the fresh test, package and installation checks below complete. Earlier 0.1.7 and 0.1.6 runs remain dated evidence, not native acceptance. See [STATUS](STATUS.md) and [installer verification](verification/installer-latest.md).
 
 | Case | Evidence and remaining boundary | Status |
 | --- | --- | --- |

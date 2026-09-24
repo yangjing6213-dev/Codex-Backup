@@ -685,7 +685,7 @@ describe("ENHE Codex Backup shell", () => {
     expect(screen.getByRole("button", { name: "前往操作说明" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "前往关于作者" })).toBeInTheDocument();
     expect(screen.getAllByText("云端备份已关闭").length).toBeGreaterThan(0);
-    expect(screen.getByText("v0.1.7")).toBeInTheDocument();
+    expect(screen.getByText("v0.1.8")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Codex 数据备份&迁移" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "开始本地备份" })).toBeInTheDocument();
   });

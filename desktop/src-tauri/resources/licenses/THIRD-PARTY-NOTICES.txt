@@ -1,4 +1,4 @@
-ENHE Codex Backup 0.1.7 - bundled licenses and acknowledgments
+ENHE Codex Backup 0.1.8 - bundled licenses and acknowledgments
 ======================================================================
 
 安装后可在程序安装目录的 resources/licenses 中离线阅读全部许可说明。

@@ -1,4 +1,4 @@
-ENHE Codex Backup 0.1.7 - Rust third-party licenses and notices
+ENHE Codex Backup 0.1.8 - Rust third-party licenses and notices
 Target: x86_64-pc-windows-msvc
 Cargo.lock SHA-256: 755fd03a3373b8758a9ccfc96273b949ea721c74c9f58ee3bcccb058f17fd747
 

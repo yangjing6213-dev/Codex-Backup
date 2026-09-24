@@ -24,7 +24,7 @@ These are local readable files, not merely links to online license pages. Origin
 
 When dependency lockfiles or either pinned runtime binary changes, review and refresh the notice texts and fingerprints before packaging. Do not update fingerprints alone to silence a failed license check. This inventory is technical redistribution evidence, not a blanket legal certification or a replacement for applicable upstream terms.
 
-## 0.1.7 LGPL source and relinking material
+## 0.1.8 LGPL source and relinking material
 
 The pinned rclone binary includes `github.com/cloudsoda/sddl v0.0.0-20250224235906-926454e91efc`. At that exact revision, its [LICENSE](https://github.com/cloudsoda/sddl/blob/926454e91efc/LICENSE) contains LGPL-3.0, while its [README](https://github.com/cloudsoda/sddl/blob/926454e91efc/README.md#license) identifies MIT. The upstream repository is classified as LGPL-3.0, so this package selects the LGPL-3.0 distribution path and retains the README sentence as a disclosed documentation discrepancy.
 
@@ -36,5 +36,5 @@ inputs and a relinking command. This is the conservative LGPL distribution
 arrangement; it does not rely on an MIT-only interpretation or promise
 byte-for-byte reproducibility.
 
-The notice-only rebuild does not upgrade, remove or change rclone, and does
-not change application behavior.
+The 0.1.8 rebuild does not upgrade, remove or change rclone, and does not
+change application behavior.

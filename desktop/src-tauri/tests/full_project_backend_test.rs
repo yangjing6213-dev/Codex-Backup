@@ -55,7 +55,10 @@ fn configured_collection_lists_only_direct_children_including_markerless_folders
     );
     let names: Vec<_> = result.candidates.iter().map(|p| p.name.as_str()).collect();
     assert_eq!(names, ["app", "empty", "plain notes"]);
-    assert_eq!(serde_json::to_value(&result).unwrap()["scan_limit_reached"], false);
+    assert_eq!(
+        serde_json::to_value(&result).unwrap()["scan_limit_reached"],
+        false
+    );
 }
 
 #[test]

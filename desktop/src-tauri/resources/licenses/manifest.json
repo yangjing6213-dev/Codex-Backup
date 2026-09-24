@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "applicationVersion": "0.1.7",
+  "applicationVersion": "0.1.8",
   "target": "x86_64-pc-windows-msvc",
   "noticePolicy": "Preserve exact upstream notices; refresh after dependency changes. Not a legal certification.",
   "notices": [
@@ -12,7 +12,7 @@
     {
       "path": "THIRD-PARTY-NOTICES.txt",
       "bytes": 24784,
-      "sha256": "556ddb92755bdc94deb81cdcc6f0392ca41e20ca0333f7bec78d9fe3d61ada69"
+      "sha256": "74d1211613a4e16588b3f2bb29cb6788572acaa8f6fd6a48134933ef1fa454b7"
     },
     {
       "path": "JS-THIRD-PARTY-NOTICES.txt",
@@ -22,19 +22,19 @@
     {
       "path": "RUST-THIRD-PARTY-NOTICES.txt",
       "bytes": 4718947,
-      "sha256": "0aca855728e379e886577cf82adacfadd54f94d40f4afe00dd272e7ea0e1b97d"
+      "sha256": "af3e64aa649bfa98b870e1ab16372db68986fc65cfb91adb68f182cc1ba5691c"
     },
     {
       "path": "GO-THIRD-PARTY-NOTICES.txt",
-      "bytes": 1794170,
-      "sha256": "6428a9b90cfdc1461fbb0b88f2df7d3239ee55df751e0f9e29e16325f731c188"
+      "bytes": 1794157,
+      "sha256": "f9f5c2e7789c19260fec372570571985b05bc4c4fc854f89a1e5c33547845d67"
     }
   ],
   "sourceMaterials": [
     {
       "path": "RCLONE-LGPL-SOURCE-AND-RELINKING.txt",
       "bytes": 2397,
-      "sha256": "33d7f18d6f926d7a986564c1daf32b10e79c40742535cf2a8f86fac68fc88061"
+      "sha256": "e139bf60afa76443d4ebb5c8e7bc1eb7d9b65f86b4ac5d7ea418a9c04f0452da"
     },
     {
       "path": "RCLONE-BUILD-MANIFEST.json",
@@ -61,7 +61,7 @@
     {
       "path": "desktop/src-tauri/Cargo.lock",
       "hashMode": "utf8-lf",
-      "sha256": "b791065aecd4b4d05e28c985294e25cb86564bf3b0dd19240cf0ff4d799659e4"
+      "sha256": "32b1cb0727dd8bc8201e90a5dfe9685f158e9c139572832d98e01f1c41775035"
     },
     {
       "path": "desktop/src-tauri/resources/restic.exe",

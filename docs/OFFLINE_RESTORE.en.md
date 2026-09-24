@@ -2,7 +2,7 @@
 
 This guide does not require a GPT login, a website, or the original app cache. You need the ENHE installation directory (or a standard restic executable) on the target Windows x64 device, the local restic repository, and the recovery password.
 
-Offline recovery here means file recovery, excluding online model verification. This documentation covers 0.1.7 (2026-09-23); build/installation evidence in [STATUS](STATUS.md) does not replace recovery acceptance. Real-account, second-device and native UI checks are `NOT_RUN`.
+Offline recovery here means file recovery, excluding online model verification. This documentation covers 0.1.8 (2026-09-25); build/installation evidence in [STATUS](STATUS.md) does not replace recovery acceptance. Real-account, second-device and native UI checks are `NOT_RUN`.
 
 ## Restore with the app
 

@@ -1,6 +1,12 @@
 # Current status
 
-Source checkpoint: 2026-09-24. Current version: **0.1.7; conservative LGPL source/relinking candidate ready for exact publication authorization**. The earlier 0.1.7 artifact was locally installed. The final 0.1.7 candidate is not installed, per the user's instruction. See [installer evidence](verification/installer-latest.md); neither statement is a GitHub publication claim.
+Source checkpoint: 2026-09-25. Current version: **0.1.8; project-root scan guidance candidate**. Packaging, installation and GitHub publication evidence for this candidate is recorded below after the final checks. Historical 0.1.7 evidence remains dated and is not transferred automatically. See [installer evidence](verification/installer-latest.md); neither statement is a GitHub publication claim until the release is verified.
+
+## 0.1.8 project-root scan improvements
+
+- Explicit scan roots enumerate every accessible direct child folder under each configured root, while recursive counting continues to cover all readable regular files below each selected project.
+- Empty scan roots remain a bounded whole-drive discovery mode and now expose an explicit incomplete-results warning; the Projects page provides a native root picker, current-versus-retained grouping and select-all-current action.
+- No backup inclusion rule changed: hidden files, dependencies, build outputs, `.env`, private keys and tokens remain included for selected project backups, while Codex credential exclusions remain separate.
 
 Ordinary Git HTTPS connectivity failed during preflight; an earlier read-only SSH check at `ssh.github.com:443` succeeded for the verified repository/account, but the final read-only recheck returned `Permission denied (publickey)` without any write. No commit, push, release creation or asset upload has been performed for this update. The pinned SDDL discrepancy is handled on the conservative LGPL path with exact corresponding source, relinking instructions and build materials; this is technical redistribution evidence, not legal certification. Fresh exact-manifest/tag approval and SSH 443 authentication revalidation are required before any ordinary fast-forward push or release. Real-account, second-device, native UI and model/cloud acceptance remain NOT_RUN.
 

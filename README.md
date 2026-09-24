@@ -4,7 +4,7 @@
 
 ## 一、这个仓库是什么？
 
-ENHE Codex Backup 是一个独立的 Windows x64 本地优先备份、恢复和离线迁移工具。它可以在没有云端配置、没有 GPT 登录的条件下保存 Codex 资料、项目文件、Git 状态、对话和开发交接资料，并在本机或另一台设备上恢复。0.1.7 同时修正了 Windows CI 预检测试对应用数据目录的误判。
+ENHE Codex Backup 是一个独立的 Windows x64 本地优先备份、恢复和离线迁移工具。它可以在没有云端配置、没有 GPT 登录的条件下保存 Codex 资料、项目文件、Git 状态、对话和开发交接资料，并在本机或另一台设备上恢复。0.1.8 增加了项目根目录扫描引导、全盘扫描范围提示、本次结果与保留目录分组以及一键选择本次扫描项目。
 
 它不是 OpenAI 或 ReHome 官方产品。云端默认关闭；OneDrive/rclone 只在用户完成配置并主动执行测试或上传时使用。“迁移并接入 Codex”的联网验证是独立选项，必须另行同意发送所选对话上下文，可能产生模型用量；关闭云端备份不等于禁止该验证联网。
 
@@ -54,7 +54,7 @@ Codex 数据位置：C:\Users\<用户>\.codex
 
 ## 六、安装方法
 
-1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases) 查看实际已发布版本。0.1.7 的预定资产为 [Windows x64 安装包](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.7/ENHE.Codex.Backup_0.1.7_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.7/ENHE.Codex.Backup_0.1.7_x64-setup.exe.sha256)，仅在该 Release 发布后可用。安装包未进行代码签名；安装前请核对 SHA-256 校验值。
+1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases) 查看实际已发布版本。0.1.8 的预定资产为 [Windows x64 安装包](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.8/ENHE%20Codex%20Backup_0.1.8_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.8/ENHE%20Codex%20Backup_0.1.8_x64-setup.exe.sha256)，仅在该 Release 发布后可用。安装包未进行代码签名；安装前请核对 SHA-256 校验值。
 2. 使用 PowerShell 计算安装包 SHA-256，并与校验文件比对。
 3. 运行安装包，按 Windows 当前用户范围完成安装。
 4. 首次启动后确认本机数据位置；云端保持关闭即可完成本地备份。
@@ -69,7 +69,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
 
 ## 七、如何使用
 
-1. 打开“项目”，设置扫描目录并点击“重新扫描”，核对项目文件夹名称和后台统计出的文件数量，再勾选需要备份的项目。
+1. 打开“项目”，点击“选择项目根目录”选择 `F:\Projects`，再点击“重新扫描”。结果按磁盘分组；“本次扫描发现”列出根目录直属文件夹，“已保存或手动目录”单独保留历史选择。核对项目文件夹名称和后台统计出的全部普通文件数量，再勾选需要备份的项目；“选择全部本次扫描项目”可一次纳入当前结果。
 2. 打开“数据”，确认 Codex 数据位置；再到“设置”确认本地备份目录。点击字段旁的文件夹按钮即可选择路径。
 3. 打开“备份与迁移”，填写恢复密码并开始本地备份。
 4. 使用“刷新本地备份”查看快照，选择一个全新的恢复目标目录后恢复。
@@ -116,7 +116,7 @@ tests/                      隔离测试与文档契约测试
 
 ## 十一、版本说明
 
-当前版本：`0.1.7`。本次改进备份结果分类，新增“迁移并接入 Codex”向导、跨页面任务进度、事务历史和失败恢复指引。文件恢复、对话识别与一次临时副本发送验证分别记录，不把文件已恢复宣称为真实会话续接成功。详见 [版本更新说明](CHANGELOG.md)。[0.1.7 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.7) 计划仅提供未签名的 Windows x64 安装包及 SHA-256 文件，旧版本保留；本地构建不代表已发布。真实 OneDrive、第二设备、真实会话续接和原生界面验证仍不在已完成证据范围内，详见 [STATUS](docs/STATUS.md) 与 [ACCEPTANCE](docs/ACCEPTANCE.md)。
+当前版本：`0.1.8`。本次增加项目根目录扫描引导、全盘扫描不完整提示、当前结果与保留目录分组，以及一键选择本次扫描项目；完整备份仍包含项目中的所有可读取普通文件。文件恢复、对话识别与一次临时副本发送验证分别记录，不把文件已恢复宣称为真实会话续接成功。详见 [版本更新说明](CHANGELOG.md)。[0.1.8 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.8) 计划仅提供未签名的 Windows x64 安装包及 SHA-256 文件，旧版本保留；本地构建不代表已发布。真实 OneDrive、第二设备、真实会话续接和原生界面验证仍不在已完成证据范围内，详见 [STATUS](docs/STATUS.md) 与 [ACCEPTANCE](docs/ACCEPTANCE.md)。
 
 ## 十二、相关项目
 
@@ -146,4 +146,4 @@ ReHome：本项目内置其适用的离线迁移能力，但完整本地备份�
 
 本项目沿用上游仓库的 MIT 许可；内置组件、版本和来源见 [THIRD_PARTY](docs/THIRD_PARTY.md)。
 
-0.1.7 候选安装包随附许可与第三方声明文件，安装后可在程序目录的 `resources/licenses` 文件夹离线查看；当前发布许可待核实，详见上述说明。
+0.1.8 候选安装包随附许可与第三方声明文件，安装后可在程序目录的 `resources/licenses` 文件夹离线查看；当前发布许可待核实，详见上述说明。

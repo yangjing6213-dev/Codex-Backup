@@ -4,7 +4,7 @@
 
 ## 1. What is this repository?
 
-ENHE Codex Backup is an independent Windows x64 local-first backup, restore, and offline migration utility. It preserves Codex data, project files, Git state, conversations, and handoff material without requiring cloud configuration or a GPT login. Version 0.1.7 also corrects a Windows CI preflight-test false positive about the application data directory. It is not an official OpenAI or ReHome product.
+ENHE Codex Backup is an independent Windows x64 local-first backup, restore, and offline migration utility. It preserves Codex data, project files, Git state, conversations, and handoff material without requiring cloud configuration or a GPT login. Version 0.1.8 adds explicit project-root scan guidance, bounded whole-drive warnings, current-versus-retained result grouping, and a select-all-current action. It is not an official OpenAI or ReHome product.
 
 ## 2. Who is it for?
 
@@ -48,7 +48,7 @@ Projects includes a Request administrator permission for restricted folders opti
 
 ## 6. Installation
 
-1. Open [GitHub Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) for actually published versions. The planned 0.1.7 assets are the [Windows x64 installer](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.7/ENHE.Codex.Backup_0.1.7_x64-setup.exe) and [SHA-256 checksum](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.7/ENHE.Codex.Backup_0.1.7_x64-setup.exe.sha256), available only after that release is published. The installer is unsigned; verify its SHA-256 before installation.
+1. Open [GitHub Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) for actually published versions. The planned 0.1.8 assets are the [Windows x64 installer](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.8/ENHE%20Codex%20Backup_0.1.8_x64-setup.exe) and [SHA-256 checksum](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.8/ENHE%20Codex%20Backup_0.1.8_x64-setup.exe.sha256), available only after that release is published. The installer is unsigned; verify its SHA-256 before installation.
 2. Compare the installer SHA-256 with the sidecar in PowerShell.
 3. Run the installer for the Windows current user.
 4. Confirm the local data location on first launch; cloud may remain off.
@@ -65,7 +65,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
 
 The primary navigation includes Overview, Projects, Data, Backups & Migration, Settings, How it works, and About the author. For a first run:
 
-1. Configure a scan folder in Projects, click Rescan, verify the direct child folder names and background file counts, then select the projects that belong in the backup.
+1. In Projects, choose a project root such as `F:\Projects`, click Rescan, verify the direct child folder names and background counts for all readable regular files, then select the projects that belong in the backup. Current scan results and retained/manual folders are shown separately; Select all projects from this scan is available for bulk selection.
 2. Confirm the Codex data location on Data and the local repository directory in Settings.
 3. If needed, check Request administrator permission for restricted folders in Projects and click Rescan as administrator. If UAC is canceled, the normal results remain available.
 4. Enter a recovery password in Backups & Migration, then run a local backup.
@@ -118,13 +118,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
 ```
 
-The scripts pin and verify the Windows amd64 release archives for restic 0.19.1 and rclone 1.75.1. Version-specific build and replacement-installation evidence is recorded in [STATUS](docs/STATUS.md) and [installer verification](docs/verification/installer-latest.md). Historical startup evidence is not transferred to 0.1.7. This package is unsigned and has no auto-updater; native UI, real-account continuation and second-device acceptance remain unverified.
+The scripts pin and verify the Windows amd64 release archives for restic 0.19.1 and rclone 1.75.1. Version-specific build and replacement-installation evidence is recorded in [STATUS](docs/STATUS.md) and [installer verification](docs/verification/installer-latest.md). Historical startup evidence is not transferred to 0.1.8. This package is unsigned and has no auto-updater; native UI, real-account continuation and second-device acceptance remain unverified.
 
 See [COMPATIBILITY](docs/COMPATIBILITY.md), [UPSTREAM](docs/UPSTREAM.md), and [ACCEPTANCE](docs/ACCEPTANCE.md) for the compatibility and verification boundaries.
 
 ## 11. Version
 
-Current version: `0.1.7`. This update improves backup-result classification and adds migrate-and-connect verification, navigation-safe job progress, transaction history and recovery guidance. File recovery, conversation recognition and one ephemeral-fork probe are separate checks, not a blanket continuation guarantee. See the [changelog](CHANGELOG.md). The planned [0.1.7 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.7) contains only the unsigned Windows x64 installer and SHA-256 file, retaining older releases. A local build is not proof of publication. Real OneDrive, second-device, live conversation continuation and native UI verification remain outside the completed evidence; see [STATUS](docs/STATUS.md) and [ACCEPTANCE](docs/ACCEPTANCE.md).
+Current version: `0.1.8`. This update adds explicit project-root scanning, bounded whole-drive guidance, current-versus-retained result grouping and a select-all-current action while preserving full readable-file backup semantics. File recovery, conversation recognition and one ephemeral-fork probe are separate checks, not a blanket continuation guarantee. See the [changelog](CHANGELOG.md). The planned [0.1.8 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.8) contains only the unsigned Windows x64 installer and SHA-256 file, retaining older releases. A local build is not proof of publication. Real OneDrive, second-device, live conversation continuation and native UI verification remain outside the completed evidence; see [STATUS](docs/STATUS.md) and [ACCEPTANCE](docs/ACCEPTANCE.md).
 
 ## 12. Related projects
 
@@ -154,4 +154,4 @@ This project is one tool in the personal generation system I built with AI. If y
 
 This project retains the upstream repository's MIT license. Bundled components and versions are recorded in [THIRD_PARTY](docs/THIRD_PARTY.md).
 
-The 0.1.7 candidate installer includes license texts for offline reading under `resources/licenses` in the application directory. Publication clearance is still pending; see the review above.
+The 0.1.8 candidate installer includes license texts for offline reading under `resources/licenses` in the application directory. Publication clearance is still pending; see the review above.

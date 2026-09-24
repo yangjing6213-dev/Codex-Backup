@@ -1,5 +1,5 @@
 THIRD-PARTY NOTICES: BUNDLED RESTIC AND RCLONE (WINDOWS AMD64)
-ENHE Codex Backup - license-only 0.1.7 repack
+ENHE Codex Backup - 0.1.8 repack
 
 This document preserves upstream legal texts and public attributions. It does
 not replace their terms. Identical texts are reproduced once and referenced by
