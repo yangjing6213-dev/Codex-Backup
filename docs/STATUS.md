@@ -1,12 +1,15 @@
 # Current status
 
-Source checkpoint: 2026-09-25. Current version: **0.1.8; project-root scan guidance candidate**. Packaging, installation and GitHub publication evidence for this candidate is recorded below after the final checks. Historical 0.1.7 evidence remains dated and is not transferred automatically. See [installer evidence](verification/installer-latest.md); neither statement is a GitHub publication claim until the release is verified.
+Source checkpoint: 2026-09-25. Current version: **0.1.8; local package and replacement installation PASS, GitHub publication pending**. Packaging and installation evidence for this candidate is recorded below; historical 0.1.7 evidence remains dated and is not transferred automatically. See [installer evidence](verification/installer-latest.md); local evidence is not a GitHub publication claim until the release is verified.
 
 ## 0.1.8 project-root scan improvements
 
 - Explicit scan roots enumerate every accessible direct child folder under each configured root, while recursive counting continues to cover all readable regular files below each selected project.
 - Empty scan roots remain a bounded whole-drive discovery mode and now expose an explicit incomplete-results warning; the Projects page provides a native root picker, current-versus-retained grouping and select-all-current action.
 - No backup inclusion rule changed: hidden files, dependencies, build outputs, `.env`, private keys and tokens remain included for selected project backups, while Codex credential exclusions remain separate.
+- Fresh `scripts/verify.ps1`: exit 0; all 11 configured checks PASS, including frontend 86 tests, Rust formatting/tests, license materials, updater scan and isolated restic acceptance.
+- Fresh `scripts/package.ps1 -SkipBootstrap`: exit 0; unsigned Windows x64 NSIS installer, 51,275,705 bytes, SHA-256 `67ef1ccdc6fdd55ba36fe6b44de53dfc8681e1c2a48e7c0cdb8a3d5352aba59d`; the adjacent sidecar matches the independent hash.
+- Authorized current-user replacement installation: 0.1.7 uninstall and 0.1.8 install both completed; registry, installed executable FileVersion/ProductVersion and preserved ENHE user data report 0.1.8/true. The installed app was not launched, so native click-through remains NOT_RUN.
 
 Ordinary Git HTTPS connectivity failed during preflight; an earlier read-only SSH check at `ssh.github.com:443` succeeded for the verified repository/account, but the final read-only recheck returned `Permission denied (publickey)` without any write. No commit, push, release creation or asset upload has been performed for this update. The pinned SDDL discrepancy is handled on the conservative LGPL path with exact corresponding source, relinking instructions and build materials; this is technical redistribution evidence, not legal certification. Fresh exact-manifest/tag approval and SSH 443 authentication revalidation are required before any ordinary fast-forward push or release. Real-account, second-device, native UI and model/cloud acceptance remain NOT_RUN.
 
