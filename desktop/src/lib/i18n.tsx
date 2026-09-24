@@ -115,7 +115,6 @@ const english: Record<string, string> = {
   "当前为全盘智能发现：结果受扫描深度、时间和条目数量限制；建议选择项目根目录。": "Whole-drive discovery is active: results are bounded by scan depth, time and entry limits. Choose a project root for a complete direct-child list.",
   "全盘智能发现结果可能不完整": "Whole-drive discovery may be incomplete",
   "请添加项目根目录以查看完整直属项目列表。": "Add a project root to see its complete direct-child project list.",
-  "全盘智能发现结果可能不完整；请添加项目根目录以查看完整直属项目列表。": "Whole-drive discovery may be incomplete; add a project root to see its complete direct-child project list.",
   "保留的手动或已选目录": "Retained manual or selected folder",
   "目录当前不可访问；可以取消选择。": "Folder currently unavailable; you can deselect it.",
   "备份目录用于存放加密备份仓库，不是待备份的项目目录；恢复时请选择同一个仓库。": "The backup directory stores the encrypted backup repository, not the source projects. Select this same repository when restoring.",
