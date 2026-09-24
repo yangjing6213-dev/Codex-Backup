@@ -468,6 +468,7 @@ function AppContent() {
             localWarnings={localDiscovery?.warnings ?? []}
             permissionDeniedCount={localDiscovery?.permission_denied_count ?? 0}
             otherWarningCount={localDiscovery?.other_warning_count ?? 0}
+            scanLimitReached={localDiscovery?.scan_limit_reached ?? false}
             scannedRootCount={localDiscovery?.scanned_roots.length ?? 0}
             localScanState={localScanState}
             onCancelLocalScan={() => { void cancelLocalDiscovery(); }}
@@ -779,6 +780,7 @@ interface ProjectsPageProps {
   localWarnings: string[];
   permissionDeniedCount: number;
   otherWarningCount: number;
+  scanLimitReached: boolean;
   scannedRootCount: number;
   localScanState: LocalScanState;
   onCancelLocalScan: () => void;
@@ -788,7 +790,7 @@ interface ProjectsPageProps {
   onError: (message: string | null) => void;
 }
 
-function ProjectsPage({ headingRef, inventory, localCandidates, fileCounts, onCountFiles, localWarnings, permissionDeniedCount, otherWarningCount, scannedRootCount, localScanState, onCancelLocalScan, onRescan, config, onSave, onError }: ProjectsPageProps) {
+function ProjectsPage({ headingRef, inventory, localCandidates, fileCounts, onCountFiles, localWarnings, permissionDeniedCount, otherWarningCount, scanLimitReached, scannedRootCount, localScanState, onCancelLocalScan, onRescan, config, onSave, onError }: ProjectsPageProps) {
   const { t } = useI18n();
   const [selected, setSelected] = useState(() => new Set(config.selected_project_paths.map(pathKey)));
   const [manualPath, setManualPath] = useState("");
@@ -798,6 +800,7 @@ function ProjectsPage({ headingRef, inventory, localCandidates, fileCounts, onCo
   const [scanRoots, setScanRoots] = useState(config.project_scan_roots.join("\n"));
   const [requestAdmin, setRequestAdmin] = useState(false);
   const scanBusy = localScanState === "running";
+  const scanConfigured = scanRoots.split(/\r?\n/).some((path) => path.trim());
   const rows = new Map<string, ProjectRow>();
   const folderName = (path: string) => displayPath(path).replace(/[\\/]+$/, "").split(/[\\/]/).pop() || displayPath(path);
   for (const project of inventory?.projects ?? []) {
@@ -835,6 +838,35 @@ function ProjectsPage({ headingRef, inventory, localCandidates, fileCounts, onCo
     if (!result || result === "counting") return t("正在统计文件…");
     return result.file_count_complete ? `${result.file_count.toLocaleString()} ${t("文件")}` : t("已统计 {count} 文件 · 部分统计，跳过 {skipped} 项", { count: result.file_count.toLocaleString(), skipped: result.skipped_entries });
   }
+  async function chooseScanRoot() {
+    onError(null);
+    try {
+      const selectedPath = await pickDirectory(t("选择项目根目录"));
+      if (!selectedPath) return;
+      setScanRoots((current) => {
+        const paths = current.split(/\r?\n/).map((path) => displayPath(path.trim())).filter(Boolean);
+        const key = pathKey(selectedPath);
+        if (paths.some((path) => pathKey(path) === key)) return paths.join("\n");
+        return [...paths, displayPath(selectedPath)].join("\n");
+      });
+    } catch (caught) {
+      onError(errorMessage(caught, t));
+    }
+  }
+  const selectAllCurrent = () => {
+    setSelected((current) => {
+      const next = new Set(current);
+      localCandidates.forEach((candidate) => next.add(pathKey(candidate.path)));
+      return next;
+    });
+  };
+  const renderProjectRow = ([key, row]: [string, ProjectRow]) => (
+    <label className="project-row" key={key}>
+      <input type="checkbox" checked={selected.has(key)} onChange={() => toggleProject(key)} aria-label={`${t("选择项目")} ${row.label}`} disabled={!row.available && !selected.has(key)} />
+      <span className="project-copy"><strong>{row.name}</strong><code>{row.path}</code>{!row.current && row.available && <small>{t("保留的手动或已选目录")}</small>}{!row.available && <small>{t("目录当前不可访问；可以取消选择。")}</small>}</span>
+      <span className="project-meta" role="status">{countLabel(key, row)}</span>
+    </label>
+  );
   useEffect(() => {
     setSelected(new Set(config.selected_project_paths.map(pathKey)));
   }, [config.selected_project_paths]);
@@ -860,7 +892,12 @@ function ProjectsPage({ headingRef, inventory, localCandidates, fileCounts, onCo
           <p className="help-text">{t("指定目录按直属文件夹列出项目；子目录只计入文件数量，不再作为独立项目。留空时使用全盘智能发现。")}</p>
           <p className="help-text">{t("重新扫描将替换之前的发现结果；已保存选择和手动目录保留。旧迁移包与缓存不参与自动发现。")}</p>
           <p className="help-text">{t("完整本地项目备份包含隐藏文件、Git、依赖、构建产物及敏感文件（.env、私钥、Token）。仓库使用恢复密码加密，请勿共享密码。文件数为扫描时的普通文件数量；无法读取或未跟随的链接会标为部分统计。")}</p>
-          <button className="secondary-button" type="button" disabled={scanBusy} onClick={() => void onRescan(nextConfig(), false)}><RefreshCw aria-hidden="true" />{t("重新扫描")}</button>
+          <p className="help-text">{t(scanConfigured ? "当前为项目根目录扫描：列出直属文件夹；子目录计入文件数量。" : "当前为全盘智能发现：结果受扫描深度、时间和条目数量限制；建议选择项目根目录。")}</p>
+          <div className="scan-actions">
+            <button className="secondary-button" type="button" disabled={scanBusy} onClick={() => void chooseScanRoot()}><FolderOpen aria-hidden="true" />{t("选择项目根目录")}</button>
+            <button className="secondary-button" type="button" disabled={scanBusy || localCandidates.length === 0} onClick={selectAllCurrent}><CheckCircle2 aria-hidden="true" />{t("选择全部本次扫描项目")}</button>
+            <button className="secondary-button" type="button" disabled={scanBusy} onClick={() => void onRescan(nextConfig(), false)}><RefreshCw aria-hidden="true" />{t("重新扫描")}</button>
+          </div>
         </div>
         <div className="manual-project form-grid">
           <PathField label={t("手动添加项目目录")} value={manualPath} onChange={setManualPath} title={t("选择项目目录")} placeholder="F:\\Notes\\shared" onError={onError} />
@@ -871,6 +908,7 @@ function ProjectsPage({ headingRef, inventory, localCandidates, fileCounts, onCo
         {localScanState === "partial" && <p className="help-text">{t("本机项目扫描已部分完成")}</p>}
         {localScanState === "failed" && <p className="inline-error" role="alert">{t("本机项目扫描失败")}</p>}
         {localScanState !== "idle" && localScanState !== "running" && <p className="help-text">{t("扫描位置数量")}: {scannedRootCount} · {t("候选项目数量")}: {localCandidates.length}</p>}
+        {scanLimitReached && <div className="scan-warning" role="status"><TriangleAlert aria-hidden="true" /><span><strong>{t("全盘智能发现结果可能不完整")}</strong>；{t("请添加项目根目录以查看完整直属项目列表。")}</span></div>}
         <div className="scan-permission card-muted">
           <label className="checkbox-row">
             <input type="checkbox" aria-label={t("扫描受限目录时申请管理员权限")} checked={requestAdmin} onChange={(event) => setRequestAdmin(event.target.checked)} disabled={scanBusy} />
@@ -883,13 +921,8 @@ function ProjectsPage({ headingRef, inventory, localCandidates, fileCounts, onCo
         {[...groupedRows.entries()].sort(([, left], [, right]) => left.order - right.order).map(([groupKey, group]) => (
           <section className="project-location" key={groupKey} aria-label={group.label}>
             <h2 className="project-group-title">{group.label}</h2>
-            {group.rows.map(([key, row]) => (
-              <label className="project-row" key={key}>
-                <input type="checkbox" checked={selected.has(key)} onChange={() => toggleProject(key)} aria-label={`${t("选择项目")} ${row.label}`} disabled={!row.available && !selected.has(key)} />
-                <span className="project-copy"><strong>{row.name}</strong><code>{row.path}</code>{!row.current && row.available && <small>{t("保留的手动或已选目录")}</small>}{!row.available && <small>{t("目录当前不可访问；可以取消选择。")}</small>}</span>
-                <span className="project-meta" role="status">{countLabel(key, row)}</span>
-              </label>
-            ))}
+            {group.rows.some(([, row]) => row.current) && <div className="project-subgroup"><h3>{t("本次扫描发现")}</h3>{group.rows.filter(([, row]) => row.current).map(renderProjectRow)}</div>}
+            {group.rows.some(([, row]) => !row.current) && <div className="project-subgroup"><h3>{t("已保存或手动目录")}</h3>{group.rows.filter(([, row]) => !row.current).map(renderProjectRow)}</div>}
           </section>
         ))}
       </section>

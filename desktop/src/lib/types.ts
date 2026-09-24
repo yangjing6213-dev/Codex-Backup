@@ -310,6 +310,7 @@ export interface LocalDiscoveryResult {
   warnings: string[];
   permission_denied_count: number;
   other_warning_count: number;
+  scan_limit_reached?: boolean;
   cancelled: boolean;
 }
 

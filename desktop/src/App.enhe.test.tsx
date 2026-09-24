@@ -418,6 +418,32 @@ describe("ENHE Codex Backup shell", () => {
     expect(screen.queryByText("本机项目扫描已完成")).not.toBeInTheDocument();
     expect(screen.getByText("至少 9")).toBeVisible();
   });
+
+  it("guides bounded full-drive scans and selects only current scan results", async () => {
+    const user = userEvent.setup();
+    api.getAppConfig.mockResolvedValue({ ...config, selected_project_paths: ["C:\\Work\\retained"], project_scan_roots: [] });
+    api.discoverLocalCandidates.mockResolvedValue({
+      candidates: [
+        { path: "F:\\Projects\\current-a", name: "current-a", markers: [], file_count: 4, file_count_complete: true, skipped_entries: 0 },
+        { path: "F:\\Projects\\current-b", name: "current-b", markers: [], file_count: 5, file_count_complete: true, skipped_entries: 0 },
+      ],
+      codex_homes: [], conversation_count: 0, scanned_roots: ["C:\\", "F:\\"], skipped_roots: [], warnings: [], permission_denied_count: 2, other_warning_count: 4, scan_limit_reached: true, cancelled: false,
+    });
+    api.pickDirectory.mockResolvedValueOnce("F:\\Projects");
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "前往项目" }));
+    expect(await screen.findByText("全盘智能发现结果可能不完整")).toBeVisible();
+    expect(screen.getByText("本次扫描发现")).toBeVisible();
+    expect(screen.getByText("已保存或手动目录")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "选择项目根目录" }));
+    expect(screen.getByRole("textbox", { name: "项目扫描目录（每行一个；留空扫描所有本地磁盘）" })).toHaveValue("F:\\Projects");
+    await user.click(screen.getByRole("button", { name: "选择全部本次扫描项目" }));
+    await user.click(screen.getByRole("button", { name: "保存项目选择" }));
+    expect(api.saveAppConfig).toHaveBeenCalledWith(expect.objectContaining({
+      selected_project_paths: expect.arrayContaining(["C:\\Work\\retained", "F:\\Projects\\current-a", "F:\\Projects\\current-b"]),
+    }));
+  });
+
   it("does not let a slow data discovery overwrite a newer project selection", async () => {
     const user = userEvent.setup();
     let finish!: (value: unknown) => void;

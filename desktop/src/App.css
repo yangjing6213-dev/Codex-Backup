@@ -270,7 +270,9 @@ input:not([type="checkbox"]):not([type="radio"]):focus { border-color: var(--acc
 .scan-settings label { display: grid; gap: 8px; }
 .scan-settings .checkbox-row { display: flex; }
 .scan-settings textarea { width: 100%; padding: 10px; resize: vertical; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
-.scan-settings > button { justify-self: start; }
+.scan-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.project-subgroup { display: grid; gap: 0; }
+.project-subgroup h3 { margin: 13px 0 0; padding: 8px 0; color: var(--muted); font-size: 11px; letter-spacing: .02em; }
 .restore-flow { margin-top: 22px; }
 .flowchart-copy h3 { margin: 0 0 8px; font-size: 14px; }
 .backup-details { overflow-wrap: anywhere; font-size: 12px; }
