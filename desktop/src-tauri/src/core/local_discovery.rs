@@ -68,6 +68,7 @@ pub struct LocalDiscoveryResult {
     pub warnings: Vec<String>,
     pub permission_denied_count: u32,
     pub other_warning_count: u32,
+    pub scan_limit_reached: bool,
     pub cancelled: bool,
 }
 
@@ -248,6 +249,7 @@ fn discover_from_roots_with_mode(
         warnings: Vec::new(),
         permission_denied_count: 0,
         other_warning_count: 0,
+        scan_limit_reached: false,
         cancelled: false,
     };
     let mut candidates = HashMap::new();
@@ -316,6 +318,7 @@ fn scan_root(
         if !collection
             && (entries_seen >= MAX_ENTRIES_PER_ROOT || started.elapsed() >= MAX_SCAN_DURATION)
         {
+            result.scan_limit_reached = true;
             record_scan_warning(
                 result,
                 format!("Local project scan limit reached at {}", root.display()),
@@ -787,6 +790,7 @@ mod tests {
             warnings: Vec::new(),
             permission_denied_count: 0,
             other_warning_count: 0,
+            scan_limit_reached: false,
             cancelled: false,
         };
 
