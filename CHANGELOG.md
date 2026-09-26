@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-09-26
+
+- Add four overview status cards for project scanning, Codex data scanning, local backup, and migration/restore; cards keep their latest result while users navigate between pages.
+- Copy the four Codex data metrics (conversations, skills, plugins, and generated images) below the overview metrics so scan and backup scope are visible together.
+- Connect backup, restore, and ReHome migration outcomes to the overview status cards without changing backup inclusion, credential protection, or migration transaction behavior.
+- Keep the status-card layout bilingual and responsive, and align the application metadata, visible labels, guides, and unsigned Windows x64 packaging at 0.1.9.
+
 ## [0.1.8] - 2026-09-25
 
 - Add explicit project-root scanning guidance and a native folder picker so `F:\Projects` can be scanned as a complete direct-child project collection instead of relying on bounded whole-drive discovery.
