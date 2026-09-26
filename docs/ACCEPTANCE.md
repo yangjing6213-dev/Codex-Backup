@@ -1,6 +1,6 @@
 # Acceptance mapping
 
-Checkpoint: 2026-09-27; **0.1.10 locally packaged, installed and launched; GitHub publication pending**. The complete acceptance baseline is the supplied `ENHE-Codex-Backup-完整开发执行指令.md`. This table separates observable local evidence from unverified native/account/device behavior. Fresh 0.1.10 verification, packaging and current-user replacement installation passed; native visual click-through, account, second-device and publication acceptance remain separate boundaries until their evidence is recorded. Earlier 0.1.9 and 0.1.8 runs remain dated evidence, not native acceptance. See [STATUS](STATUS.md) and [installer verification](verification/installer-latest.md).
+Checkpoint: 2026-09-27; **0.1.10 locally packaged, installed, launched and published**. The complete acceptance baseline is the supplied `ENHE-Codex-Backup-完整开发执行指令.md`. This table separates observable local evidence from unverified native/account/device behavior. Fresh 0.1.10 verification, packaging, current-user replacement installation and GitHub Actions/Release publication passed; native visual click-through, account and second-device acceptance remain separate boundaries. Earlier 0.1.9 and 0.1.8 runs remain dated evidence, not native acceptance. See [STATUS](STATUS.md) and [installer verification](verification/installer-latest.md).
 
 | Case | Evidence and remaining boundary | Status |
 | --- | --- | --- |
@@ -15,7 +15,7 @@ Checkpoint: 2026-09-27; **0.1.10 locally packaged, installed and launched; GitHu
 | A09 cloud switch | Default-off and no-remote local adapter behavior have synthetic coverage. Opt-in online Codex verification is distinct from restic cloud backup. Installed-app isolation is NOT_RUN. | PARTIAL |
 | A10 cloud failure/live recovery | rclone protocol implementation exists; no OneDrive account authorization or remote recovery was performed. | NOT_RUN |
 | A11 bilingual UI | Refreshed React suite: 88 passed, including the four overview status cards, semantic partial/success state classes and copied Codex data metrics. Controller's pre-M3 synthetic browser PASS plus Task 5 fix recheck covers warning/partial results, modes, consent/context, progress, failure/History and zero-conversation states. Native visual click-through and screen-reader runtime checks are NOT_RUN. | PARTIAL |
-| A12 installer/device | Fresh 0.1.10 Windows x64 packaging, authorized current-user uninstall/install and installed process launch PASS; registry, payload hash, installed binary version and preserved configuration verified. Exact artifact is in STATUS. Native visual click-through, second device, real-account continuation and GitHub publication are pending. | PARTIAL |
+| A12 installer/device | Fresh 0.1.10 Windows x64 packaging, authorized current-user uninstall/install and installed process launch PASS; registry, payload hash, installed binary version and preserved configuration verified. GitHub Actions run `36255620465` passed and non-draft Release `v0.1.10` contains exactly the installer and SHA-256 sidecar. Native visual click-through, second device and real-account continuation remain NOT_RUN. | PARTIAL |
 
 ## Current 0.1.10 verification and installation
 
@@ -29,7 +29,7 @@ Checkpoint: 2026-09-27; **0.1.10 locally packaged, installed and launched; GitHu
 | Native launch | PASS | Installed executable launched with title `ENHE Codex Backup · v0.1.10`. |
 | Native visual click-through | NOT_RUN | Computer-use inventory did not expose the running native window for AX/screenshot inspection. |
 
-No real Codex profile, credential, account, token, cloud service or personal migration package was used. GitHub publication remains pending for this candidate; native visual click-through and real-account continuation remain outside this evidence.
+No real Codex profile, credential, account, token, cloud service or personal migration package was used. Release `v0.1.10` is published from reviewed commit `f3e220f`; native visual click-through and real-account continuation remain outside this evidence.
 
 ## Consolidated feature acceptance
 

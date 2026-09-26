@@ -1,6 +1,6 @@
 # Current status
 
-Source checkpoint: 2026-09-27. Current version: **0.1.10; local package, replacement installation and native launch PASS**. GitHub publication evidence is recorded below after the ordinary fast-forward push and Release gate. See [installer evidence](verification/installer-latest.md) for the exact artifact and installation evidence; historical 0.1.9 evidence remains dated and is not transferred automatically.
+Source checkpoint: 2026-09-27. Current version: **0.1.10; local package, replacement installation, native launch and GitHub publication PASS**. See [installer evidence](verification/installer-latest.md) for the exact artifact and installation evidence; historical 0.1.9 evidence remains dated and is not transferred automatically.
 
 ## 0.1.10 overview status-card state colors
 
@@ -11,7 +11,7 @@ Source checkpoint: 2026-09-27. Current version: **0.1.10; local package, replace
 - Replacement installation: current-user 0.1.9 uninstall and 0.1.10 install both exited 0; registry and installed executable report 0.1.10; existing ENHE config and DPAPI recovery-password files remained present. The installed process launched with title `ENHE Codex Backup · v0.1.10`; visual click-through was not completed because the native automation bridge did not expose the window.
 - The package is unsigned. No real Codex profile, account, token, cloud service or personal migration package was used.
 
-Publication status: **PENDING** until the reviewed 0.1.10 commit is pushed and its GitHub Actions run passes.
+Publication status: **PUBLISHED**. Release `v0.1.10` targets reviewed code commit `f3e220f`; GitHub Actions run `36255620465` passed, and the non-draft Release contains exactly the installer plus its SHA-256 sidecar. Release URL: https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.10
 
 ## Historical published baseline — 0.1.8 project-root scan improvements
 

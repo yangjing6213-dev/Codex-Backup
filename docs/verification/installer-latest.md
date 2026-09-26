@@ -1,6 +1,6 @@
 # Windows installer verification
 
-Generated: 2026-09-27. The final 0.1.10 artifact was packaged, installed over the current-user 0.1.9 installation, and verified locally. The package is unsigned; GitHub publication is pending the ordinary fast-forward push and Actions gate.
+Generated: 2026-09-27. The final 0.1.10 artifact was packaged, installed over the current-user 0.1.9 installation, verified locally, and published after the GitHub Actions gate. The package is unsigned.
 
 ## Latest 0.1.10 package and replacement installation
 
@@ -33,6 +33,18 @@ The published Release contains only this installer and its `.sha256` sidecar; no
 | NORMAL_PUSH | `YES; SSH 443, fast-forward only` |
 | RELEASE_SCOPE | `v0.1.10; installer and SHA-256 sidecar only` |
 | SIGNING | `NotSigned; unsigned package` |
+
+## Published v0.1.10
+
+| Item | Result |
+| --- | --- |
+| Release code commit | PASS; non-draft `v0.1.10` points to reviewed code commit `f3e220fbc54980124ad1e22b9c7e7e35d4c84214` |
+| GitHub Actions | PASS; `ENHE Codex Backup CI` run `36255620465` completed successfully |
+| Release/tag | PASS; non-draft, non-prerelease `v0.1.10` |
+| Published installer asset | `ENHE.Codex.Backup_0.1.10_x64-setup.exe`, 51,295,021 bytes, GitHub SHA-256 `b68a5fc0946c7fdc3c06b49ee25a2c4e2e1da91a01d3856a2d801dbd7dab6a6c` |
+| Published checksum asset | `ENHE.Codex.Backup_0.1.10_x64-setup.exe.sha256`, 106 bytes; GitHub asset digest `649e6e6895df3c435e2fa22ded22fde61f071b7cf576e2cf2a01c890e3045d6a` |
+| Asset count | PASS; exactly two assets, older releases retained |
+| Release URL | https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.10 |
 
 ## Historical published v0.1.9
 
