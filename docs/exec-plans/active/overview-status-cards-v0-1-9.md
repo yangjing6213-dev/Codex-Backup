@@ -15,7 +15,7 @@
 ## Current Repository State
 - Governing instructions: `AGENTS.md` and repository project guidance.
 - Relevant architecture/patterns: React state in `desktop/src/App.tsx`; backup and ReHome flows in `BackupsPage` and `ReceivePage`; existing bilingual translation map and Vitest suite.
-- Initial Git state: isolated detached worktree at commit `1c8ac89`, based on published 0.1.8; working tree clean before implementation.
+- Initial Git state: isolated detached worktree at commit `09b48a1`, based on published 0.1.8; working tree clean before implementation.
 
 ## Task Plan
 | ID | Objective | Files likely affected | Acceptance criteria | Verification | Dependencies | Status |
@@ -33,10 +33,10 @@
 - 实施计划 `docs/superpowers/plans/2026-09-25-overview-status-cards.md` 已提交并选择 Native 执行。
 
 ## Current Work
-- T1：准备写入概览指标和状态卡的失败测试。
+- T1：已写入并运行概览指标和状态卡失败测试；失败原因均为待实现的生产行为。
 
 ## Remaining Work
-- T1–T7 尚未完成。
+- T2–T7 尚未完成。
 
 ## Failures
 - Bash 版 SDD 辅助脚本在当前 Windows 环境不可执行；已按脚本约定手动建立同路径账本，不影响实现验证。
@@ -48,6 +48,8 @@
 ## Important Decisions
 - Ruling: 使用现有 0.1.8 发布隔离工作区作为基线 — 该工作区包含最新已发布代码且干净 — 若错误，风险是把新功能建立在错误版本上，因此每次发布前重新核对远端基线。
 - Ruling: 状态类型保留在 `App.tsx` — 它仅用于本次运行的 UI 状态，不进入配置或后端契约 — 若错误，风险是未来组件复用需要移动类型，但当前可避免新增共享层。
+- Ruling: T1 的完成条件是观察到预期红测，而不是伪造绿色；当前 fixture 保持原值，仅在指标测试中覆盖四个 Codex 统计值，避免改变既有测试语义。
+- Ruling: 状态卡测试通过 `section` 节点定位“云端备份已关闭”，避免侧栏同名状态造成错误匹配。
 
 ## Open Risks
 - 未进行原生 UI 视觉点击验证；完成后报告 `UI NOT VISUALLY VERIFIED`，除非专门运行安装程序验证。

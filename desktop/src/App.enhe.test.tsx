@@ -690,6 +690,36 @@ describe("ENHE Codex Backup shell", () => {
     expect(screen.getByRole("button", { name: "开始本地备份" })).toBeInTheDocument();
   });
 
+  it("copies the four Codex data metrics below the overview metrics", async () => {
+    api.discoverCodex.mockResolvedValueOnce({
+      ...inventory,
+      counts: { ...inventory.counts, conversations: 27, skills: 14, plugins: 21, generated_images: 91 },
+    });
+    render(<App />);
+
+    expect(await screen.findByText("扫描项目数")).toBeVisible();
+    expect(screen.getAllByText("对话总数").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("技能")).toBeVisible();
+    expect(screen.getByText("插件")).toBeVisible();
+    expect(screen.getByText("生成图片")).toBeVisible();
+    expect(screen.getByText("27")).toBeVisible();
+    expect(screen.getByText("14")).toBeVisible();
+    expect(screen.getByText("21")).toBeVisible();
+    expect(screen.getByText("91")).toBeVisible();
+  });
+
+  it("shows project and Codex data statuses above the cloud-off card", async () => {
+    render(<App />);
+
+    const projectStatus = await screen.findByRole("status", { name: "本机项目扫描已完成" });
+    expect(screen.getByRole("status", { name: "本机Codex数据扫描已完成" })).toBeVisible();
+    expect(screen.getByRole("status", { name: "本地备份尚未完成" })).toBeVisible();
+    expect(screen.getByRole("status", { name: "迁移/恢复尚未完成" })).toBeVisible();
+    const cloudCard = screen.getAllByText("云端备份已关闭").map((element) => element.closest("section")).find(Boolean);
+    expect(cloudCard).toBeTruthy();
+    expect(projectStatus.compareDocumentPosition(cloudCard!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
   it("provides guided backup actions from the overview", async () => {
     const user = userEvent.setup();
     render(<App />);
