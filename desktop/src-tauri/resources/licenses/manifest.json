@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "applicationVersion": "0.1.8",
+  "applicationVersion": "0.1.9",
   "target": "x86_64-pc-windows-msvc",
   "noticePolicy": "Preserve exact upstream notices; refresh after dependency changes. Not a legal certification.",
   "notices": [
@@ -61,7 +61,7 @@
     {
       "path": "desktop/src-tauri/Cargo.lock",
       "hashMode": "utf8-lf",
-      "sha256": "32b1cb0727dd8bc8201e90a5dfe9685f158e9c139572832d98e01f1c41775035"
+      "sha256": "6971c485dc1e644a49d2a02c42e11363367993166ea0808a6f87ced66d4eadf1"
     },
     {
       "path": "desktop/src-tauri/resources/restic.exe",

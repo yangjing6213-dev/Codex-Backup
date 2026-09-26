@@ -40,7 +40,7 @@
 - T5：已统一 0.1.9 元数据、可见版本、CHANGELOG、README 和双语指南；版本一致性契约通过。
 
 ## Remaining Work
-- T4–T7 尚未完成。
+- T6：全量验证已通过，正在生成最终安装包并执行替换安装；T7 尚未完成。
 
 ## Failures
 - Bash 版 SDD 辅助脚本在当前 Windows 环境不可执行；已按脚本约定手动建立同路径账本，不影响实现验证。
@@ -56,6 +56,8 @@
 - Ruling: 状态卡测试通过 `section` 节点定位“云端备份已关闭”，避免侧栏同名状态造成错误匹配。
 - Ruling: 概览页状态只保存在 `AppContent` 内存中；备份结果使用既有 `backupResultTone`，迁移/恢复结果通过 ReceivePage 回调映射为成功、部分完成或失败，不新增持久化字段。
 - Ruling: `rolled_back` 和 `rollback_failed` 均在概览上显示为迁移/恢复失败；它们不是成功完成，且用户应查看迁移记录处理后续动作。
+- Ruling: Rust 异步备份测试的合成 `.cmd` 使用 Windows PowerShell 的绝对系统路径，避免隔离执行环境的 PATH 差异；不改变应用运行时或业务逻辑。
+- Ruling: Cargo.lock 版本升级同步刷新许可清单中的规范化哈希和应用版本字段；第三方材料本身未变。
 
 ## Open Risks
 - 未进行原生 UI 视觉点击验证；完成后报告 `UI NOT VISUALLY VERIFIED`，除非专门运行安装程序验证。

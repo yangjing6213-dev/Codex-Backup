@@ -106,9 +106,16 @@ exit 23
         )
         .unwrap();
         let executable = self.root.path().join("restic.cmd");
+        let powershell = env::var_os("WINDIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(r"C:\Windows"))
+            .join(r"System32\WindowsPowerShell\v1.0\powershell.exe");
         fs::write(
             &executable,
-            "@echo off\r\npowershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"%~dp0wait.ps1\"\r\nexit /b %errorlevel%\r\n",
+            format!(
+                "@echo off\r\n\"{}\" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"%~dp0wait.ps1\"\r\nexit /b %errorlevel%\r\n",
+                powershell.display()
+            ),
         )
         .unwrap();
         env::set_var("ENHE_RESTIC_PATH", executable);

@@ -1,6 +1,6 @@
 # Isolated local restic acceptance
 
-Generated: 2026-09-24T14:49:41.5253838+08:00
+Generated: 2026-09-26T22:39:53.0361096+08:00
 
 Synthetic fixture: Git repository with uncommitted and untracked files, linked worktree, active/partial JSONL, SQLite WAL/SHM sidecars, archived JSONL, and handoff notes.
 
