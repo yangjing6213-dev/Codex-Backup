@@ -15,6 +15,7 @@
   --accent-soft: #e7efff;
   --sidebar: #101f38;
   --sidebar-text: #e6efff;
+  --success: #15803d;
   --danger: #a34338;
   --warning: #8a5a16;
   --warning-soft: #fff4d6;
@@ -35,6 +36,7 @@
   --accent-soft: #213b61;
   --sidebar: #0b1220;
   --sidebar-text: #e6efff;
+  --success: #4ade80;
   --danger: #ef9e91;
   --warning: #f7c66f;
   --warning-soft: #493719;
@@ -56,6 +58,7 @@
     --accent-soft: #213b61;
     --sidebar: #0b1220;
     --sidebar-text: #e6efff;
+    --success: #4ade80;
     --danger: #ef9e91;
     --warning: #f7c66f;
     --warning-soft: #493719;
@@ -126,13 +129,14 @@ h2 { margin-bottom: 0; color: var(--text); font-size: 16px; line-height: 1.3; }
 .overview-action.primary-button .overview-action-copy small { color: inherit; opacity: .88; }
 .overview-status-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-bottom: 16px; }
 .overview-status-card { display: grid; gap: 13px; min-height: 116px; padding: 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); }
-.overview-status-card[data-state="success"] { border-color: color-mix(in srgb, var(--accent) 48%, var(--border)); }
-.overview-status-card[data-state="partial"] { border-color: color-mix(in srgb, var(--warning) 52%, var(--border)); }
-.overview-status-card[data-state="failed"] { border-color: color-mix(in srgb, var(--danger) 52%, var(--border)); }
+.overview-status-card--success { border-color: color-mix(in srgb, var(--success) 68%, var(--border)); }
+.overview-status-card--partial { border-color: color-mix(in srgb, var(--warning) 68%, var(--border)); }
+.overview-status-card--failed { border-color: color-mix(in srgb, var(--danger) 52%, var(--border)); }
 .overview-status-copy { display: flex; align-items: flex-start; gap: 9px; min-width: 0; }
 .overview-status-copy > svg { flex: 0 0 auto; width: 18px; height: 18px; color: var(--accent); }
-.overview-status-card[data-state="partial"] .overview-status-copy > svg { color: var(--warning); }
-.overview-status-card[data-state="failed"] .overview-status-copy > svg { color: var(--danger); }
+.overview-status-card--success .overview-status-copy > svg { color: var(--success); }
+.overview-status-card--partial .overview-status-copy > svg { color: var(--warning); }
+.overview-status-card--failed .overview-status-copy > svg { color: var(--danger); }
 .overview-status-copy span { display: grid; gap: 6px; min-width: 0; }
 .overview-status-copy strong { font-size: 12px; }
 .overview-status-copy small { color: var(--muted); font-size: 11px; line-height: 1.35; }

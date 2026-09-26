@@ -4,7 +4,7 @@
 
 ## 一、这个仓库是什么？
 
-ENHE Codex Backup 是一个独立的 Windows x64 本地优先 Codex 项目和数据备份、恢复和离线迁移工具。它可以在没有云端配置、没有 GPT 登录的条件下保存 Codex 资料、项目文件、Git 状态、对话和开发交接资料，并在本机或另一台设备上恢复。0.1.9 在概览页增加项目扫描、Codex 数据扫描、本地备份和迁移/恢复状态卡，并复制显示四项 Codex 数据统计。
+ENHE Codex Backup 是一个独立的 Windows x64 本地优先 Codex 项目和数据备份、恢复和离线迁移工具。它可以在没有云端配置、没有 GPT 登录的条件下保存 Codex 资料、项目文件、Git 状态、对话和开发交接资料，并在本机或另一台设备上恢复。0.1.10 为概览页状态卡增加黄色“部分完成”和绿色“已完成”边框，并修正部分备份结果的状态显示。
 
 它不是 OpenAI 或 ReHome 官方产品。云端默认关闭；OneDrive/rclone 只在用户完成配置并主动执行测试或上传时使用。“迁移并接入 Codex”的联网验证是独立选项，必须另行同意发送所选对话上下文，可能产生模型用量；关闭云端备份不等于禁止该验证联网。
 
@@ -54,7 +54,7 @@ Codex 数据位置：C:\Users\<用户>\.codex
 
 ## 六、安装方法
 
-1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases) 查看实际已发布版本。0.1.9 的资产为 [Windows x64 安装包](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.9/ENHE.Codex.Backup_0.1.9_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.9/ENHE.Codex.Backup_0.1.9_x64-setup.exe.sha256)。安装包未进行代码签名；安装前请核对 SHA-256 校验值。
+1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases) 查看实际已发布版本。0.1.10 的资产为 [Windows x64 安装包](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.10/ENHE.Codex.Backup_0.1.10_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.10/ENHE.Codex.Backup_0.1.10_x64-setup.exe.sha256)。安装包未进行代码签名；安装前请核对 SHA-256 校验值。
 2. 使用 PowerShell 计算安装包 SHA-256，并与校验文件比对。
 3. 运行安装包，按 Windows 当前用户范围完成安装。
 4. 首次启动后确认本机数据位置；云端保持关闭即可完成本地备份。
@@ -116,7 +116,7 @@ tests/                      隔离测试与文档契约测试
 
 ## 十一、版本说明
 
-当前版本：`0.1.9`。本次在概览页增加项目扫描、Codex 数据扫描、本地备份和迁移/恢复四张状态卡，并复制显示对话、技能、插件和生成图片四项统计；状态会在切换页面后保留，完整备份规则不变。文件恢复、对话识别与一次临时副本发送验证分别记录，不把文件已恢复宣称为真实会话续接成功。详见 [版本更新说明](CHANGELOG.md)。[0.1.9 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.9) 发布后包含未签名的 Windows x64 安装包和 SHA-256 文件，旧版本保留；安装前请按校验文件核对完整性。真实 OneDrive、第二设备、真实会话续接和原生界面验证仍不在已完成证据范围内，详见 [STATUS](docs/STATUS.md) 与 [ACCEPTANCE](docs/ACCEPTANCE.md)。
+当前版本：`0.1.10`。本次为概览页四张状态卡增加清晰的状态边框：部分完成为黄色，已完成为绿色，失败为红色；同时修正部分备份和恢复结果不应显示为失败的问题。详见 [版本更新说明](CHANGELOG.md)。[0.1.10 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.10) 发布后包含未签名的 Windows x64 安装包和 SHA-256 文件，旧版本保留；安装前请按校验文件核对完整性。真实 OneDrive、第二设备、真实会话续接和原生界面验证仍不在已完成证据范围内，详见 [STATUS](docs/STATUS.md) 与 [ACCEPTANCE](docs/ACCEPTANCE.md)。
 
 ## 十二、相关项目
 
@@ -146,4 +146,4 @@ ReHome：本项目内置其适用的离线迁移能力，但完整本地备份�
 
 本项目沿用上游仓库的 MIT 许可；内置组件、版本和来源见 [THIRD_PARTY](docs/THIRD_PARTY.md)。
 
-0.1.9 安装包随附许可与第三方声明文件，安装后可在程序目录的 `resources/licenses` 文件夹离线查看；许可材料是技术再分发证据，不构成法律意见。
+0.1.10 安装包随附许可与第三方声明文件，安装后可在程序目录的 `resources/licenses` 文件夹离线查看；许可材料是技术再分发证据，不构成法律意见。

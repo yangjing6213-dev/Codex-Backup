@@ -1,30 +1,40 @@
 # Windows installer verification
 
-Generated: 2026-09-26. The final 0.1.9 artifact was packaged, installed over the current-user 0.1.8 installation, and verified locally. The package is unsigned; GitHub publication is verified below after the ordinary fast-forward push and Actions gate.
+Generated: 2026-09-27. The final 0.1.10 artifact was packaged, installed over the current-user 0.1.9 installation, and verified locally. The package is unsigned; GitHub publication is pending the ordinary fast-forward push and Actions gate.
 
-## Latest 0.1.9 package and replacement installation
+## Latest 0.1.10 package and replacement installation
 
 | Item | Result |
 | --- | --- |
-| Target/version | Windows x64 / 0.1.9; registry and installed executable file/product version confirmed |
-| Candidate filename | `ENHE Codex Backup_0.1.9_x64-setup.exe` |
-| Size | 51,296,811 bytes |
-| SHA-256 | `acbb35e19fe3a7627cb5ba5bf12d72a19d65a6c6a81fcacb43873df833baf9c0` |
+| Target/version | Windows x64 / 0.1.10; registry and installed executable file/product version confirmed |
+| Candidate filename | `ENHE Codex Backup_0.1.10_x64-setup.exe` |
+| Size | 51,295,021 bytes |
+| SHA-256 | `b68a5fc0946c7fdc3c06b49ee25a2c4e2e1da91a01d3856a2d801dbd7dab6a6c` |
 | Candidate checksum sidecar | PASS; correct hash and exact candidate filename |
 | Package command | PASS; exit 0, Cargo offline, existing MSVC and cached runtime binaries |
 | License payload | PASS; bundled notices, source/relinking materials and generated NSIS inclusion checks passed |
 | Code signing | NotSigned; unsigned |
-| Current-user uninstall/install | PASS; 0.1.8 uninstall exit 0 and 0.1.9 install exit 0; no application-data deletion selected |
-| Installed version/resources | PASS; registry and installed executable FileVersion/ProductVersion report 0.1.9 |
-| Installed executable SHA-256 | `6971957db92e03275abe2b56dbd36fc7483efd981e3efff6c4b64effafaa4eda` |
+| Current-user uninstall/install | PASS; 0.1.9 uninstall exit 0 and 0.1.10 install exit 0; no application-data deletion selected |
+| Installed version/resources | PASS; registry and installed executable FileVersion/ProductVersion report 0.1.10 |
+| Installed executable SHA-256 | `bbc475710f5487c7f9ed5a3f6778597e623c1f7719fcfb406fae7cd62ff2779d` |
 | Configuration / DPAPI password file | PASS; `config.json` and `recovery-password.dpapi` remained present after replacement installation |
-| Native launch | PASS; installed executable launched and exposed window title `ENHE Codex Backup · v0.1.9` |
+| Native launch | PASS; installed executable launched and exposed window title `ENHE Codex Backup · v0.1.10` |
 | Native visual click-through | NOT_RUN; the native automation bridge did not expose the running window for screenshot/AX inspection |
 | Real profile/account/second-device continuation | NOT_RUN; no personal profile, account, token or migration package was used |
 
 The published Release contains only this installer and its `.sha256` sidecar; no other assets are in scope.
 
-## Published v0.1.9
+## Publication readiness
+
+| Field | Value |
+| --- | --- |
+| TASK_TYPE | `PROJECT_UPDATE + RELEASE_PUBLICATION` |
+| READY_TO_PUBLISH | `YES` |
+| NORMAL_PUSH | `YES; SSH 443, fast-forward only` |
+| RELEASE_SCOPE | `v0.1.10; installer and SHA-256 sidecar only` |
+| SIGNING | `NotSigned; unsigned package` |
+
+## Historical published v0.1.9
 
 | Item | Result |
 | --- | --- |

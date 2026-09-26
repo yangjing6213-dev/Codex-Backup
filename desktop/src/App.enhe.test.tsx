@@ -568,7 +568,7 @@ describe("ENHE Codex Backup shell", () => {
       manifest: { created_at: "2026-09-19T00:00:00Z", file_count: 4, byte_count: 300, exclusions: [], notices: [], integrity_warnings: [], missing: [], integrity_status: "complete" },
     }));
     await user.click(screen.getByRole("button", { name: "前往概览" }));
-    expect(screen.getByRole("status", { name: "本地备份已完成" })).toBeVisible();
+    expect(screen.getByRole("status", { name: "本地备份已完成" })).toHaveClass("overview-status-card--success");
     await user.click(screen.getByRole("button", { name: "前往备份与迁移" }));
     expect(screen.getByRole("status", { name: "备份完整完成" })).toBeVisible();
     expect(screen.getByText(/4 文件 · fixture-snapshot/)).toBeVisible();
@@ -689,7 +689,7 @@ describe("ENHE Codex Backup shell", () => {
     expect(screen.getByRole("button", { name: "前往操作说明" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "前往关于作者" })).toBeInTheDocument();
     expect(screen.getAllByText("云端备份已关闭").length).toBeGreaterThan(0);
-    expect(screen.getByText("v0.1.9")).toBeInTheDocument();
+    expect(screen.getByText("v0.1.10")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Codex 数据备份&迁移" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "开始本地备份" })).toBeInTheDocument();
   });
@@ -716,7 +716,8 @@ describe("ENHE Codex Backup shell", () => {
     render(<App />);
 
     const projectStatus = await screen.findByRole("status", { name: "本机项目扫描已完成" });
-    expect(screen.getByRole("status", { name: "本机Codex数据扫描已完成" })).toBeVisible();
+    expect(projectStatus).toHaveClass("overview-status-card--success");
+    expect(screen.getByRole("status", { name: "本机Codex数据扫描已完成" })).toHaveClass("overview-status-card--success");
     expect(screen.getByRole("status", { name: "本地备份尚未完成" })).toBeVisible();
     expect(screen.getByRole("status", { name: "迁移/恢复尚未完成" })).toBeVisible();
     const cloudCard = screen.getAllByText("云端备份已关闭").map((element) => element.closest("section")).find(Boolean);
@@ -983,6 +984,8 @@ describe("ENHE Codex Backup shell", () => {
     expect(await screen.findByText("本地备份已部分完成")).toBeVisible();
     expect(screen.getByRole("status", { name: "备份已部分完成" })).toHaveClass("error");
     expect(screen.queryByText("本地备份已完成")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "前往概览" }));
+    expect(screen.getByRole("status", { name: "本地备份已部分完成" })).toHaveClass("overview-status-card--partial");
   });
 
   it("shows a warning result when a complete backup only has notices", async () => {

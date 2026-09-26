@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-09-27
+
+- Use yellow borders for partial overview results and green borders for completed results across project scans, Codex data scans, local backups, and migration/restore.
+- Keep failed results red and in-progress or idle results neutral, with matching status icon colors.
+- Correct partial backup and restore outcomes so the overview reports them as partially complete instead of failed.
+- Align application metadata, bilingual documentation, and unsigned Windows x64 packaging at 0.1.10.
+
 ## [0.1.9] - 2026-09-26
 
 - Add four overview status cards for project scanning, Codex data scanning, local backup, and migration/restore; cards keep their latest result while users navigate between pages.

@@ -1,17 +1,17 @@
 # Current status
 
-Source checkpoint: 2026-09-26. Current version: **0.1.9; local package, replacement installation, native launch, ordinary fast-forward push, GitHub Actions and v0.1.9 Release PASS**. See [installer evidence](verification/installer-latest.md) for the exact artifact and installation evidence; historical 0.1.8 evidence remains dated and is not transferred automatically.
+Source checkpoint: 2026-09-27. Current version: **0.1.10; local package, replacement installation and native launch PASS**. GitHub publication evidence is recorded below after the ordinary fast-forward push and Release gate. See [installer evidence](verification/installer-latest.md) for the exact artifact and installation evidence; historical 0.1.9 evidence remains dated and is not transferred automatically.
 
-## 0.1.9 overview status cards and data metrics
+## 0.1.10 overview status-card state colors
 
-- The overview now shows four operation cards: project scan, Codex data scan, local backup, and migration/restore. Each card has an explicit state and a route to the relevant page; state callbacks remain in the current app session and do not alter backup or migration behavior.
-- The four Codex data metrics — conversations, skills, plugins and generated images — are repeated below the primary scan metrics for quick review.
+- The four overview cards now use green borders for `success`, yellow borders for `partial`, red borders for `failed`, and neutral borders for `idle`/`running`; their icons use the matching semantic colors.
+- Partial backup and restore results now remain `partial` in the overview instead of being mapped to `failed`; actual operation exceptions remain failures.
 - Frontend regression: 6 test files, 88 passed; production build PASS. Full canonical verification passed, including Rust formatting/tests, bundled license checks, updater/telemetry scan and isolated restic acceptance.
-- Final package: unsigned Windows x64 NSIS installer, 51,296,811 bytes, SHA-256 `acbb35e19fe3a7627cb5ba5bf12d72a19d65a6c6a81fcacb43873df833baf9c0`; matching sidecar and license inclusion PASS.
-- Replacement installation: current-user 0.1.8 uninstall and 0.1.9 install both exited 0; registry and installed executable report 0.1.9; existing ENHE config and DPAPI recovery-password files remained present. The installed process launched with title `ENHE Codex Backup · v0.1.9`; visual click-through was not completed because the native automation bridge did not expose the window.
+- Final package: unsigned Windows x64 NSIS installer, 51,295,021 bytes, SHA-256 `b68a5fc0946c7fdc3c06b49ee25a2c4e2e1da91a01d3856a2d801dbd7dab6a6c`; matching sidecar and license inclusion PASS.
+- Replacement installation: current-user 0.1.9 uninstall and 0.1.10 install both exited 0; registry and installed executable report 0.1.10; existing ENHE config and DPAPI recovery-password files remained present. The installed process launched with title `ENHE Codex Backup · v0.1.10`; visual click-through was not completed because the native automation bridge did not expose the window.
 - The package is unsigned. No real Codex profile, account, token, cloud service or personal migration package was used.
 
-Publication status: **PUBLISHED**. Release tag `v0.1.9` points to reviewed code commit `1a6a1ff`; main now points to `0c3c157`, a documentation-only publication record. GitHub Actions runs `36251351095` and `36252068603` passed. The non-draft Release contains exactly the unsigned Windows x64 installer and its SHA-256 sidecar, and older releases remain retained: [v0.1.9 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.9).
+Publication status: **PENDING** until the reviewed 0.1.10 commit is pushed and its GitHub Actions run passes.
 
 ## Historical published baseline — 0.1.8 project-root scan improvements
 

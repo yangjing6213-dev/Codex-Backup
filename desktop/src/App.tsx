@@ -402,7 +402,7 @@ function AppContent() {
       <aside className="sidebar">
         <button className="brand" type="button" onClick={() => setView("overview")} aria-label={t("ENHE Codex Backup")}>
           <img className="brand-mark" src="/app-icon.png" alt="" />
-          <span className="brand-copy"><small className="brand-version">v0.1.9</small><strong>ENHE</strong><small>Codex Backup</small></span>
+          <span className="brand-copy"><small className="brand-version">v0.1.10</small><strong>ENHE</strong><small>Codex Backup</small></span>
         </button>
 
         <nav className="navigation" aria-label={t("主导航")}>
@@ -696,7 +696,7 @@ function Metric({ label, value, text = false }: { label: string; value: number |
 
 function OverviewStatusCard({ icon: Icon, title, status, state, actionLabel, onAction }: { icon: typeof CheckCircle2; title: string; status: string; state: OperationStatus; actionLabel: string; onAction: () => void }) {
   return (
-    <section className="overview-status-card" data-state={state} role="status" aria-label={status}>
+    <section className={`overview-status-card overview-status-card--${state}`} data-state={state} role="status" aria-label={status}>
       <div className="overview-status-copy"><Icon aria-hidden="true" /><span><strong>{title}</strong><small>{status}</small></span></div>
       <button className="text-button" type="button" onClick={onAction}>{actionLabel}</button>
     </section>
@@ -742,7 +742,7 @@ function operationStatusKey(kind: "project" | "data" | "backup" | "migration", s
 }
 
 function operationStatusForTone(tone: ReturnType<typeof backupResultTone>): OperationStatus {
-  return tone === "success" ? "success" : tone === "warning" ? "partial" : "failed";
+  return tone === "success" ? "success" : tone === "error" || tone === "warning" ? "partial" : "failed";
 }
 
 function localScanStateFor(result: LocalDiscoveryResult): LocalScanState {
@@ -1405,7 +1405,7 @@ function SettingsPage({ headingRef, config, scheduler, onSave, onConfigChange, o
         </div>}
       </section>
 
-      <section className="settings-footer"><button className="primary-button" type="button" onClick={() => { onConfigChange(draft); void onSave(draft); }}>{t("保存设置")}</button><span>{t("当前版本")} 0.1.9</span></section>
+      <section className="settings-footer"><button className="primary-button" type="button" onClick={() => { onConfigChange(draft); void onSave(draft); }}>{t("保存设置")}</button><span>{t("当前版本")} 0.1.10</span></section>
     </div>
   );
 }
