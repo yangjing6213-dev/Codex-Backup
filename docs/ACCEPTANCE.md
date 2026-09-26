@@ -1,6 +1,6 @@
 # Acceptance mapping
 
-Checkpoint: 2026-09-26; **0.1.9 locally packaged, installed and launched; GitHub publication pending**. The complete acceptance baseline is the supplied `ENHE-Codex-Backup-完整开发执行指令.md`. This table separates observable local evidence from unverified native/account/device behavior. Fresh 0.1.9 verification, packaging and current-user replacement installation passed; native visual click-through, account and second-device acceptance remain separate boundaries. Earlier 0.1.8 and 0.1.7 runs remain dated evidence, not native acceptance. See [STATUS](STATUS.md) and [installer verification](verification/installer-latest.md).
+Checkpoint: 2026-09-26; **0.1.9 locally packaged, installed, launched and published**. The complete acceptance baseline is the supplied `ENHE-Codex-Backup-完整开发执行指令.md`. This table separates observable local evidence from unverified native/account/device behavior. Fresh 0.1.9 verification, packaging, current-user replacement installation, ordinary fast-forward push, Actions and the two-asset Release passed; native visual click-through, account and second-device acceptance remain separate boundaries. Earlier 0.1.8 and 0.1.7 runs remain dated evidence, not native acceptance. See [STATUS](STATUS.md), [installer verification](verification/installer-latest.md) and the [v0.1.9 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.9).
 
 | Case | Evidence and remaining boundary | Status |
 | --- | --- | --- |
@@ -29,7 +29,7 @@ Checkpoint: 2026-09-26; **0.1.9 locally packaged, installed and launched; GitHub
 | Native launch | PASS | Installed executable launched with title `ENHE Codex Backup · v0.1.9`. |
 | Native visual click-through | NOT_RUN | Computer-use inventory did not expose the running native window for AX/screenshot inspection. |
 
-No real Codex profile, credential, account, token, cloud service or personal migration package was used. GitHub push, Actions gate and Release are external publication steps and are not claimed until verified.
+No real Codex profile, credential, account, token, cloud service or personal migration package was used. GitHub main now points to the reviewed commit, Actions passed, and v0.1.9 is published with exactly two assets; native visual click-through and real-account continuation remain outside this evidence.
 
 ## Consolidated feature acceptance
 

@@ -1,6 +1,6 @@
 # Current status
 
-Source checkpoint: 2026-09-26. Current version: **0.1.9; local package, replacement installation and native launch PASS; GitHub publication pending the authorized ordinary fast-forward push and Actions gate**. See [installer evidence](verification/installer-latest.md) for the exact artifact and installation evidence; historical 0.1.8 evidence remains dated and is not transferred automatically.
+Source checkpoint: 2026-09-26. Current version: **0.1.9; local package, replacement installation, native launch, ordinary fast-forward push, GitHub Actions and v0.1.9 Release PASS**. See [installer evidence](verification/installer-latest.md) for the exact artifact and installation evidence; historical 0.1.8 evidence remains dated and is not transferred automatically.
 
 ## 0.1.9 overview status cards and data metrics
 
@@ -11,7 +11,7 @@ Source checkpoint: 2026-09-26. Current version: **0.1.9; local package, replacem
 - Replacement installation: current-user 0.1.8 uninstall and 0.1.9 install both exited 0; registry and installed executable report 0.1.9; existing ENHE config and DPAPI recovery-password files remained present. The installed process launched with title `ENHE Codex Backup · v0.1.9`; visual click-through was not completed because the native automation bridge did not expose the window.
 - The package is unsigned. No real Codex profile, account, token, cloud service or personal migration package was used.
 
-Publication status: **READY_TO_PUBLISH locally; GitHub push and Release pending**. After the ordinary fast-forward push, wait for GitHub Actions to pass, then publish `v0.1.9` with exactly the installer and SHA-256 sidecar while retaining older releases.
+Publication status: **PUBLISHED**. `main` and tag `v0.1.9` point to `1a6a1ff`; GitHub Actions run `36251351095` passed. The non-draft Release contains exactly the unsigned Windows x64 installer and its SHA-256 sidecar, and older releases remain retained: [v0.1.9 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.9).
 
 ## Historical published baseline — 0.1.8 project-root scan improvements
 

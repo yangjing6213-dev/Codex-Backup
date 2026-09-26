@@ -1,6 +1,6 @@
 # Windows installer verification
 
-Generated: 2026-09-26. The final 0.1.9 artifact was packaged, installed over the current-user 0.1.8 installation, and verified locally. The package is unsigned; GitHub publication is recorded separately after the ordinary fast-forward push and Actions gate.
+Generated: 2026-09-26. The final 0.1.9 artifact was packaged, installed over the current-user 0.1.8 installation, and verified locally. The package is unsigned; GitHub publication is verified below after the ordinary fast-forward push and Actions gate.
 
 ## Latest 0.1.9 package and replacement installation
 
@@ -22,7 +22,19 @@ Generated: 2026-09-26. The final 0.1.9 artifact was packaged, installed over the
 | Native visual click-through | NOT_RUN; the native automation bridge did not expose the running window for screenshot/AX inspection |
 | Real profile/account/second-device continuation | NOT_RUN; no personal profile, account, token or migration package was used |
 
-The release candidate is ready for the authorized ordinary fast-forward push and Actions gate. The final Release must contain only this installer and its `.sha256` sidecar; no other assets are in scope.
+The published Release contains only this installer and its `.sha256` sidecar; no other assets are in scope.
+
+## Published v0.1.9
+
+| Item | Result |
+| --- | --- |
+| Main commit | PASS; `1a6a1ffe7edf3b9fea6683cd9a118588c3f41089` is the GitHub `main` head |
+| GitHub Actions | PASS; `ENHE Codex Backup CI` run `36251351095` completed successfully |
+| Release/tag | PASS; non-draft `v0.1.9` points to the reviewed main commit |
+| Published installer asset | `ENHE.Codex.Backup_0.1.9_x64-setup.exe`, 51,296,811 bytes, GitHub SHA-256 `acbb35e19fe3a7627cb5ba5bf12d72a19d65a6c6a81fcacb43873df833baf9c0` |
+| Published checksum asset | `ENHE.Codex.Backup_0.1.9_x64-setup.exe.sha256`, 105 bytes; content contains the matching installer hash |
+| Asset count | PASS; exactly two assets, older releases retained |
+| Release URL | https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.9 |
 
 ## Historical 0.1.7 license-only candidate (not installed)
 

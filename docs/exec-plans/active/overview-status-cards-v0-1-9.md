@@ -26,7 +26,7 @@
 | T4 | 双语和回归验证 | frontend tests/docs | Chinese/English 状态一致 | full frontend suite, typecheck, build | T2–T3 | done |
 | T5 | 升级 0.1.9 并更新文档 | version sources, README, CHANGELOG, docs | 版本契约和文档通过 | version/readme contracts | T4 | done |
 | T6 | 完整验证、打包、卸载和安装 | verify/package scripts, installer | 0.1.9 安装版本和用户数据通过 | full verify/package/install | T5 | done |
-| T7 | 推送 main 并创建 Release | remote main, v0.1.9 | SSH 443 快进、两个资产 | remote/tag/release checks | T6 | in_progress |
+| T7 | 推送 main 并创建 Release | remote main, v0.1.9 | SSH 443 快进、两个资产 | remote/tag/release checks | T6 | done |
 
 ## Completed + Verified
 - 设计文件 `docs/superpowers/specs/2026-09-25-overview-status-cards-design.md` 已提交并获用户确认。
@@ -41,7 +41,7 @@
 - T6：全量验证通过（前端 88 项、Rust 全量默认套件、许可、图标、源码扫描和隔离 restic）；最终安装包已生成，0.1.8 已卸载、0.1.9 已安装并启动，用户配置与 DPAPI 恢复密码文件保留。
 
 ## Remaining Work
-- T7：文档证据已收口；待通过 SSH 443 普通快进推送，等待 GitHub Actions 后创建仅含两个资产的 v0.1.9 Release。
+- T7：已通过 SSH 443 普通快进推送；GitHub Actions run 36251351095 通过；v0.1.9 非草稿 Release 已创建，恰含安装包与 SHA-256 两个资产。
 
 ## Failures
 - Bash 版 SDD 辅助脚本在当前 Windows 环境不可执行；已按脚本约定手动建立同路径账本，不影响实现验证。
@@ -65,7 +65,7 @@
 - 安装包未签名；用户需核对 SHA-256。
 
 ## Final Acceptance
-- Status: IN_PROGRESS
-- Requirements verified: 设计、代码实现、测试、打包、替换安装和原生进程启动已完成；视觉点击验收因原生桥接未枚举窗口而未运行。
-- Not verified: GitHub 推送、Actions gate 和 v0.1.9 Release。
+- Status: COMPLETE
+- Requirements verified: 设计、代码实现、测试、打包、替换安装、原生进程启动、SSH 443 普通快进推送、Actions 和双资产 v0.1.9 Release 均已验证。
+- Not verified: 原生视觉点击验收、真实账号/第二设备/真实会话续接；这些不属于本次发布命令的安全替代证据。
 - Remaining risks: 见 Open Risks。
