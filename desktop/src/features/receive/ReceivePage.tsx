@@ -42,6 +42,7 @@ interface ReceivePageProps {
   inventory: CodexInventory | null;
   onOperationStart: () => void;
   onOperationEnd: () => void;
+  onMigrationStatusChange?: (status: "running" | "success" | "partial" | "failed") => void;
   operationBusy?: boolean;
   initialJobId?: string | null;
   onJobIdChange?: (jobId: string | null) => void;
@@ -66,6 +67,7 @@ export default function ReceivePage({
   inventory,
   onOperationStart,
   onOperationEnd,
+  onMigrationStatusChange,
   operationBusy = false,
   initialJobId = null,
   onJobIdChange,
@@ -91,8 +93,8 @@ export default function ReceivePage({
   const [startError, setStartError] = useState<unknown>(null);
   // App callbacks change identity on every render; activity belongs to the job,
   // not to a polling effect or a particular callback instance.
-  const callbacks = useRef({ onOperationStart, onOperationEnd, onJobIdChange });
-  callbacks.current = { onOperationStart, onOperationEnd, onJobIdChange };
+  const callbacks = useRef({ onOperationStart, onOperationEnd, onJobIdChange, onMigrationStatusChange });
+  callbacks.current = { onOperationStart, onOperationEnd, onJobIdChange, onMigrationStatusChange };
   const migrationActive = useRef(false);
   const jobRunning = Boolean(jobId && (!snapshot || snapshot.status === "running"));
   const controlsBusy = operationBusy || phase !== "idle" || jobRunning;
@@ -106,6 +108,7 @@ export default function ReceivePage({
   function beginMigration() {
     if (migrationActive.current) return;
     migrationActive.current = true;
+    callbacks.current.onMigrationStatusChange?.("running");
     callbacks.current.onOperationStart();
   }
 
@@ -127,6 +130,7 @@ export default function ReceivePage({
         setSnapshot(current);
         setPollError(null);
         if (current.status !== "running") {
+          callbacks.current.onMigrationStatusChange?.(current.status === "succeeded" ? "success" : "failed");
           endMigration();
           return;
         }
@@ -249,16 +253,20 @@ export default function ReceivePage({
     if (!canRestore || !plan) return;
     setError(null);
     setPhase("restoring");
+    onMigrationStatusChange?.("running");
     onOperationStart();
     try {
-      setReport(await applyRestore(plan.plan_id, {
+      const nextReport = await applyRestore(plan.plan_id, {
         codex_closed_confirmed: true,
         register_projects: true,
-      }));
+      });
+      setReport(nextReport);
+      onMigrationStatusChange?.(Object.values(nextReport.verification).every(Boolean) ? "success" : "partial");
     } catch (caught) {
       // A failed attempt consumes its capability and may have rolled back writes.
       // Re-plan against the current files instead of retrying the stale snapshot.
       clearRestoreSelection();
+      onMigrationStatusChange?.("failed");
       setError(`${errorMessage(caught, t)} ${t("请重新预览导入内容后重试；如提示回滚失败，请先在迁移记录中恢复。")}`);
     } finally {
       setPhase("idle");
@@ -280,10 +288,14 @@ export default function ReceivePage({
       setJobId(current.job_id);
       callbacks.current.onJobIdChange?.(current.job_id);
       setSnapshot(current);
-      if (current.status !== "running") endMigration();
+      if (current.status !== "running") {
+        callbacks.current.onMigrationStatusChange?.(current.status === "succeeded" ? "success" : "failed");
+        endMigration();
+      }
     } catch (caught) {
       clearRestoreSelection();
       setStartError(caught);
+      callbacks.current.onMigrationStatusChange?.("failed");
       endMigration();
     } finally {
       setPhase("idle");

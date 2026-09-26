@@ -188,7 +188,9 @@ describe("ENHE Codex Backup shell", () => {
     current.error = { code: "codex_verification_failed", message: "fixed category" };
     await screen.findByText("本地更改已回滚");
     await waitFor(() => expect(screen.queryByText("任务进行中，切换页面不会中断；请勿退出应用。")).not.toBeInTheDocument());
-    await user.click(screen.getByRole("button", { name: "返回本地备份" }));
+    await user.click(screen.getByRole("button", { name: "前往概览" }));
+    expect(screen.getByRole("status", { name: "迁移/恢复失败" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "前往备份与迁移" }));
     expect(screen.getByRole("button", { name: "开始本地备份" })).toBeEnabled();
     expect(api.runLocalBackup).not.toHaveBeenCalled();
     expect(api.restoreLocalBackup).not.toHaveBeenCalled();
@@ -565,6 +567,8 @@ describe("ENHE Codex Backup shell", () => {
       logical_backup_id: "fixture-backup", restic_snapshot_id: "fixture-snapshot", complete: true,
       manifest: { created_at: "2026-09-19T00:00:00Z", file_count: 4, byte_count: 300, exclusions: [], notices: [], integrity_warnings: [], missing: [], integrity_status: "complete" },
     }));
+    await user.click(screen.getByRole("button", { name: "前往概览" }));
+    expect(screen.getByRole("status", { name: "本地备份已完成" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "前往备份与迁移" }));
     expect(screen.getByRole("status", { name: "备份完整完成" })).toBeVisible();
     expect(screen.getByText(/4 文件 · fixture-snapshot/)).toBeVisible();
@@ -702,10 +706,10 @@ describe("ENHE Codex Backup shell", () => {
     expect(screen.getByText("技能")).toBeVisible();
     expect(screen.getByText("插件")).toBeVisible();
     expect(screen.getByText("生成图片")).toBeVisible();
-    expect(screen.getByText("27")).toBeVisible();
-    expect(screen.getByText("14")).toBeVisible();
-    expect(screen.getByText("21")).toBeVisible();
-    expect(screen.getByText("91")).toBeVisible();
+    expect(screen.getAllByText("27").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("14").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("21").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("91").length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows project and Codex data statuses above the cloud-off card", async () => {

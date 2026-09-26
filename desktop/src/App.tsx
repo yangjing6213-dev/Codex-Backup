@@ -68,6 +68,7 @@ import "./App.css";
 export type View = "overview" | "projects" | "data" | "backups" | "settings" | "guide" | "about";
 type BackupView = "local" | "export" | "import" | "history";
 type LocalScanState = "idle" | "running" | "complete" | "partial" | "failed";
+type OperationStatus = "idle" | "running" | "success" | "partial" | "failed";
 type ProjectFileCounts = Record<string, LocalProjectCandidate | "counting" | "failed">;
 type ProjectRow = { path: string; name: string; label: string; available: boolean; current: boolean; count?: LocalProjectCandidate };
 
@@ -176,6 +177,8 @@ function AppContent() {
   const [codexScanFailed, setCodexScanFailed] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [activeOperations, setActiveOperations] = useState(0);
+  const [backupStatus, setBackupStatus] = useState<OperationStatus>("idle");
+  const [migrationStatus, setMigrationStatus] = useState<OperationStatus>("idle");
   const headingRef = useRef<HTMLHeadingElement>(null);
   const backupHeadingRef = useRef<HTMLHeadingElement>(null);
   const configRef = useRef(config);
@@ -456,7 +459,7 @@ function AppContent() {
         {activeOperations > 0 && <div className="notice" role="status"><span><LoaderCircle className="spin" aria-hidden="true" /> {t("任务进行中，切换页面不会中断；请勿退出应用。")}</span><button type="button" onClick={() => setView("backups")}>{t("查看进行中的任务")}</button></div>}
 
         {view === "overview" && (
-          <OverviewPage headingRef={headingRef} inventory={inventory} localDiscovery={localDiscovery} config={config} scheduler={scheduler} localScanState={localScanState} onNavigate={setView} />
+          <OverviewPage headingRef={headingRef} inventory={inventory} localDiscovery={localDiscovery} config={config} scheduler={scheduler} localScanState={localScanState} codexScanFailed={codexScanFailed} loading={loading} backupStatus={backupStatus} migrationStatus={migrationStatus} onNavigate={setView} />
         )}
         {view === "projects" && (
           <ProjectsPage
@@ -517,6 +520,8 @@ function AppContent() {
             onNavigate={setView}
             onOperationStart={operationStarted}
             onOperationEnd={operationFinished}
+            onBackupStatusChange={setBackupStatus}
+            onMigrationStatusChange={setMigrationStatus}
             onNotice={setNotice}
             onError={setError}
           />
@@ -559,14 +564,20 @@ interface OverviewPageProps {
   config: AppConfig;
   scheduler: SchedulerStatus | null;
   localScanState: LocalScanState;
+  codexScanFailed: boolean;
+  loading: boolean;
+  backupStatus: OperationStatus;
+  migrationStatus: OperationStatus;
   onNavigate: (view: View) => void;
 }
 
-function OverviewPage({ headingRef, inventory, localDiscovery, config, scheduler, localScanState, onNavigate }: OverviewPageProps) {
+function OverviewPage({ headingRef, inventory, localDiscovery, config, scheduler, localScanState, codexScanFailed, loading, backupStatus, migrationStatus, onNavigate }: OverviewPageProps) {
   const { t } = useI18n();
   const candidates = localDiscovery?.candidates ?? [];
   const counted = localDiscovery !== null && localScanState === "complete" && candidates.every(candidate => candidate.file_count_complete);
   const fileCount = candidates.reduce((sum, candidate) => sum + (candidate.file_count ?? 0), 0);
+  const projectStatus = operationStatusForScan(localScanState);
+  const dataStatus: OperationStatus = loading ? "running" : codexScanFailed ? "failed" : inventory ? "success" : "idle";
   return (
     <div className="page">
       <header className="page-header">
@@ -590,6 +601,13 @@ function OverviewPage({ headingRef, inventory, localDiscovery, config, scheduler
         </button>
       </section>
 
+      <section className="overview-status-grid" aria-label={t("备份状态") }>
+        <OverviewStatusCard icon={FolderKanban} title={t("项目扫描")} status={t(operationStatusKey("project", projectStatus))} state={projectStatus} actionLabel={t("查看项目")} onAction={() => onNavigate("projects")} />
+        <OverviewStatusCard icon={Database} title={t("Codex 数据扫描")} status={t(operationStatusKey("data", dataStatus))} state={dataStatus} actionLabel={t("查看数据")} onAction={() => onNavigate("data")} />
+        <OverviewStatusCard icon={LockKeyhole} title={t("本地备份")} status={t(operationStatusKey("backup", backupStatus))} state={backupStatus} actionLabel={t("查看备份与迁移")} onAction={() => onNavigate("backups")} />
+        <OverviewStatusCard icon={RotateCcw} title={t("迁移/恢复")} status={t(operationStatusKey("migration", migrationStatus))} state={migrationStatus} actionLabel={t("查看备份与迁移")} onAction={() => onNavigate("backups")} />
+      </section>
+
       <section className="status-banner local-banner">
         <div className="status-icon"><HardDrive aria-hidden="true" /></div>
         <div><strong>{t("云端备份已关闭")}</strong><p>{t("云端关闭时不会启动远端连接，也不会上传资料。")}</p></div>
@@ -602,8 +620,12 @@ function OverviewPage({ headingRef, inventory, localDiscovery, config, scheduler
         <Metric label={t("计划任务状态")} value={scheduler?.enabled ? t("已启用") : t("未启用")} text />
       </section>
 
-      {localScanState === "running" && <div className="scan-status" role="status"><LoaderCircle className="spin" aria-hidden="true" />{t("正在扫描本机项目")}</div>}
-      {(localScanState === "complete" || localScanState === "partial") && <div className="scan-status" role="status"><CheckCircle2 aria-hidden="true" />{t(localScanState === "complete" ? "本机项目扫描已完成" : "本机项目扫描已部分完成")}</div>}
+      <section className="metric-grid overview-data-metrics" aria-label={t("数据扫描结果")}>
+        <Metric label={t("对话总数")} value={inventory?.counts.conversations ?? 0} />
+        <Metric label={t("技能")} value={inventory?.counts.skills ?? 0} />
+        <Metric label={t("插件")} value={inventory?.counts.plugins ?? 0} />
+        <Metric label={t("生成图片")} value={inventory?.counts.generated_images ?? 0} />
+      </section>
 
       <section className="card two-column">
         <div>
@@ -670,6 +692,57 @@ function DataPage({ headingRef, inventory, config, onSave, onError }: DataPagePr
 
 function Metric({ label, value, text = false }: { label: string; value: number | string; text?: boolean }) {
   return <div className="metric"><span>{label}</span><strong className={text ? "metric-text" : undefined}>{value}</strong></div>;
+}
+
+function OverviewStatusCard({ icon: Icon, title, status, state, actionLabel, onAction }: { icon: typeof CheckCircle2; title: string; status: string; state: OperationStatus; actionLabel: string; onAction: () => void }) {
+  return (
+    <section className="overview-status-card" data-state={state} role="status" aria-label={status}>
+      <div className="overview-status-copy"><Icon aria-hidden="true" /><span><strong>{title}</strong><small>{status}</small></span></div>
+      <button className="text-button" type="button" onClick={onAction}>{actionLabel}</button>
+    </section>
+  );
+}
+
+function operationStatusForScan(state: LocalScanState): OperationStatus {
+  return state === "complete" ? "success" : state === "partial" ? "partial" : state === "failed" ? "failed" : state === "running" ? "running" : "idle";
+}
+
+function operationStatusKey(kind: "project" | "data" | "backup" | "migration", state: OperationStatus): string {
+  const labels: Record<"project" | "data" | "backup" | "migration", Record<OperationStatus, string>> = {
+    project: {
+      idle: "本机项目扫描尚未开始",
+      running: "正在扫描本机项目",
+      success: "本机项目扫描已完成",
+      partial: "本机项目扫描已部分完成",
+      failed: "本机项目扫描失败",
+    },
+    data: {
+      idle: "本机Codex数据扫描尚未开始",
+      running: "本机Codex数据扫描正在进行",
+      success: "本机Codex数据扫描已完成",
+      partial: "本机Codex数据扫描已部分完成",
+      failed: "本机Codex数据扫描失败",
+    },
+    backup: {
+      idle: "本地备份尚未完成",
+      running: "本地备份进行中",
+      success: "本地备份已完成",
+      partial: "本地备份已部分完成",
+      failed: "本地备份失败",
+    },
+    migration: {
+      idle: "迁移/恢复尚未完成",
+      running: "迁移/恢复进行中",
+      success: "迁移/恢复已完成",
+      partial: "迁移/恢复已部分完成",
+      failed: "迁移/恢复失败",
+    },
+  };
+  return labels[kind][state];
+}
+
+function operationStatusForTone(tone: ReturnType<typeof backupResultTone>): OperationStatus {
+  return tone === "success" ? "success" : tone === "warning" ? "partial" : "failed";
 }
 
 function localScanStateFor(result: LocalDiscoveryResult): LocalScanState {
@@ -940,11 +1013,13 @@ interface BackupsPageProps {
   onNavigate: (view: View) => void;
   onOperationStart: () => void;
   onOperationEnd: () => void;
+  onBackupStatusChange: (status: OperationStatus) => void;
+  onMigrationStatusChange: (status: OperationStatus) => void;
   onNotice: (message: string | null) => void;
   onError: (message: string | null) => void;
 }
 
-function BackupsPage({ headingRef, visible, operationBusy, inventory, config, onRepositoryChange, onNavigate, onOperationStart, onOperationEnd, onNotice, onError }: BackupsPageProps) {
+function BackupsPage({ headingRef, visible, operationBusy, inventory, config, onRepositoryChange, onNavigate, onOperationStart, onOperationEnd, onBackupStatusChange, onMigrationStatusChange, onNotice, onError }: BackupsPageProps) {
   const { t, locale } = useI18n();
   const [subview, setSubview] = useState<BackupView>("local");
   const [openedViews, setOpenedViews] = useState({ export: false, import: false, history: false });
@@ -993,6 +1068,7 @@ function BackupsPage({ headingRef, visible, operationBusy, inventory, config, on
     if (!codexHome) return onError(t("需要先填写完整的本地备份设置。"));
     if (!password) return onError(t("请输入恢复密码。"));
     setBusy(true);
+    onBackupStatusChange("running");
     onOperationStart();
     try {
       await onRepositoryChange(repository);
@@ -1000,8 +1076,10 @@ function BackupsPage({ headingRef, visible, operationBusy, inventory, config, on
       setResult(backup);
       setSnapshots((current) => [summaryFromSnapshot(backup), ...current.filter((item) => item.restic_snapshot_id !== backup.restic_snapshot_id)]);
       const tone = backupResultTone(backup.manifest);
+      onBackupStatusChange(operationStatusForTone(tone));
       onNotice(t(tone === "success" ? "本地备份已完成" : tone === "warning" ? "本地备份已完成，存在注意事项" : "本地备份已部分完成"));
     } catch (caught) {
+      onBackupStatusChange("failed");
       onError(errorMessage(caught, t));
     } finally {
       setBusy(false);
@@ -1014,6 +1092,7 @@ function BackupsPage({ headingRef, visible, operationBusy, inventory, config, on
     onError(null);
     if (!repository.trim()) return onError(t("需要先填写完整的本地备份设置。"));
     setBusy(true);
+    onMigrationStatusChange("running");
     onOperationStart();
     try {
       setSnapshots(await listLocalBackups({ repository, recovery_password: password }));
@@ -1036,8 +1115,10 @@ function BackupsPage({ headingRef, visible, operationBusy, inventory, config, on
       const report = await restoreLocalBackup({ snapshot_id: snapshot.restic_snapshot_id, repository, recovery_password: password, target: restoreTarget });
       setRestoreResult(report);
       const tone = backupResultTone(report);
+      onMigrationStatusChange(operationStatusForTone(tone));
       onNotice(t(tone === "success" ? "恢复完成" : tone === "warning" ? "恢复完成，存在注意事项" : "恢复已部分完成"));
     } catch (caught) {
+      onMigrationStatusChange("failed");
       onError(errorMessage(caught, t));
     } finally {
       setBusy(false);
@@ -1073,7 +1154,7 @@ function BackupsPage({ headingRef, visible, operationBusy, inventory, config, on
     <>
     <div className="migration-return" hidden={subview === "local"}><button className="secondary-button" type="button" onClick={() => setSubview("local")}><RotateCcw aria-hidden="true" />{t("返回本地备份")}</button></div>
     {openedViews.export && <div hidden={subview !== "export"}><fieldset className="migration-control-guard" disabled={operationBusy}><SendPage headingRef={exportHeadingRef} inventory={inventory} onOperationStart={onOperationStart} onOperationEnd={onOperationEnd} /></fieldset></div>}
-    {openedViews.import && <div hidden={subview !== "import"}><ReceivePage headingRef={importHeadingRef} inventory={inventory} operationBusy={operationBusy} initialJobId={migrationJobId} onJobIdChange={setMigrationJobId} onOpenHistory={() => openMigration("history")} onOperationStart={onOperationStart} onOperationEnd={onOperationEnd} /></div>}
+    {openedViews.import && <div hidden={subview !== "import"}><ReceivePage headingRef={importHeadingRef} inventory={inventory} operationBusy={operationBusy} initialJobId={migrationJobId} onJobIdChange={setMigrationJobId} onOpenHistory={() => openMigration("history")} onOperationStart={onOperationStart} onOperationEnd={onOperationEnd} onMigrationStatusChange={onMigrationStatusChange} /></div>}
     {openedViews.history && <div hidden={subview !== "history"}><HistoryPage headingRef={historyHeadingRef} visible={visible && subview === "history"} operationBusy={operationBusy} onOperationStart={onOperationStart} onOperationEnd={onOperationEnd} /></div>}
     <div className="page" hidden={subview !== "local"}>
       <header className="page-header page-header-with-action">
