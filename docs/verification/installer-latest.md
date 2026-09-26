@@ -28,9 +28,10 @@ The published Release contains only this installer and its `.sha256` sidecar; no
 
 | Item | Result |
 | --- | --- |
-| Main commit | PASS; `1a6a1ffe7edf3b9fea6683cd9a118588c3f41089` is the GitHub `main` head |
-| GitHub Actions | PASS; `ENHE Codex Backup CI` run `36251351095` completed successfully |
-| Release/tag | PASS; non-draft `v0.1.9` points to the reviewed main commit |
+| Release code commit | PASS; non-draft `v0.1.9` points to reviewed code commit `1a6a1ffe7edf3b9fea6683cd9a118588c3f41089` |
+| Current main head | PASS; GitHub `main` points to documentation-only publication commit `0c3c1573c9557796fc44fe480d394467cdbd86e4` |
+| GitHub Actions | PASS; `ENHE Codex Backup CI` runs `36251351095` and `36252068603` completed successfully |
+| Release/tag | PASS; non-draft `v0.1.9` points to the reviewed code commit |
 | Published installer asset | `ENHE.Codex.Backup_0.1.9_x64-setup.exe`, 51,296,811 bytes, GitHub SHA-256 `acbb35e19fe3a7627cb5ba5bf12d72a19d65a6c6a81fcacb43873df833baf9c0` |
 | Published checksum asset | `ENHE.Codex.Backup_0.1.9_x64-setup.exe.sha256`, 105 bytes; content contains the matching installer hash |
 | Asset count | PASS; exactly two assets, older releases retained |

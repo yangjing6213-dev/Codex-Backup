@@ -11,7 +11,7 @@ Source checkpoint: 2026-09-26. Current version: **0.1.9; local package, replacem
 - Replacement installation: current-user 0.1.8 uninstall and 0.1.9 install both exited 0; registry and installed executable report 0.1.9; existing ENHE config and DPAPI recovery-password files remained present. The installed process launched with title `ENHE Codex Backup · v0.1.9`; visual click-through was not completed because the native automation bridge did not expose the window.
 - The package is unsigned. No real Codex profile, account, token, cloud service or personal migration package was used.
 
-Publication status: **PUBLISHED**. `main` and tag `v0.1.9` point to `1a6a1ff`; GitHub Actions run `36251351095` passed. The non-draft Release contains exactly the unsigned Windows x64 installer and its SHA-256 sidecar, and older releases remain retained: [v0.1.9 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.9).
+Publication status: **PUBLISHED**. Release tag `v0.1.9` points to reviewed code commit `1a6a1ff`; main now points to `0c3c157`, a documentation-only publication record. GitHub Actions runs `36251351095` and `36252068603` passed. The non-draft Release contains exactly the unsigned Windows x64 installer and its SHA-256 sidecar, and older releases remain retained: [v0.1.9 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.9).
 
 ## Historical published baseline — 0.1.8 project-root scan improvements
 
