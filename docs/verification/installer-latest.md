@@ -1,8 +1,30 @@
 # Windows installer verification
 
-Generated: 2026-09-24. The latest 0.1.7 artifact is the final local candidate after the conservative LGPL source/relinking update. It was not installed; the prior 0.1.7 installation evidence below applies to a different installer hash.
+Generated: 2026-09-26. The final 0.1.9 artifact was packaged, installed over the current-user 0.1.8 installation, and verified locally. The package is unsigned; GitHub publication is recorded separately after the ordinary fast-forward push and Actions gate.
 
-## Latest license-only candidate (not installed)
+## Latest 0.1.9 package and replacement installation
+
+| Item | Result |
+| --- | --- |
+| Target/version | Windows x64 / 0.1.9; registry and installed executable file/product version confirmed |
+| Candidate filename | `ENHE Codex Backup_0.1.9_x64-setup.exe` |
+| Size | 51,296,811 bytes |
+| SHA-256 | `acbb35e19fe3a7627cb5ba5bf12d72a19d65a6c6a81fcacb43873df833baf9c0` |
+| Candidate checksum sidecar | PASS; correct hash and exact candidate filename |
+| Package command | PASS; exit 0, Cargo offline, existing MSVC and cached runtime binaries |
+| License payload | PASS; bundled notices, source/relinking materials and generated NSIS inclusion checks passed |
+| Code signing | NotSigned; unsigned |
+| Current-user uninstall/install | PASS; 0.1.8 uninstall exit 0 and 0.1.9 install exit 0; no application-data deletion selected |
+| Installed version/resources | PASS; registry and installed executable FileVersion/ProductVersion report 0.1.9 |
+| Installed executable SHA-256 | `6971957db92e03275abe2b56dbd36fc7483efd981e3efff6c4b64effafaa4eda` |
+| Configuration / DPAPI password file | PASS; `config.json` and `recovery-password.dpapi` remained present after replacement installation |
+| Native launch | PASS; installed executable launched and exposed window title `ENHE Codex Backup · v0.1.9` |
+| Native visual click-through | NOT_RUN; the native automation bridge did not expose the running window for screenshot/AX inspection |
+| Real profile/account/second-device continuation | NOT_RUN; no personal profile, account, token or migration package was used |
+
+The release candidate is ready for the authorized ordinary fast-forward push and Actions gate. The final Release must contain only this installer and its `.sha256` sidecar; no other assets are in scope.
+
+## Historical 0.1.7 license-only candidate (not installed)
 
 | Item | Result |
 | --- | --- |

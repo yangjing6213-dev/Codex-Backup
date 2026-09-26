@@ -20,13 +20,13 @@
 ## Task Plan
 | ID | Objective | Files likely affected | Acceptance criteria | Verification | Dependencies | Status |
 |---|---|---|---|---|---|---|
-| T1 | 固化概览指标和状态卡红测试 | `desktop/src/App.enhe.test.tsx` | 新行为测试先失败 | focused Vitest | none | pending |
-| T2 | 实现概览指标、状态卡和文案样式 | `desktop/src/App.tsx`, `desktop/src/lib/i18n.tsx`, `desktop/src/App.css` | 两组指标和扫描状态卡渲染 | focused tests, build | T1 | pending |
-| T3 | 连接备份/迁移结果并跨页面保留 | `desktop/src/App.tsx`, `desktop/src/features/receive/ReceivePage.tsx`, tests | success/partial/failure 状态准确 | App and Receive tests | T2 | pending |
-| T4 | 双语和回归验证 | frontend tests/docs | Chinese/English 状态一致 | full frontend suite, typecheck, build | T2–T3 | pending |
-| T5 | 升级 0.1.9 并更新文档 | version sources, README, CHANGELOG, docs | 版本契约和文档通过 | version/readme contracts | T4 | pending |
-| T6 | 完整验证、打包、卸载和安装 | verify/package scripts, installer | 0.1.9 安装版本和用户数据通过 | full verify/package/install | T5 | pending |
-| T7 | 推送 main 并创建 Release | remote main, v0.1.9 | SSH 443 快进、两个资产 | remote/tag/release checks | T6 | pending |
+| T1 | 固化概览指标和状态卡红测试 | `desktop/src/App.enhe.test.tsx` | 新行为测试先失败 | focused Vitest | none | done |
+| T2 | 实现概览指标、状态卡和文案样式 | `desktop/src/App.tsx`, `desktop/src/lib/i18n.tsx`, `desktop/src/App.css` | 两组指标和扫描状态卡渲染 | focused tests, build | T1 | done |
+| T3 | 连接备份/迁移结果并跨页面保留 | `desktop/src/App.tsx`, `desktop/src/features/receive/ReceivePage.tsx`, tests | success/partial/failure 状态准确 | App and Receive tests | T2 | done |
+| T4 | 双语和回归验证 | frontend tests/docs | Chinese/English 状态一致 | full frontend suite, typecheck, build | T2–T3 | done |
+| T5 | 升级 0.1.9 并更新文档 | version sources, README, CHANGELOG, docs | 版本契约和文档通过 | version/readme contracts | T4 | done |
+| T6 | 完整验证、打包、卸载和安装 | verify/package scripts, installer | 0.1.9 安装版本和用户数据通过 | full verify/package/install | T5 | done |
+| T7 | 推送 main 并创建 Release | remote main, v0.1.9 | SSH 443 快进、两个资产 | remote/tag/release checks | T6 | in_progress |
 
 ## Completed + Verified
 - 设计文件 `docs/superpowers/specs/2026-09-25-overview-status-cards-design.md` 已提交并获用户确认。
@@ -38,9 +38,10 @@
 - T3：已通过 App 回调连接本地备份、恢复和 ReHome 迁移结果；状态跨页面保留，定向场景与完整前端测试通过。
 - T4：已通过完整前端回归、TypeScript/Vite 构建和中英文场景验证。
 - T5：已统一 0.1.9 元数据、可见版本、CHANGELOG、README 和双语指南；版本一致性契约通过。
+- T6：全量验证通过（前端 88 项、Rust 全量默认套件、许可、图标、源码扫描和隔离 restic）；最终安装包已生成，0.1.8 已卸载、0.1.9 已安装并启动，用户配置与 DPAPI 恢复密码文件保留。
 
 ## Remaining Work
-- T6：全量验证已通过，正在生成最终安装包并执行替换安装；T7 尚未完成。
+- T7：文档证据已收口；待通过 SSH 443 普通快进推送，等待 GitHub Actions 后创建仅含两个资产的 v0.1.9 Release。
 
 ## Failures
 - Bash 版 SDD 辅助脚本在当前 Windows 环境不可执行；已按脚本约定手动建立同路径账本，不影响实现验证。
@@ -64,7 +65,7 @@
 - 安装包未签名；用户需核对 SHA-256。
 
 ## Final Acceptance
-- Status: PARTIAL
-- Requirements verified: 设计和计划已确认。
-- Not verified: 代码实现、测试、打包、安装和 GitHub 发布。
+- Status: IN_PROGRESS
+- Requirements verified: 设计、代码实现、测试、打包、替换安装和原生进程启动已完成；视觉点击验收因原生桥接未枚举窗口而未运行。
+- Not verified: GitHub 推送、Actions gate 和 v0.1.9 Release。
 - Remaining risks: 见 Open Risks。

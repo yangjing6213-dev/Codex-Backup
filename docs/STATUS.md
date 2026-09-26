@@ -1,8 +1,19 @@
 # Current status
 
-Source checkpoint: 2026-09-25. Current version: **0.1.8; local package, replacement installation, GitHub main push and v0.1.8 Release PASS**. Packaging, installation and publication evidence for this candidate is recorded below; historical 0.1.7 evidence remains dated and is not transferred automatically. See [installer evidence](verification/installer-latest.md) and the [v0.1.8 Release](https://github.com/yangjing6213-dev/Codex-Backup/releases/tag/v0.1.8).
+Source checkpoint: 2026-09-26. Current version: **0.1.9; local package, replacement installation and native launch PASS; GitHub publication pending the authorized ordinary fast-forward push and Actions gate**. See [installer evidence](verification/installer-latest.md) for the exact artifact and installation evidence; historical 0.1.8 evidence remains dated and is not transferred automatically.
 
-## 0.1.8 project-root scan improvements
+## 0.1.9 overview status cards and data metrics
+
+- The overview now shows four operation cards: project scan, Codex data scan, local backup, and migration/restore. Each card has an explicit state and a route to the relevant page; state callbacks remain in the current app session and do not alter backup or migration behavior.
+- The four Codex data metrics — conversations, skills, plugins and generated images — are repeated below the primary scan metrics for quick review.
+- Frontend regression: 6 test files, 88 passed; production build PASS. Full canonical verification passed, including Rust formatting/tests, bundled license checks, updater/telemetry scan and isolated restic acceptance.
+- Final package: unsigned Windows x64 NSIS installer, 51,296,811 bytes, SHA-256 `acbb35e19fe3a7627cb5ba5bf12d72a19d65a6c6a81fcacb43873df833baf9c0`; matching sidecar and license inclusion PASS.
+- Replacement installation: current-user 0.1.8 uninstall and 0.1.9 install both exited 0; registry and installed executable report 0.1.9; existing ENHE config and DPAPI recovery-password files remained present. The installed process launched with title `ENHE Codex Backup · v0.1.9`; visual click-through was not completed because the native automation bridge did not expose the window.
+- The package is unsigned. No real Codex profile, account, token, cloud service or personal migration package was used.
+
+Publication status: **READY_TO_PUBLISH locally; GitHub push and Release pending**. After the ordinary fast-forward push, wait for GitHub Actions to pass, then publish `v0.1.9` with exactly the installer and SHA-256 sidecar while retaining older releases.
+
+## Historical published baseline — 0.1.8 project-root scan improvements
 
 - Explicit scan roots enumerate every accessible direct child folder under each configured root, while recursive counting continues to cover all readable regular files below each selected project.
 - Empty scan roots remain a bounded whole-drive discovery mode and now expose an explicit incomplete-results warning; the Projects page provides a native root picker, current-versus-retained grouping and select-all-current action.

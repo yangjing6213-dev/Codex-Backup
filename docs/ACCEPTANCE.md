@@ -1,6 +1,6 @@
 # Acceptance mapping
 
-Checkpoint: 2026-09-25; **0.1.8 locally installed, GitHub main push and v0.1.8 Release verified**. The complete acceptance baseline is the supplied `ENHE-Codex-Backup-完整开发执行指令.md`. This table separates observable local evidence from unverified native/account/device behavior. Fresh 0.1.8 verification, packaging, authorized current-user replacement installation and the two-asset Release passed; native launch/click-through, account and second-device acceptance remain separate boundaries. Earlier 0.1.7 and 0.1.6 runs remain dated evidence, not native acceptance. See [STATUS](STATUS.md) and [installer verification](verification/installer-latest.md).
+Checkpoint: 2026-09-26; **0.1.9 locally packaged, installed and launched; GitHub publication pending**. The complete acceptance baseline is the supplied `ENHE-Codex-Backup-完整开发执行指令.md`. This table separates observable local evidence from unverified native/account/device behavior. Fresh 0.1.9 verification, packaging and current-user replacement installation passed; native visual click-through, account and second-device acceptance remain separate boundaries. Earlier 0.1.8 and 0.1.7 runs remain dated evidence, not native acceptance. See [STATUS](STATUS.md) and [installer verification](verification/installer-latest.md).
 
 | Case | Evidence and remaining boundary | Status |
 | --- | --- | --- |
@@ -14,8 +14,22 @@ Checkpoint: 2026-09-25; **0.1.8 locally installed, GitHub main push and v0.1.8 R
 | A08 scheduler/concurrency | Current-user scheduler/DPAPI and operation serialization have local tests; real scheduled task execution is NOT_RUN. | PARTIAL |
 | A09 cloud switch | Default-off and no-remote local adapter behavior have synthetic coverage. Opt-in online Codex verification is distinct from restic cloud backup. Installed-app isolation is NOT_RUN. | PARTIAL |
 | A10 cloud failure/live recovery | rclone protocol implementation exists; no OneDrive account authorization or remote recovery was performed. | NOT_RUN |
-| A11 bilingual UI | Refreshed React suite: 86 passed, including M3's two real bilingual remedy regressions. Controller's pre-M3 synthetic browser PASS plus Task 5 fix recheck covers warning/partial results, modes, consent/context, progress, failure/History and zero-conversation states. M3 was not browser-rechecked. Native folder picker, full native click-through and screen-reader runtime checks are NOT_RUN. | PARTIAL |
-| A12 installer/device | Fresh 0.1.8 Windows x64 packaging and authorized current-user uninstall/install PASS; registry, payload hash, installed binary version and preserved configuration verified. Exact artifact is in STATUS. Installed launch/UI, second device and real-account continuation are NOT_RUN. | PARTIAL |
+| A11 bilingual UI | Refreshed React suite: 88 passed, including the four overview status cards and copied Codex data metrics. Controller's pre-M3 synthetic browser PASS plus Task 5 fix recheck covers warning/partial results, modes, consent/context, progress, failure/History and zero-conversation states. Native visual click-through and screen-reader runtime checks are NOT_RUN. | PARTIAL |
+| A12 installer/device | Fresh 0.1.9 Windows x64 packaging, authorized current-user uninstall/install and installed process launch PASS; registry, payload hash, installed binary version and preserved configuration verified. Exact artifact is in STATUS. Native visual click-through, second device and real-account continuation are NOT_RUN. | PARTIAL |
+
+## Current 0.1.9 verification and installation
+
+| Check | Exit/result | Observed evidence |
+| --- | --- | --- |
+| `pnpm --dir desktop test -- --run` | 0 / PASS | 6 files, 88 passed. |
+| `pnpm --dir desktop run build` | 0 / PASS | TypeScript and Vite production build passed. |
+| `powershell -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1` | 0 / PASS | Frontend, docs/version, installer icon, license, Rust formatting/tests, updater scan and isolated restic checks passed. |
+| `powershell -ExecutionPolicy Bypass -File .\\scripts\\package.ps1 -SkipBootstrap` | 0 / PASS | Unsigned Windows x64 NSIS installer, 51,296,811 bytes; SHA-256 `acbb35e19fe3a7627cb5ba5bf12d72a19d65a6c6a81fcacb43873df833baf9c0`; sidecar matches. |
+| Current-user replacement install | 0 / PASS | 0.1.8 uninstaller exit 0, 0.1.9 installer exit 0; registry and executable version 0.1.9; existing config/DPAPI files preserved. |
+| Native launch | PASS | Installed executable launched with title `ENHE Codex Backup · v0.1.9`. |
+| Native visual click-through | NOT_RUN | Computer-use inventory did not expose the running native window for AX/screenshot inspection. |
+
+No real Codex profile, credential, account, token, cloud service or personal migration package was used. GitHub push, Actions gate and Release are external publication steps and are not claimed until verified.
 
 ## Consolidated feature acceptance
 

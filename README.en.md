@@ -48,7 +48,7 @@ Projects includes a Request administrator permission for restricted folders opti
 
 ## 6. Installation
 
-1. Open [GitHub Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) for actually published versions. The 0.1.9 assets are the [Windows x64 installer](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.9/ENHE%20Codex%20Backup_0.1.9_x64-setup.exe) and [SHA-256 checksum](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.9/ENHE%20Codex%20Backup_0.1.9_x64-setup.exe.sha256), available only after that release is published. The installer is unsigned; verify its SHA-256 before installation.
+1. Open [GitHub Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) for actually published versions. The 0.1.9 assets are the [Windows x64 installer](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.9/ENHE%20Codex%20Backup_0.1.9_x64-setup.exe) and [SHA-256 checksum](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.9/ENHE%20Codex%20Backup_0.1.9_x64-setup.exe.sha256). The installer is unsigned; verify its SHA-256 before installation.
 2. Compare the installer SHA-256 with the sidecar in PowerShell.
 3. Run the installer for the Windows current user.
 4. Confirm the local data location on first launch; cloud may remain off.

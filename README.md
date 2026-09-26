@@ -54,7 +54,7 @@ Codex 数据位置：C:\Users\<用户>\.codex
 
 ## 六、安装方法
 
-1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases) 查看实际已发布版本。0.1.9 的资产为 [Windows x64 安装包](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.9/ENHE%20Codex%20Backup_0.1.9_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.9/ENHE%20Codex%20Backup_0.1.9_x64-setup.exe.sha256)，仅在该 Release 发布后可用。安装包未进行代码签名；安装前请核对 SHA-256 校验值。
+1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases) 查看实际已发布版本。0.1.9 的资产为 [Windows x64 安装包](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.9/ENHE%20Codex%20Backup_0.1.9_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.9/ENHE%20Codex%20Backup_0.1.9_x64-setup.exe.sha256)。安装包未进行代码签名；安装前请核对 SHA-256 校验值。
 2. 使用 PowerShell 计算安装包 SHA-256，并与校验文件比对。
 3. 运行安装包，按 Windows 当前用户范围完成安装。
 4. 首次启动后确认本机数据位置；云端保持关闭即可完成本地备份。
