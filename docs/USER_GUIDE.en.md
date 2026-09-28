@@ -1,6 +1,10 @@
 # ENHE Codex Backup User Guide
 
-This guide covers 0.1.10 (2026-09-27). Local build or installation does not prove GitHub publication or real-account continuation. See [STATUS](STATUS.md) for the evidence boundary.
+This guide covers 0.1.11 (2026-09-28). Local build or installation does not prove GitHub publication or real-account continuation. See [STATUS](STATUS.md) for the evidence boundary.
+
+## Switching interface language
+
+Click English in the sidebar to switch and save, or 中文 to switch back. The saved language survives restarting the app. Alternatively, select a language in Settings and click Save settings at the bottom. Language saves do not require enabling or changing the automatic backup schedule. A failed save reports an error and does not claim the language was saved; retry after resolving access to the configuration folder.
 
 ## First run
 

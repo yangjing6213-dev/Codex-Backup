@@ -1,6 +1,21 @@
 # Acceptance mapping
 
-Checkpoint: 2026-09-27; **0.1.10 locally packaged, installed, launched and published**. The complete acceptance baseline is the supplied `ENHE-Codex-Backup-完整开发执行指令.md`. This table separates observable local evidence from unverified native/account/device behavior. Fresh 0.1.10 verification, packaging, current-user replacement installation and GitHub Actions/Release publication passed; native visual click-through, account and second-device acceptance remain separate boundaries. Earlier 0.1.9 and 0.1.8 runs remain dated evidence, not native acceptance. See [STATUS](STATUS.md) and [installer verification](verification/installer-latest.md).
+Checkpoint: 2026-09-28; **0.1.11 locally packaged, installed and scoped native language checks PASS**. See [STATUS](STATUS.md) and [installer verification](verification/installer-latest.md). Publication follows successful GitHub Actions for the pushed commit; actual published versions are listed on GitHub Releases.
+
+## Current 0.1.11 language repair acceptance
+
+| Check | Result | Boundary |
+| --- | --- | --- |
+| Language/configuration regression suite | PASS | 100 frontend tests; includes restart, scheduler independence, failed initial load, overlapping writes, save retry and partial scheduler-save consistency. |
+| Canonical verification / build / package | PASS | 11 configured checks; Rust 400 passed, 9 existing opt-in tests ignored; unsigned installer and matching checksum. |
+| Current-user replacement installation | PASS | 0.1.10 uninstall and 0.1.11 install exited 0; version verified; three existing config/DPAPI files unchanged by hash. |
+| Installed-native language controls | PASS | Synthetic profile: sidebar Chinese/English, Settings English save while task status unavailable, restart preserves English, English Projects and Backups pages usable. No scheduled task was enabled. |
+| Independent source review | PASS | Focused language/configuration fix reviewed; related regression rechecks passed. |
+| Other native/live acceptance | NOT_RUN | No real Codex account, personal migration package, cloud connection, second device or screen-reader test. Native navigation is not a backup/restore E2E claim. |
+
+## Historical 0.1.10 acceptance mapping
+
+The following tables retain the 2026-09-27 checkpoint and its original boundaries; they are not fresh 0.1.11 native evidence. The complete acceptance baseline is the supplied `ENHE-Codex-Backup-完整开发执行指令.md`.
 
 | Case | Evidence and remaining boundary | Status |
 | --- | --- | --- |
@@ -17,7 +32,7 @@ Checkpoint: 2026-09-27; **0.1.10 locally packaged, installed, launched and publi
 | A11 bilingual UI | Refreshed React suite: 88 passed, including the four overview status cards, semantic partial/success state classes and copied Codex data metrics. Controller's pre-M3 synthetic browser PASS plus Task 5 fix recheck covers warning/partial results, modes, consent/context, progress, failure/History and zero-conversation states. Native visual click-through and screen-reader runtime checks are NOT_RUN. | PARTIAL |
 | A12 installer/device | Fresh 0.1.10 Windows x64 packaging, authorized current-user uninstall/install and installed process launch PASS; registry, payload hash, installed binary version and preserved configuration verified. GitHub Actions run `36255620465` passed and non-draft Release `v0.1.10` contains exactly the installer and SHA-256 sidecar. Native visual click-through, second device and real-account continuation remain NOT_RUN. | PARTIAL |
 
-## Current 0.1.10 verification and installation
+## Historical 0.1.10 verification and installation
 
 | Check | Exit/result | Observed evidence |
 | --- | --- | --- |

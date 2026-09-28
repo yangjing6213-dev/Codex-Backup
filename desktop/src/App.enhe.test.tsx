@@ -689,7 +689,7 @@ describe("ENHE Codex Backup shell", () => {
     expect(screen.getByRole("button", { name: "前往操作说明" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "前往关于作者" })).toBeInTheDocument();
     expect(screen.getAllByText("云端备份已关闭").length).toBeGreaterThan(0);
-    expect(screen.getByText("v0.1.10")).toBeInTheDocument();
+    expect(screen.getByText("v0.1.11")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Codex 数据备份&迁移" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "开始本地备份" })).toBeInTheDocument();
   });
@@ -814,6 +814,162 @@ describe("ENHE Codex Backup shell", () => {
     await user.click(screen.getByRole("checkbox", { name: "扫描受限目录时申请管理员权限" }));
     await user.click(screen.getByRole("button", { name: "以管理员权限重新扫描" }));
     expect(api.requestAdminLocalDiscovery).toHaveBeenCalledTimes(1);
+  });
+
+  it("persists sidebar language so a restarted app remains in English", async () => {
+    const user = userEvent.setup();
+    let savedConfig = { ...config };
+    api.getAppConfig.mockImplementation(async () => savedConfig);
+    api.saveAppConfig.mockImplementation(async (next) => { savedConfig = next; return next; });
+    const first = render(<App />);
+    await screen.findByText("本机已就绪");
+    await user.click(screen.getByRole("button", { name: "切换为英文" }));
+    await screen.findByRole("heading", { name: "Codex Data Backup & Migration" });
+    first.unmount();
+    render(<App />);
+    await waitFor(() => expect(api.discoverCodex).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("This device is ready")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Go to Settings" })).toBeInTheDocument();
+    expect(savedConfig.selected_project_paths).toEqual(config.selected_project_paths);
+  });
+
+  it("saves English preferences without an unchanged scheduler being available", async () => {
+    const user = userEvent.setup();
+    api.setScheduler.mockRejectedValue(new Error("scheduler unavailable"));
+    render(<App />);
+    await screen.findByText("本机已就绪");
+    await user.click(screen.getByRole("button", { name: "前往设置" }));
+    await user.click(screen.getByRole("radio", { name: "English" }));
+    await user.click(screen.getByRole("button", { name: "保存设置" }));
+    expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
+    expect(api.saveAppConfig).toHaveBeenCalledWith(expect.objectContaining({ locale: "en" }));
+    expect(api.setScheduler).not.toHaveBeenCalled();
+  });
+
+  it("does not allow a language write to overwrite configuration still loading", async () => {
+    let resolveConfig!: (value: typeof config) => void;
+    api.getAppConfig.mockReturnValue(new Promise(resolve => { resolveConfig = resolve; }));
+    render(<App />);
+    expect(screen.getByRole("button", { name: "切换为英文" })).toBeDisabled();
+    await act(async () => resolveConfig(config));
+    await screen.findByText("本机已就绪");
+    expect(screen.getByRole("button", { name: "切换为英文" })).toBeEnabled();
+  });
+
+  it("still reports a scheduler failure when automatic backup settings actually change", async () => {
+    const user = userEvent.setup();
+    api.setScheduler.mockRejectedValue(new Error("scheduler unavailable"));
+    render(<App />);
+    await screen.findByText("本机已就绪");
+    await user.click(screen.getByRole("button", { name: "前往设置" }));
+    await user.click(screen.getByRole("checkbox", { name: /启用当前用户计划任务/ }));
+    await user.click(screen.getByRole("button", { name: "保存设置" }));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(api.setScheduler).toHaveBeenCalledWith(true, 15);
+    expect(api.saveAppConfig).not.toHaveBeenCalledWith(expect.objectContaining({ automatic_backup_enabled: true }));
+  });
+
+  it("keeps preferences disabled if the saved configuration could not be read", async () => {
+    api.getAppConfig.mockRejectedValue(new Error("configuration unavailable"));
+    api.discoverCodex.mockRejectedValue(new Error("synthetic scan failure"));
+    render(<App />);
+    await screen.findByText("本机扫描失败");
+    expect(screen.getByRole("button", { name: "切换为英文" })).toBeDisabled();
+    expect(api.saveAppConfig).not.toHaveBeenCalled();
+  });
+
+  it("merges a language switch after an in-flight project selection save", async () => {
+    const user = userEvent.setup();
+    let releaseSave!: () => void;
+    let savedConfig = { ...config };
+    api.saveAppConfig.mockImplementationOnce(async (next) => {
+      await new Promise<void>(resolve => { releaseSave = resolve; });
+      savedConfig = next;
+      return next;
+    }).mockImplementation(async (next) => { savedConfig = next; return next; });
+    render(<App />);
+    await screen.findByText("本机已就绪");
+    await user.click(screen.getByRole("button", { name: "前往项目" }));
+    await user.click(screen.getByRole("checkbox", { name: /demo/ }));
+    await user.click(screen.getByRole("button", { name: "保存项目选择" }));
+    await user.click(screen.getByRole("button", { name: "切换为英文" }));
+    await act(async () => releaseSave());
+    await screen.findByRole("button", { name: "Go to Projects" });
+    expect(savedConfig.selected_project_paths).toEqual([]);
+    expect(savedConfig.locale).toBe("en");
+  });
+
+  it.each([false, true])("reconciles a successful scheduler change after configuration save failed (enabled=%s)", async (enabled) => {
+    const user = userEvent.setup();
+    api.getAppConfig.mockResolvedValue({ ...config, automatic_backup_enabled: enabled });
+    api.setScheduler.mockImplementation(async (next) => ({ enabled: next, task_name: "synthetic-task" }));
+    api.saveAppConfig.mockRejectedValueOnce(new Error("synthetic write failure"))
+      .mockImplementation(async (next) => next);
+    render(<App />);
+    await screen.findByText("本机已就绪");
+    await user.click(screen.getByRole("button", { name: "前往设置" }));
+    await user.click(screen.getByRole("checkbox", { name: /启用当前用户计划任务/ }));
+    await user.click(screen.getByRole("button", { name: "保存设置" }));
+    await screen.findByRole("alert");
+    await user.click(screen.getByRole("checkbox", { name: /启用当前用户计划任务/ }));
+    await user.click(screen.getByRole("button", { name: "保存设置" }));
+    await screen.findByText("设置已保存");
+    expect(api.setScheduler).toHaveBeenLastCalledWith(enabled, 15);
+    expect(api.setScheduler).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([false, true])("preserves scheduler settings already saved by the backend during a later language switch (enabled=%s)", async (enabled) => {
+    const user = userEvent.setup();
+    let savedConfig = { ...config, automatic_backup_enabled: enabled };
+    api.getAppConfig.mockImplementation(async () => savedConfig);
+    api.setScheduler.mockImplementation(async (next, interval) => {
+      savedConfig = { ...savedConfig, automatic_backup_enabled: next, frequency_minutes: interval };
+      return { enabled: next, task_name: "synthetic-task" };
+    });
+    api.saveAppConfig.mockRejectedValueOnce(new Error("synthetic write failure"))
+      .mockImplementation(async (next) => { savedConfig = next; return next; });
+    render(<App />);
+    await screen.findByText("本机已就绪");
+    await user.click(screen.getByRole("button", { name: "前往设置" }));
+    await user.click(screen.getByRole("checkbox", { name: /启用当前用户计划任务/ }));
+    await user.click(screen.getByRole("button", { name: "保存设置" }));
+    await screen.findByRole("alert");
+    await user.click(screen.getByRole("button", { name: "切换为英文" }));
+    await screen.findByRole("heading", { name: "Settings" });
+    expect(savedConfig.automatic_backup_enabled).toBe(!enabled);
+    expect(savedConfig.locale).toBe("en");
+  });
+
+  it("keeps an unsaved language draft when only the scheduler part of saving succeeds", async () => {
+    const user = userEvent.setup();
+    api.setScheduler.mockResolvedValue({ enabled: true, task_name: "synthetic-task" });
+    api.saveAppConfig.mockRejectedValueOnce(new Error("synthetic write failure"))
+      .mockImplementation(async (next) => next);
+    render(<App />);
+    await screen.findByText("本机已就绪");
+    await user.click(screen.getByRole("button", { name: "前往设置" }));
+    await user.click(screen.getByRole("radio", { name: "English" }));
+    await user.click(screen.getByRole("checkbox", { name: /启用当前用户计划任务/ }));
+    await user.click(screen.getByRole("button", { name: "保存设置" }));
+    await screen.findByRole("alert");
+    expect(screen.getByRole("radio", { name: "English" })).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "保存设置" }));
+    expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
+    expect(api.setScheduler).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains the saved language on write failure and clears that error after retry", async () => {
+    const user = userEvent.setup();
+    api.saveAppConfig.mockRejectedValueOnce(new Error("synthetic write failure"))
+      .mockImplementation(async (next) => next);
+    render(<App />);
+    await screen.findByText("本机已就绪");
+    await user.click(screen.getByRole("button", { name: "切换为英文" }));
+    await screen.findByRole("alert");
+    expect(screen.getByRole("heading", { name: "Codex 数据备份&迁移" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "切换为英文" }));
+    await screen.findByRole("button", { name: "Go to Overview" });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("switches the complete primary flow to English", async () => {

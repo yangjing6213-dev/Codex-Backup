@@ -298,6 +298,7 @@ const english: Record<string, string> = {
   "导入 ReHome 迁移包": "Import a ReHome migration package",
   "ReHome 用于适用的迁移流程；完整备份额外保留 Git、worktree 和全部交接资料。": "ReHome covers supported migration flows; complete backups additionally preserve Git, worktrees and handoff data.",
   "语言": "Language",
+  "选择语言后点击页面底部的“保存设置”；也可使用左侧语言按钮立即切换并保存。": "Choose a language, then click Save settings at the bottom. The sidebar language button switches and saves immediately.",
   "简体中文": "简体中文",
   "English": "English",
   "外观": "Appearance",

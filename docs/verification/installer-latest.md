@@ -1,8 +1,28 @@
 # Windows installer verification
 
-Generated: 2026-09-27. The final 0.1.10 artifact was packaged, installed over the current-user 0.1.9 installation, verified locally, and published after the GitHub Actions gate. The package is unsigned.
+Generated: 2026-09-28. The final 0.1.11 artifact was packaged, installed after uninstalling the current-user 0.1.10 application, and verified with a synthetic profile. The package is unsigned. GitHub publication requires successful Actions for the pushed commit; consult [Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) for published assets.
 
-## Latest 0.1.10 package and replacement installation
+## Latest 0.1.11 package and replacement installation
+
+| Item | Result |
+| --- | --- |
+| Target/version | Windows x64 / 0.1.11; registry and installed executable version confirmed |
+| Candidate filename | `ENHE Codex Backup_0.1.11_x64-setup.exe` |
+| Release filename | `ENHE.Codex.Backup_0.1.11_x64-setup.exe` |
+| Size | 51,295,145 bytes |
+| SHA-256 | `e9f02039d3cdc8a868b317cb5101ddd28a11da3c2f9f5172b3ec2ece5b121655` |
+| Package/checksum/licenses | PASS; package exit 0, sidecar matches, bundled notices and corresponding source/relinking materials verified |
+| Code signing | NotSigned; unsigned |
+| Current-user uninstall/install | PASS; 0.1.10 uninstall exit 0 and 0.1.11 install exit 0; no application-data deletion selected |
+| Installed executable SHA-256 | `3da4f4d6fca8e8102aa165d4caad924fe0cb91bab8d48a5d85ef418f8024aa93` |
+| Existing settings preservation | PASS; three application config/DPAPI files unchanged by hash; backup folders not removed |
+| Native language test | PASS; both sidebar directions, Settings save despite unavailable scheduled-task status, English after restart, Projects and Backups navigation |
+| Isolation | Temporary synthetic profile only, cloud off and automatic backup disabled; test instance closed afterwards |
+| Scope boundary | Native backup/restore, real account, second device and cloud NOT_RUN |
+
+Only this installer and its matching SHA-256 sidecar are release assets. Source, README, changelog and verification notes are committed normally; local audit logs/screenshots are not published. The prior installer and older releases are retained.
+
+## Historical 0.1.10 package and replacement installation
 
 | Item | Result |
 | --- | --- |
@@ -24,7 +44,7 @@ Generated: 2026-09-27. The final 0.1.10 artifact was packaged, installed over th
 
 The published Release contains only this installer and its `.sha256` sidecar; no other assets are in scope.
 
-## Publication readiness
+## Historical 0.1.10 publication readiness
 
 | Field | Value |
 | --- | --- |

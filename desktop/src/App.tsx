@@ -173,6 +173,7 @@ function AppContent() {
   }, []);
   const [scheduler, setSchedulerStatus] = useState<SchedulerStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [preferencesSaving, setPreferencesSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [codexScanFailed, setCodexScanFailed] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -184,8 +185,8 @@ function AppContent() {
   const configRef = useRef(config);
   const configLoadPromise = useRef<Promise<AppConfig> | null>(null);
   const configLoadResolved = useRef(false);
+  const configWriteQueue = useRef<Promise<unknown>>(Promise.resolve());
   const dataRequestGeneration = useRef(0);
-  configRef.current = config;
   const previousViewRef = useRef(view);
 
   const loadConfig = useCallback(() => {
@@ -199,6 +200,19 @@ function AppContent() {
     }
     return configLoadPromise.current;
   }, []);
+
+  const saveConfig = useCallback((update: (current: AppConfig) => AppConfig | Promise<AppConfig>) => {
+    const write = configWriteQueue.current.then(async () => {
+      await loadConfig();
+      const next = await update(configRef.current);
+      const saved = await saveAppConfig(next);
+      configRef.current = saved;
+      setConfig(saved);
+      return saved;
+    });
+    configWriteQueue.current = write.catch(() => undefined);
+    return write;
+  }, [loadConfig]);
 
   useEffect(() => {
     let active = true;
@@ -226,13 +240,11 @@ function AppContent() {
         fastDiscoverySucceeded = true;
         if (isCurrent()) {
           setInventory(detected);
-          const next = mergeAutomaticConfig(loaded, detected);
-          setConfig(next);
+          const next = mergeAutomaticConfig(configRef.current, detected);
           let saveFailed = false;
           if (hasConfigChanges(loaded, next)) {
             try {
-              const saved = await saveAppConfig(next);
-              if (isCurrent()) setConfig(saved);
+              await saveConfig(current => mergeAutomaticConfig(current, detected));
             } catch (caught) {
               saveFailed = true;
               if (isCurrent()) setError(errorMessage(caught, t));
@@ -269,12 +281,10 @@ function AppContent() {
                 detected,
               );
               setInventory(detected);
-              setConfig(next);
               let saveFailed = false;
               if (hasConfigChanges(loaded, next)) {
                 try {
-                  const saved = await saveAppConfig(next);
-                  if (isCurrent()) setConfig(saved);
+                  await saveConfig(current => mergeAutomaticConfig({ ...current, codex_home: result.codex_homes[0] }, detected));
                 } catch (caught) {
                   saveFailed = true;
                   if (isCurrent()) setError(errorMessage(caught, t));
@@ -323,27 +333,25 @@ function AppContent() {
   }, [config.appearance]);
 
   const persistConfig = useCallback(
-    async (next: AppConfig, message = "设置已保存") => {
-      const saved = await saveAppConfig(next);
-      configRef.current = saved;
-      setConfig(saved);
+    async (update: (current: AppConfig) => AppConfig | Promise<AppConfig>, message = "设置已保存") => {
+      const saved = await saveConfig(update);
       setLocale(saved.locale);
       setNotice(message);
       return saved;
     },
-    [setLocale],
+    [saveConfig, setLocale],
   );
 
   async function persistProjectConfig(next: AppConfig, message: string) {
     const configWasReady = configLoadResolved.current;
     await loadConfig();
-    return persistConfig({
-      ...configRef.current,
-      automatic_project_scan: configWasReady ? next.automatic_project_scan : configRef.current.automatic_project_scan,
+    return persistConfig(current => ({
+      ...current,
+      automatic_project_scan: configWasReady ? next.automatic_project_scan : current.automatic_project_scan,
       project_scan_roots: next.project_scan_roots,
-      selected_project_paths: configWasReady ? next.selected_project_paths : configRef.current.selected_project_paths,
-      project_selection_initialized: configWasReady ? next.project_selection_initialized : configRef.current.project_selection_initialized,
-    }, message);
+      selected_project_paths: configWasReady ? next.selected_project_paths : current.selected_project_paths,
+      project_selection_initialized: configWasReady ? next.project_selection_initialized : current.project_selection_initialized,
+    }), message);
   }
 
   async function chooseCodexHome() {
@@ -351,10 +359,8 @@ function AppContent() {
       const selected = await pickDirectory(t("选择 Codex 数据位置"));
       if (!selected) return;
       const detected = await discoverCodex(selected);
-      const next = mergeAutomaticConfig({ ...config, codex_home: selected }, detected);
       setInventory(detected);
-      setConfig(next);
-      await saveAppConfig(next);
+      await saveConfig(current => mergeAutomaticConfig({ ...current, codex_home: selected }, detected));
       setCodexScanFailed(false);
       setError(null);
       setNotice(t("设置已保存"));
@@ -402,7 +408,7 @@ function AppContent() {
       <aside className="sidebar">
         <button className="brand" type="button" onClick={() => setView("overview")} aria-label={t("ENHE Codex Backup")}>
           <img className="brand-mark" src="/app-icon.png" alt="" />
-          <span className="brand-copy"><small className="brand-version">v0.1.10</small><strong>ENHE</strong><small>Codex Backup</small></span>
+          <span className="brand-copy"><small className="brand-version">v0.1.11</small><strong>ENHE</strong><small>Codex Backup</small></span>
         </button>
 
         <nav className="navigation" aria-label={t("主导航")}>
@@ -425,11 +431,19 @@ function AppContent() {
         <button
           className="language-toggle"
           type="button"
+          disabled={loading || !configLoadResolved.current || preferencesSaving}
           aria-label={locale === "en" ? "Switch to Chinese" : "切换为英文"}
-          onClick={() => {
+          onClick={async () => {
             const next: Locale = locale === "en" ? "zh-CN" : "en";
-            setLocale(next);
-            setConfig((current) => ({ ...current, locale: next }));
+            setPreferencesSaving(true);
+            try {
+              await persistConfig(current => ({ ...current, locale: next }), "");
+              if (!codexScanFailed) setError(null);
+            } catch (caught) {
+              setError(errorMessage(caught, t));
+            } finally {
+              setPreferencesSaving(false);
+            }
           }}
         >
           <Languages aria-hidden="true" />
@@ -497,7 +511,7 @@ function AppContent() {
               try {
                 const detected = await discoverCodex(next.codex_home);
                 if (generation !== dataRequestGeneration.current) return;
-                await persistConfig({ ...configRef.current, codex_home: detected.codex_home }, t("数据设置已保存"));
+                await persistConfig(current => ({ ...current, codex_home: detected.codex_home }), t("数据设置已保存"));
                 if (generation !== dataRequestGeneration.current) return;
                 setInventory(detected);
                 setCodexScanFailed(false);
@@ -516,7 +530,7 @@ function AppContent() {
             operationBusy={activeOperations > 0}
             inventory={inventory}
             config={config}
-            onRepositoryChange={async (repository) => { await persistConfig({ ...configRef.current, local_repository: repository }, t("设置已保存")); }}
+            onRepositoryChange={async (repository) => { await persistConfig(current => ({ ...current, local_repository: repository }), t("设置已保存")); }}
             onNavigate={setView}
             onOperationStart={operationStarted}
             onOperationEnd={operationFinished}
@@ -527,24 +541,30 @@ function AppContent() {
           />
         </div>}
         {view === "settings" && (
-          <fieldset className="migration-control-guard" disabled={activeOperations > 0}>
+          <fieldset className="migration-control-guard" disabled={activeOperations > 0 || loading || !configLoadResolved.current || preferencesSaving}>
           <SettingsPage
             headingRef={headingRef}
             config={config}
             scheduler={scheduler}
             onSave={async (next) => {
+              setPreferencesSaving(true);
               try {
-                const task = await setScheduler(next.automatic_backup_enabled, next.frequency_minutes);
-                const saved = await saveAppConfig(next);
-                setConfig(saved);
-                setLocale(saved.locale);
-                setSchedulerStatus(task);
-                setNotice(t("设置已保存"));
+                await persistConfig(async current => {
+                  if (next.automatic_backup_enabled !== current.automatic_backup_enabled || next.frequency_minutes !== current.frequency_minutes) {
+                    const task = await setScheduler(next.automatic_backup_enabled, next.frequency_minutes);
+                    // The scheduler command also persists these fields before returning.
+                    configRef.current = { ...current, automatic_backup_enabled: next.automatic_backup_enabled, frequency_minutes: next.frequency_minutes };
+                    setSchedulerStatus(task);
+                  }
+                  return { ...configRef.current, locale: next.locale, appearance: next.appearance, automatic_backup_enabled: next.automatic_backup_enabled, frequency_minutes: next.frequency_minutes, cloud: next.cloud };
+                }, next.locale === "en" ? "Settings saved" : "设置已保存");
+                if (!codexScanFailed) setError(null);
               } catch (caught) {
                 setError(errorMessage(caught, t));
+              } finally {
+                setPreferencesSaving(false);
               }
             }}
-            onConfigChange={setConfig}
             onNotice={setNotice}
             onError={setError}
           />
@@ -1294,12 +1314,11 @@ interface SettingsPageProps {
   config: AppConfig;
   scheduler: SchedulerStatus | null;
   onSave: (config: AppConfig) => Promise<void>;
-  onConfigChange: (config: AppConfig) => void;
   onNotice: (message: string | null) => void;
   onError: (message: string | null) => void;
 }
 
-function SettingsPage({ headingRef, config, scheduler, onSave, onConfigChange, onNotice, onError }: SettingsPageProps) {
+function SettingsPage({ headingRef, config, scheduler, onSave, onNotice, onError }: SettingsPageProps) {
   const { t } = useI18n();
   const [draft, setDraft] = useState(config);
   const [cloudBusy, setCloudBusy] = useState(false);
@@ -1369,6 +1388,7 @@ function SettingsPage({ headingRef, config, scheduler, onSave, onConfigChange, o
 
       <section className="card settings-card">
         <div className="section-heading"><Languages aria-hidden="true" /><h2>{t("语言")}</h2></div>
+        <p className="help-text">{t("选择语言后点击页面底部的“保存设置”；也可使用左侧语言按钮立即切换并保存。")}</p>
         <div className="choice-grid"><label className="choice"><input type="radio" name="locale" checked={draft.locale === "zh-CN"} onChange={() => update("locale", "zh-CN")} /><span>{t("简体中文")}</span></label><label className="choice"><input type="radio" name="locale" checked={draft.locale === "en"} onChange={() => update("locale", "en")} /><span>{t("English")}</span></label></div>
       </section>
 
@@ -1405,7 +1425,7 @@ function SettingsPage({ headingRef, config, scheduler, onSave, onConfigChange, o
         </div>}
       </section>
 
-      <section className="settings-footer"><button className="primary-button" type="button" onClick={() => { onConfigChange(draft); void onSave(draft); }}>{t("保存设置")}</button><span>{t("当前版本")} 0.1.10</span></section>
+      <section className="settings-footer"><button className="primary-button" type="button" onClick={() => void onSave(draft)}>{t("保存设置")}</button><span>{t("当前版本")} 0.1.11</span></section>
     </div>
   );
 }

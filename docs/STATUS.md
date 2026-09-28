@@ -1,8 +1,18 @@
 # Current status
 
-Source checkpoint: 2026-09-27. Current version: **0.1.10; local package, replacement installation, native launch and GitHub publication PASS**. See [installer evidence](verification/installer-latest.md) for the exact artifact and installation evidence; historical 0.1.9 evidence remains dated and is not transferred automatically.
+Source checkpoint: 2026-09-28. Current version: **0.1.11; language fix, local checks, package, replacement installation and scoped native language verification PASS**. See [installer evidence](verification/installer-latest.md) for the exact artifact. Publication is gated on GitHub Actions for the pushed commit; [GitHub Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) is the authority for published assets.
 
-## 0.1.10 overview status-card state colors
+## 0.1.11 persistent language switching
+
+- Root causes: the sidebar changed the rendered language without saving it; Settings invoked the Windows scheduler even when only language changed, so scheduler errors prevented language persistence.
+- Language changes now persist, unchanged scheduler settings are not invoked, and concurrent configuration writes merge into the latest saved settings. Failed loading cannot overwrite saved settings with defaults. Partial scheduler success and later save failures retain retryable preference drafts.
+- Final canonical verification: all 11 checks PASS; frontend 100 passed; Rust 400 passed, 9 existing opt-in tests ignored. Typecheck/build, bilingual docs/version, icon, license/source/relinking, rustfmt, updater scan and isolated restic checks passed. Independent scoped review PASS.
+- Final package: unsigned Windows x64 NSIS installer, 51,295,145 bytes, SHA-256 `e9f02039d3cdc8a868b317cb5101ddd28a11da3c2f9f5172b3ec2ece5b121655`; matching sidecar and license payload checks passed.
+- Authorized 0.1.10 uninstall and 0.1.11 install exited 0. Registry and installed executable report 0.1.11. Three existing application config/DPAPI files were unchanged by hash; no application-data deletion option or backup-folder cleanup was used.
+- Installed-native checks with a synthetic profile: sidebar Chinese/English switching, Settings English save despite unavailable scheduler status, English retained after restart, and English Projects/Backups navigation PASS. Cloud remained off; the synthetic instance was closed after verification.
+- Native verification is limited to language/navigation. Real-account continuation, full native backup/restore, second-device, cloud and screen-reader acceptance are not established by this run. No real Codex profile or credential was used for tests. Backup/migration algorithms and dependency versions are unchanged.
+
+## Historical published 0.1.10 overview status-card state colors
 
 - The four overview cards now use green borders for `success`, yellow borders for `partial`, red borders for `failed`, and neutral borders for `idle`/`running`; their icons use the matching semantic colors.
 - Partial backup and restore results now remain `partial` in the overview instead of being mapped to `failed`; actual operation exceptions remain failures.

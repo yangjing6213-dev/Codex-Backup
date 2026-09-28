@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-09-28
+
+- Persist sidebar language changes in application settings so English remains selected after restart.
+- Save language and appearance preferences without invoking the Windows scheduler when its settings have not changed; genuine scheduler changes still report failures.
+- Prevent preference writes during initial loading or another preference save, and retain the last saved configuration if a save fails.
+- Serialize configuration updates so overlapping project/language saves preserve both choices; retain successful scheduler changes and unsaved language drafts when a later configuration save fails, allowing a consistent retry.
+- Explain how to apply language choices in Settings. Keep backup scope, migration behavior, dependencies and unsigned Windows x64 packaging unchanged.
+
 ## [0.1.10] - 2026-09-27
 
 - Use yellow borders for partial overview results and green borders for completed results across project scans, Codex data scans, local backups, and migration/restore.
