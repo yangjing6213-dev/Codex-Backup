@@ -1,4 +1,7 @@
 use crate::core::app_config::AppConfig;
+use crate::core::project_links::{
+    has_redirect_ancestor, is_filesystem_redirect, walk_project_tree, ProjectTreeEvent,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
@@ -11,7 +14,6 @@ use std::{
     },
     time::{Duration, Instant},
 };
-use walkdir::WalkDir;
 
 const MAX_SCAN_DEPTH: usize = 8;
 const MAX_ENTRIES_PER_ROOT: usize = 50_000;
@@ -134,81 +136,58 @@ fn count_candidate(
         candidate.skipped_entries = 1;
         return candidate;
     }
-    let mut entries = WalkDir::new(&candidate.path)
-        .follow_links(false)
-        .follow_root_links(false)
-        .into_iter();
-    while let Some(entry) = entries.next() {
+    let traversal = walk_project_tree(&candidate.path, |event| {
         if cancel.load(Ordering::Relaxed) {
-            // The unvisited remainder has unknown size; this records one skipped
-            // traversal, not an invented number of missing files.
-            candidate.skipped_entries += 1;
-            break;
+            return Err(io::Error::new(io::ErrorKind::Interrupted, "scan cancelled"));
         }
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(_) => {
+        match event {
+            ProjectTreeEvent::Entry(entry) => {
+                if entry.metadata.is_dir() {
+                    let excluded = excluded_roots
+                        .iter()
+                        .any(|root| scan_path_identity(&entry.source).starts_with(root));
+                    if excluded {
+                        candidate.skipped_entries += 1;
+                        return Ok(false);
+                    }
+                    if entry.relative.components().count() == 1
+                        && entry
+                            .relative
+                            .file_name()
+                            .map(|name| name.to_string_lossy().eq_ignore_ascii_case(".git"))
+                            .unwrap_or(false)
+                    {
+                        candidate.markers.push(".git".into());
+                    }
+                    Ok(true)
+                } else if entry.metadata.is_file() {
+                    candidate.file_count += 1;
+                    if entry.relative.components().count() == 1 {
+                        let name = entry.relative.to_string_lossy();
+                        if is_project_file_marker(&name) {
+                            candidate.markers.push(name.into_owned());
+                        }
+                    }
+                    Ok(false)
+                } else {
+                    candidate.skipped_entries += 1;
+                    Ok(false)
+                }
+            }
+            ProjectTreeEvent::Issue(_issue) => {
                 candidate.skipped_entries += 1;
-                continue;
-            }
-        };
-        let metadata = match fs::symlink_metadata(entry.path()) {
-            Ok(metadata) => metadata,
-            Err(_) => {
-                candidate.skipped_entries += 1;
-                continue;
-            }
-        };
-        if is_filesystem_redirect(&metadata)
-            || (metadata.is_dir()
-                && excluded_roots
-                    .iter()
-                    .any(|root| scan_path_identity(entry.path()).starts_with(root)))
-        {
-            if metadata.is_dir() {
-                entries.skip_current_dir();
-            }
-            candidate.skipped_entries += 1;
-            continue;
-        }
-        if metadata.is_file() {
-            candidate.file_count += 1;
-        } else if !metadata.is_dir() {
-            candidate.skipped_entries += 1;
-        }
-        if entry.depth() == 1 {
-            let name = entry.file_name().to_string_lossy();
-            if (metadata.is_file() && is_project_file_marker(&name))
-                || (metadata.is_dir() && name.eq_ignore_ascii_case(".git"))
-            {
-                candidate.markers.push(name.into_owned());
+                Ok(false)
             }
         }
+    });
+    if traversal.is_err() {
+        // The unvisited remainder has unknown size; record one skipped
+        // traversal rather than inventing a number of missing files.
+        candidate.skipped_entries += 1;
     }
     candidate.file_count_complete = candidate.skipped_entries == 0;
     candidate.markers.sort_unstable();
     candidate
-}
-
-pub(crate) fn is_filesystem_redirect(metadata: &fs::Metadata) -> bool {
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::MetadataExt;
-        metadata.file_attributes() & 0x400 != 0
-    }
-    #[cfg(not(windows))]
-    {
-        metadata.file_type().is_symlink()
-    }
-}
-
-pub(crate) fn has_redirect_ancestor(path: &Path) -> io::Result<bool> {
-    for ancestor in path.ancestors() {
-        if is_filesystem_redirect(&fs::symlink_metadata(ancestor)?) {
-            return Ok(true);
-        }
-    }
-    Ok(false)
 }
 
 /// Entry point used by the explicitly elevated one-shot scanner. The result

@@ -1,5 +1,25 @@
 # Windows installer verification
 
+Generated: 2026-09-29. The local 0.1.13 candidate was built from the internal project-link traversal change. The Rust suite, direct TypeScript/Vite checks, package, checksum, bundled-license and real NSIS icon fixture passed. Full Vitest remains blocked by the incomplete local jsdom dependency graph (`@asamuzakjp/css-color` is missing), and no native replacement installation or GitHub publication was performed.
+
+## Latest 0.1.13 package
+
+| Item | Result |
+| --- | --- |
+| Target/version | Windows x64 / 0.1.13; build metadata and installer package name verified |
+| Candidate filename | `ENHE Codex Backup_0.1.13_x64-setup.exe` |
+| Release filename | `ENHE.Codex.Backup_0.1.13_x64-setup.exe` |
+| Size | 51,291,939 bytes |
+| SHA-256 | `a67ef04af506b0f84478c9377cba941af78d0abf89c3c25b280311008d7b443c` |
+| Package/checksum/licenses | PASS; direct Tauri build exit 0, matching sidecar, bundled notices/source/relinking materials and generated NSIS inclusion checks passed |
+| Code signing | NotSigned; unsigned |
+| Full frontend tests | BLOCKED; local jsdom dependency graph is incomplete and dependency installation approval was unavailable |
+| Current-user uninstall/install | NOT_RUN; no installed application was changed |
+| Native launch/visual test | NOT_RUN |
+| GitHub publication and Release | NOT_RUN; no external write was performed |
+
+Only the final installer and its matching SHA-256 sidecar are intended as release assets. Source, README, changelog and verification notes are committed normally; local audit logs/screenshots are not published. The prior installer and older releases are retained.
+
 Generated: 2026-09-29. The final 0.1.12 artifact was packaged and its checksum, license payload and desktop icon contracts were verified. The package is unsigned. Current-user replacement installation is BLOCKED in the isolated environment because the protected old installation remained at 0.1.11 after both uninstaller and installer returned 0. GitHub publication requires successful Actions for the pushed commit; consult [Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) for published assets.
 
 ## Latest 0.1.12 package and replacement-install attempt

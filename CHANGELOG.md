@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-09-29
+
+- Follow Windows junctions, symbolic links and supported filesystem redirects when their resolved targets remain inside the selected project root, and materialize those targets as ordinary files in the encrypted backup.
+- Keep project-root external links out of automatic traversal; report them as actionable items that can be added as separate projects instead of silently expanding the backup scope.
+- Detect cyclic, missing, unreadable and unsupported link targets during discovery, fingerprinting and staging, preserving other readable files while explaining why the result is partial.
+- Align project counts, backup fingerprints, restore payloads, bilingual result guidance, documentation and unsigned Windows x64 package metadata at 0.1.13.
+
 ## [0.1.12] - 2026-09-29
 
 - Isolate the Windows restic backup process from inherited console control events and standard input so an unexpected termination signal cannot cancel a GUI backup through the parent process.

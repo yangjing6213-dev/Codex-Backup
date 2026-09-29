@@ -50,6 +50,18 @@ const issueText: Record<BackupIssueKind, { impact: string; solution: string }> =
     impact: "文件系统链接目标未包含在备份中",
     solution: "检查链接目标后重试",
   },
+  external_project_link: {
+    impact: "项目外部链接目标未自动纳入备份",
+    solution: "将链接目标作为单独项目添加后重试",
+  },
+  link_target_unavailable: {
+    impact: "项目链接目标不存在或当前不可读取",
+    solution: "检查链接目标路径和权限后重试",
+  },
+  link_cycle: {
+    impact: "项目链接形成循环，循环内容未继续读取",
+    solution: "移除循环链接后重新扫描并备份",
+  },
   unsupported_entry: {
     impact: "此文件类型未包含在备份中",
     solution: "转换为普通文件后重试",

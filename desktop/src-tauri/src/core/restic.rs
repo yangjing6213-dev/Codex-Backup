@@ -1,5 +1,8 @@
 use crate::core::error::{ErrorCode, RehomeError};
-use crate::core::local_discovery::{has_redirect_ancestor, is_filesystem_redirect};
+use crate::core::project_links::{
+    has_redirect_ancestor, is_filesystem_redirect, walk_project_tree, ProjectTreeEvent,
+    ProjectTreeIssue,
+};
 use chrono::{SecondsFormat, Utc};
 use rusqlite::{backup::Backup, Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
@@ -76,6 +79,9 @@ pub enum BackupIssueKind {
     EnumerationFailure,
     CopyFailure,
     FilesystemRedirect,
+    ExternalProjectLink,
+    LinkTargetUnavailable,
+    LinkCycle,
     UnsupportedEntry,
     #[default]
     LegacyUnknown,
@@ -238,6 +244,7 @@ impl SourcePolicy {
     }
 }
 
+#[cfg(test)]
 fn redirect_notice_kind(relative: &Path) -> Option<BackupIssueKind> {
     let components = lowercase_components(relative);
     if components
@@ -267,6 +274,55 @@ fn backup_issue(
         bytes,
         kind,
     }
+}
+
+fn project_link_issue_reason(issue: &ProjectTreeIssue) -> String {
+    match issue {
+        ProjectTreeIssue::External { target, .. } => format!(
+            "项目外部链接目标未自动纳入备份：{}；请将目标作为单独项目添加",
+            target.display()
+        ),
+        ProjectTreeIssue::Unavailable { .. } => {
+            "项目链接目标不存在或当前不可读取；检查目标路径和权限后重试".into()
+        }
+        ProjectTreeIssue::Cycle { target, .. } => format!(
+            "项目链接形成循环，未继续跟随目标：{}；请移除循环链接后重试",
+            target.display()
+        ),
+        ProjectTreeIssue::Enumeration { .. } => {
+            "项目链接目标目录无法完整读取；检查目录权限后重试".into()
+        }
+        ProjectTreeIssue::Unsupported { .. } => {
+            "项目链接目标不是可备份的普通文件或目录；转换后重试".into()
+        }
+    }
+}
+
+fn project_link_issue_kind(issue: &ProjectTreeIssue) -> BackupIssueKind {
+    match issue {
+        ProjectTreeIssue::External { .. } => BackupIssueKind::ExternalProjectLink,
+        ProjectTreeIssue::Unavailable { .. } | ProjectTreeIssue::Enumeration { .. } => {
+            BackupIssueKind::LinkTargetUnavailable
+        }
+        ProjectTreeIssue::Cycle { .. } => BackupIssueKind::LinkCycle,
+        ProjectTreeIssue::Unsupported { .. } => BackupIssueKind::UnsupportedEntry,
+    }
+}
+
+fn project_link_issue(issue: &ProjectTreeIssue) -> BackupIssue {
+    let path = match issue {
+        ProjectTreeIssue::External { path, .. }
+        | ProjectTreeIssue::Unavailable { path }
+        | ProjectTreeIssue::Cycle { path, .. }
+        | ProjectTreeIssue::Enumeration { path }
+        | ProjectTreeIssue::Unsupported { path } => path,
+    };
+    backup_issue(
+        path,
+        project_link_issue_reason(issue),
+        0,
+        project_link_issue_kind(issue),
+    )
 }
 
 pub fn payload_relative_path(
@@ -304,40 +360,36 @@ fn fingerprint_tree(root: &Path, policy: SourcePolicy) -> Result<String, RehomeE
         return Err(unsafe_path("fingerprint root is not a regular directory"));
     }
     let mut records = BTreeMap::new();
-    let mut entries = WalkDir::new(root)
-        .follow_links(false)
-        .follow_root_links(false)
-        .into_iter();
-    while let Some(entry) = entries.next() {
-        let entry = entry.map_err(|error| backup_io("fingerprint", error))?;
-        let relative = entry
-            .path()
-            .strip_prefix(root)
-            .map_err(|_| unsafe_path("fingerprint path escaped its root"))?;
-        if relative.as_os_str().is_empty() {
-            continue;
-        }
-        let metadata = fs::symlink_metadata(entry.path())
-            .map_err(|error| backup_io("fingerprint metadata", error))?;
-        if policy.excludes(relative) {
-            if metadata.is_dir() {
-                entries.skip_current_dir();
+    walk_project_tree(root, |event| match event {
+        ProjectTreeEvent::Entry(entry) => {
+            if policy.excludes(&entry.relative) {
+                return Ok(false);
             }
-            continue;
+            if entry.metadata.is_dir() {
+                let relative = normalize_relative(&entry.relative)
+                    .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error.message))?;
+                records.insert(relative, "directory".into());
+                Ok(true)
+            } else if entry.metadata.is_file() {
+                let digest = hash_file(&entry.source)
+                    .map_err(|error| io::Error::new(io::ErrorKind::Other, error.message))?;
+                let relative = normalize_relative(&entry.relative)
+                    .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error.message))?;
+                records.insert(relative, digest);
+                Ok(false)
+            } else {
+                Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "fingerprint contains an unsupported filesystem entry",
+                ))
+            }
         }
-        if is_filesystem_redirect(&metadata) || !(metadata.is_file() || metadata.is_dir()) {
-            return Err(unsafe_path(
-                "fingerprint contains an unsupported filesystem entry",
-            ));
-        }
-        let digest = if metadata.is_file() {
-            hash_file(entry.path())?
-        } else {
-            "directory".into()
-        };
-        let relative = normalize_relative(relative)?;
-        records.insert(relative, digest);
-    }
+        ProjectTreeEvent::Issue(issue) => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            project_link_issue_reason(&issue),
+        )),
+    })
+    .map_err(|error| backup_io("fingerprint", error))?;
 
     let mut hasher = Sha256::new();
     for (path, digest) in records {
@@ -719,151 +771,130 @@ fn stage_tree(
         return Ok(());
     }
     fs::create_dir_all(destination).map_err(|error| backup_io("create staged root", error))?;
-    let mut entries = WalkDir::new(source)
-        .follow_links(false)
-        .follow_root_links(false)
-        .into_iter();
-    while let Some(entry) = entries.next() {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(error) => {
-                stats.missing.push(backup_issue(
-                    error.path().unwrap_or(source),
-                    "source entry could not be enumerated",
-                    0,
-                    BackupIssueKind::EnumerationFailure,
-                ));
-                continue;
-            }
-        };
-        let relative = entry
-            .path()
-            .strip_prefix(source)
-            .map_err(|_| unsafe_path("selected source escaped its root"))?;
-        if relative.as_os_str().is_empty() {
-            continue;
+    walk_project_tree(source, |event| match event {
+        ProjectTreeEvent::Issue(issue) => {
+            stats.missing.push(project_link_issue(&issue));
+            Ok(false)
         }
-        let metadata = match fs::symlink_metadata(entry.path()) {
-            Ok(metadata) => metadata,
-            Err(_) => {
-                stats.missing.push(backup_issue(
-                    entry.path(),
-                    "source metadata could not be read",
-                    0,
-                    BackupIssueKind::EnumerationFailure,
-                ));
-                continue;
+        ProjectTreeEvent::Entry(entry) => {
+            let relative = &entry.relative;
+            if policy == SourcePolicy::Codex {
+                let disposition = codex_path_disposition(relative);
+                match disposition {
+                    CodexPathDisposition::SecurityExclusion => {
+                        stats.exclusions.push(backup_issue(
+                            relative,
+                            "Codex credential data was excluded",
+                            entry.metadata.len(),
+                            BackupIssueKind::SecurityExclusion,
+                        ));
+                    }
+                    CodexPathDisposition::Notice(kind) => {
+                        stats.notices.push(backup_issue(
+                            relative,
+                            "Codex cache or runtime data was not backed up",
+                            entry.metadata.len(),
+                            kind,
+                        ));
+                    }
+                    CodexPathDisposition::Include => {}
+                }
+                if disposition != CodexPathDisposition::Include {
+                    return Ok(false);
+                }
             }
-        };
-        if is_filesystem_redirect(&metadata) {
-            if metadata.is_dir() {
-                entries.skip_current_dir();
-            }
-            let kind = redirect_notice_kind(relative);
-            let issue = backup_issue(
-                entry.path(),
-                "symbolic link or filesystem redirect was not followed",
-                0,
-                kind.unwrap_or(BackupIssueKind::FilesystemRedirect),
-            );
-            if kind.is_some() {
-                stats.notices.push(issue);
-            } else {
-                stats.missing.push(issue);
-            }
-            continue;
-        }
-        if policy == SourcePolicy::Codex {
-            let disposition = codex_path_disposition(relative);
-            match disposition {
-                CodexPathDisposition::SecurityExclusion => {
-                    stats.exclusions.push(backup_issue(
+            if entry.metadata.is_dir() {
+                if let Err(error) = fs::create_dir_all(destination.join(relative)) {
+                    stats.missing.push(backup_issue(
                         relative,
-                        "Codex credential data was excluded",
-                        metadata.len(),
-                        BackupIssueKind::SecurityExclusion,
+                        format!("could not create staged directory: {error}"),
+                        0,
+                        BackupIssueKind::CopyFailure,
                     ));
+                    return Ok(false);
                 }
-                CodexPathDisposition::Notice(kind) => {
-                    stats.notices.push(backup_issue(
-                        relative,
-                        "Codex cache or runtime data was not backed up",
-                        metadata.len(),
-                        kind,
-                    ));
-                }
-                CodexPathDisposition::Include => {}
+                return Ok(true);
             }
-            if disposition != CodexPathDisposition::Include {
-                if metadata.is_dir() {
-                    entries.skip_current_dir();
-                }
-                continue;
+            if !entry.metadata.is_file() {
+                stats.missing.push(backup_issue(
+                    &entry.source,
+                    "unsupported filesystem entry",
+                    0,
+                    BackupIssueKind::UnsupportedEntry,
+                ));
+                return Ok(false);
             }
-        }
-        if metadata.is_dir() {
-            fs::create_dir_all(destination.join(relative))
-                .map_err(|error| backup_io("create staged directory", error))?;
-            continue;
-        }
-        if !metadata.is_file() {
-            stats.missing.push(backup_issue(
-                entry.path(),
-                "unsupported filesystem entry",
-                0,
-                BackupIssueKind::UnsupportedEntry,
-            ));
-            continue;
-        }
-        let target = if policy == SourcePolicy::Codex
-            && is_sqlite_sidecar(entry.path())
-            && sqlite_base_exists(entry.path())?
-        {
-            destination.join(SQLITE_SIDECAR_ROOT).join(relative)
-        } else {
-            destination.join(relative)
-        };
-        if let Some(parent) = target.parent() {
-            fs::create_dir_all(parent).map_err(|error| backup_io("create staged parent", error))?;
-        }
-        let copied = (|| {
-            if policy == SourcePolicy::Codex && is_sqlite_database(entry.path())? {
-                copy_sqlite_database(entry.path(), &target)
+            let sidecar_base_exists = if policy == SourcePolicy::Codex
+                && is_sqlite_sidecar(&entry.source)
+            {
+                sqlite_base_exists(&entry.source)
+                    .map_err(|error| io::Error::other(error.message))?
             } else {
-                fs::copy(entry.path(), &target)
+                false
+            };
+            let target = if sidecar_base_exists {
+                destination.join(SQLITE_SIDECAR_ROOT).join(relative)
+            } else {
+                destination.join(relative)
+            };
+            if let Some(parent) = target.parent() {
+                if let Err(error) = fs::create_dir_all(parent) {
+                    stats.missing.push(backup_issue(
+                        &entry.source,
+                        format!("could not create staged parent: {error}"),
+                        entry.metadata.len(),
+                        BackupIssueKind::CopyFailure,
+                    ));
+                    return Ok(false);
+                }
+            }
+            let copied = if policy == SourcePolicy::Codex {
+                match is_sqlite_database(&entry.source) {
+                    Ok(true) => copy_sqlite_database(&entry.source, &target),
+                    Ok(false) => fs::copy(&entry.source, &target)
+                        .map(|_| ())
+                        .map_err(|error| backup_io("copy selected file to staging", error)),
+                    Err(error) => Err(error),
+                }
+            } else {
+                fs::copy(&entry.source, &target)
                     .map(|_| ())
                     .map_err(|error| backup_io("copy selected file to staging", error))
+            };
+            if let Err(error) = copied {
+                let _ = fs::remove_file(&target);
+                stats.missing.push(backup_issue(
+                    &entry.source,
+                    format!(
+                        "source file could not be copied consistently: {}",
+                        error.message
+                    ),
+                    entry.metadata.len(),
+                    BackupIssueKind::CopyFailure,
+                ));
+                return Ok(false);
             }
-        })();
-        if copied.is_err() {
-            let _ = fs::remove_file(&target);
-            stats.missing.push(backup_issue(
-                entry.path(),
-                "source file could not be copied consistently",
-                metadata.len(),
-                BackupIssueKind::CopyFailure,
-            ));
-            continue;
-        }
-        if policy == SourcePolicy::Codex && is_jsonl_file(entry.path()) {
-            match inspect_jsonl(&target, metadata.len()) {
-                Ok(Some(mut issue)) => {
-                    issue.path = entry.path().display().to_string();
-                    stats.integrity_warnings.push(issue);
+            if policy == SourcePolicy::Codex && is_jsonl_file(&entry.source) {
+                match inspect_jsonl(&target, entry.metadata.len()) {
+                    Ok(Some(mut issue)) => {
+                        issue.path = entry.source.display().to_string();
+                        stats.integrity_warnings.push(issue);
+                    }
+                    Ok(None) => {}
+                    Err(error) => stats.integrity_warnings.push(backup_issue(
+                        &entry.source,
+                        format!("JSONL could not be checked: {}", error.message),
+                        entry.metadata.len(),
+                        BackupIssueKind::JsonlIntegrity,
+                    )),
                 }
-                Ok(None) => {}
-                Err(error) => stats.integrity_warnings.push(backup_issue(
-                    entry.path(),
-                    format!("JSONL could not be checked: {}", error.message),
-                    metadata.len(),
-                    BackupIssueKind::JsonlIntegrity,
-                )),
             }
+            stats.files += 1;
+            stats.bytes = stats.bytes.saturating_add(entry.metadata.len());
+            Ok(false)
         }
-        stats.files += 1;
-        stats.bytes = stats.bytes.saturating_add(metadata.len());
-    }
-    Ok(())
+    })
+    .map_err(|error| backup_io("walk selected source", error))
 }
 
 fn related_git_sources(
@@ -1673,14 +1704,64 @@ fn backup_engine_failed(
 #[cfg(test)]
 mod tests {
     use super::{
-        can_reuse_cached_snapshot, ensure_repository, inspect_jsonl, parse_snapshot_summaries,
-        redirect_notice_kind, stage_tree, BackupIssue, BackupIssueKind, BackupManifest,
-        BackupState, LocalSnapshot, SourcePolicy, StageStats, BACKUP_FORMAT, BACKUP_SCHEMA_VERSION,
+        can_reuse_cached_snapshot, ensure_repository, inspect_jsonl, is_filesystem_redirect,
+        parse_snapshot_summaries, redirect_notice_kind, stage_tree, BackupIssue, BackupIssueKind,
+        BackupManifest, BackupState, LocalSnapshot, SourcePolicy, StageStats, BACKUP_FORMAT,
+        BACKUP_SCHEMA_VERSION,
     };
     use crate::core::error::ErrorCode;
     use std::{fs, path::Path};
     use tempfile::tempdir;
     use uuid::Uuid;
+
+    #[cfg(windows)]
+    fn junction(link: &Path, target: &Path) {
+        let output = std::process::Command::new("cmd.exe")
+            .args(["/d", "/c", "mklink", "/J"])
+            .arg(link)
+            .arg(target)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "could not create synthetic junction"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn internal_project_junction_is_materialized_as_regular_files() {
+        let source = tempdir().expect("source directory");
+        let target = source.path().join("target");
+        fs::create_dir_all(&target).unwrap();
+        fs::write(target.join("linked.txt"), b"synthetic link target").unwrap();
+        junction(&source.path().join("alias"), &target);
+        let destination = tempdir().expect("staging directory");
+        let mut stats = StageStats::default();
+
+        stage_tree(
+            source.path(),
+            destination.path(),
+            &mut stats,
+            SourcePolicy::Project,
+        )
+        .unwrap();
+
+        assert_eq!(stats.files, 2);
+        assert!(stats.missing.is_empty());
+        assert_eq!(
+            fs::read(destination.path().join("target/linked.txt")).unwrap(),
+            b"synthetic link target"
+        );
+        assert_eq!(
+            fs::read(destination.path().join("alias/linked.txt")).unwrap(),
+            b"synthetic link target"
+        );
+        assert!(!is_filesystem_redirect(
+            &fs::symlink_metadata(destination.path().join("alias/linked.txt")).unwrap()
+        ));
+        fs::remove_dir(source.path().join("alias")).unwrap();
+    }
 
     #[test]
     fn observed_runtime_locks_are_notices_only_for_codex_home() {

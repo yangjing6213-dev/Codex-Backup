@@ -366,6 +366,9 @@ export type BackupIssueKind =
   | "enumeration_failure"
   | "copy_failure"
   | "filesystem_redirect"
+  | "external_project_link"
+  | "link_target_unavailable"
+  | "link_cycle"
   | "unsupported_entry"
   | "legacy_unknown";
 

@@ -1,6 +1,16 @@
 # Acceptance mapping
 
-Checkpoint: 2026-09-29; **0.1.12 locally checked and packaged; replacement installation BLOCKED by the isolated environment's protected install path**. See [STATUS](STATUS.md) and [installer verification](verification/installer-latest.md). Publication follows successful GitHub Actions for the pushed commit; actual published versions are listed on GitHub Releases.
+Checkpoint: 2026-09-29; **0.1.13 link-traversal candidate is implemented and locally packaged, but the full frontend suite and native replacement installation remain incomplete**. See [STATUS](STATUS.md). Publication follows successful GitHub Actions for the pushed commit; actual published versions are listed on GitHub Releases.
+
+## Current 0.1.13 internal project-link acceptance
+
+| Check | Result | Boundary |
+| --- | --- | --- |
+| Internal link discovery/counting | PASS | Synthetic internal-junction/file-link tests pass; internal targets are counted and materialized as ordinary files. |
+| External/cyclic/unavailable link handling | PASS | Synthetic external and cyclic link tests pass; traversal stops with explicit partial-result issues. |
+| Frontend issue guidance | PARTIAL | TypeScript typecheck and Vite production build pass directly; the Vitest suite is blocked by missing local `@asamuzakjp/css-color` under jsdom. |
+| Package, checksum and license gates | PASS | Unsigned 0.1.13 Windows x64 NSIS package, matching SHA-256, bundled license/source materials, and real NSIS icon fixture pass. |
+| GitHub publication and Release | NOT_RUN | No external write has been performed. |
 
 ## Current 0.1.12 backup-engine termination acceptance
 

@@ -1,6 +1,14 @@
 # Current status
 
-Source checkpoint: 2026-09-29. Current version: **0.1.12; unexpected restic termination handling, direct frontend/Rust checks, license checks and package PASS**. The current-user replacement installation is **BLOCKED** in this isolated environment: the old 0.1.11 uninstaller and 0.1.12 installer both returned 0, but the protected installed executable remained 0.1.11. See [installer evidence](verification/installer-latest.md) for the exact artifact. Publication is gated on GitHub Actions for the pushed commit; [GitHub Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) is the authority for published assets.
+Source checkpoint: 2026-09-29. Current candidate version: **0.1.13; internal project-link traversal implemented and packaged locally**. Rust and direct frontend build checks pass; the full Vitest suite is blocked by a missing local jsdom dependency, and the canonical pnpm wrapper cannot complete in this checkout. Replacement installation and publication have not been performed. Publication is gated on all local checks and GitHub Actions for the pushed commit; [GitHub Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) is the authority for published assets.
+
+## 0.1.13 internal project-link backup semantics
+
+- The candidate follows junctions, symbolic links and filesystem redirects only when their resolved targets remain inside the selected project root, and stages the target content as ordinary files.
+- External, cyclic, missing and unreadable link targets are kept out of silent traversal and are reported with an actionable partial-result category. Codex data safety exclusions remain unchanged.
+- Verification status: **PARTIAL** — the Rust suite, TypeScript typecheck, Vite production build, package, SHA-256, license materials and real NSIS shortcut fixture pass. The full Vitest suite and canonical pnpm wrapper remain blocked by the incomplete local dependency graph. Native replacement installation and publication are not run.
+- Rust evidence: 130 library tests and all integration tests pass with the project-local locked offline toolchain; only pre-existing opt-in tests remain ignored.
+- Package evidence: unsigned Windows x64 NSIS installer, 51,291,939 bytes, SHA-256 `a67ef04af506b0f84478c9377cba941af78d0abf89c3c25b280311008d7b443c`; matching sidecar and generated NSIS license inclusion pass.
 
 ## 0.1.12 unexpected backup-engine termination handling
 

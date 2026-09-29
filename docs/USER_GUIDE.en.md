@@ -1,6 +1,6 @@
 # ENHE Codex Backup User Guide
 
-This guide covers 0.1.12 (2026-09-29). Local build or installation does not prove GitHub publication or real-account continuation. See [STATUS](STATUS.md) for the evidence boundary.
+This guide covers 0.1.13 (2026-09-29). Local build or installation does not prove GitHub publication or real-account continuation. See [STATUS](STATUS.md) for the evidence boundary.
 
 ## Switching interface language
 
@@ -38,7 +38,7 @@ Successful file recovery does not prove that original conversations are visible 
 
 Starting with 0.1.3, full local project backup includes every readable regular file: hidden files, `.git`, uncommitted/untracked/ignored files, `node_modules`, build outputs, caches, and sensitive files such as `.env`, private keys and tokens. There is no extension filter. Recognized worktree metadata is retained. More files increase initial backup time and temporary disk use; keep the backup repository outside your projects.
 
-Sensitive project files go into the encrypted restic repository. Use a strong independent recovery password, keep it separately, and never publish restored files or upload them to GitHub. Cloud remains off by default and nothing is uploaded automatically. **The Codex data location keeps its separate safety exclusions**: known login credentials, cookies, private keys and `.env` are excluded; dependencies, designated caches and runtime temporary files are reported as notices. Its active JSONL/SQLite capture rules are unchanged. Symbolic links and filesystem redirects are not followed. Recognized rebuildable dependency links and test-artifact links under `.local-audit` become notices; other links and unreadable or unsupported entries remain missing content.
+Sensitive project files go into the encrypted restic repository. Use a strong independent recovery password, keep it separately, and never publish restored files or upload them to GitHub. Cloud remains off by default and nothing is uploaded automatically. **The Codex data location keeps its separate safety exclusions**: known login credentials, cookies, private keys and `.env` are excluded; dependencies, designated caches and runtime temporary files are reported as notices. Its active JSONL/SQLite capture rules are unchanged. Project backup follows symbolic links, junctions and filesystem redirects only when their resolved targets remain inside the selected project root, and materializes those targets as regular files. A target outside the selected root is not traversed automatically and must be added as a separate project. Cyclic, missing, unreadable or unsupported link targets are reported as partial results.
 
 When the project scan directory is `F:\Projects`, each direct child folder is listed by its actual folder name. Nested `.next` and test fixtures contribute files instead of becoming separate projects. Leaving the scope empty uses cancellable whole-disk discovery with depth/time limits. Rescanning replaces current discoveries; saved manual and historical paths are listed separately.
 
@@ -56,6 +56,8 @@ Open “View result details” and act on the impact:
 | Handled automatically | Rebuildable dependency links, caches, runtime temporary files or test artifacts were omitted. Dependencies may need reinstalling with the project's package manager; offline operation is not guaranteed. Applications recreate runtime files; regenerate test artifacts as needed. This label does not mean zero impact or that dependencies were already reinstalled. |
 | Data warning | Malformed or truncated JSONL was retained, but the named conversation may be incomplete. Keep the original file and inspect that conversation; this does not mean all project files are lost. |
 | Files missing | A red missing project path means that source project is absent from this snapshot. Correct or reselect the path, reconnect its disk if necessary, and back up again. Deselect only a project you no longer need. Follow the named paths for permission failures, copy failures and ordinary links too. |
+| External project link | The resolved target is outside the selected project root. The app does not silently expand the backup scope; add the target as a separate project, rescan, and back up again. |
+| Link target unavailable/cyclic | The target is missing, unreadable, or forms a cycle. Other readable files remain available, but the result is partial until the link is repaired and the project is scanned again. |
 
 Repeated security exclusions and automatic handling are aggregated by count; data warnings and missing files retain affected paths and remedies. The new classification does not rewrite old `manifest.json` files. Older manifests may show an unclassified issue and retain their original partial status; upgrading must not conceal genuinely missing data.
 

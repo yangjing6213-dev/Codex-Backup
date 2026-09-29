@@ -13,6 +13,7 @@ pub mod package;
 pub mod paths;
 pub(crate) mod plan_store;
 pub mod planner;
+pub(crate) mod project_links;
 pub mod restic;
 pub mod restore;
 pub mod scheduler;

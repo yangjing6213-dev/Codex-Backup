@@ -2,7 +2,7 @@
 
 This guide does not require a GPT login, a website, or the original app cache. You need the ENHE installation directory (or a standard restic executable) on the target Windows x64 device, the local restic repository, and the recovery password.
 
-Offline recovery here means file recovery, excluding online model verification. This documentation covers 0.1.8 (2026-09-25); build/installation evidence in [STATUS](STATUS.md) does not replace recovery acceptance. Real-account, second-device and native UI checks are `NOT_RUN`.
+Offline recovery here means file recovery, excluding online model verification. This documentation covers 0.1.13 (2026-09-29); build/installation evidence in [STATUS](STATUS.md) does not replace recovery acceptance. Real-account, second-device and native UI checks are `NOT_RUN`.
 
 ## Restore with the app
 
@@ -15,7 +15,7 @@ The app rejects repository/target overlap, existing-target overwrite, traversal,
 
 Review “Security exclusions / Handled automatically / Data warning / Files missing” in the manifest results. Excluded Codex credentials require sign-in again. Rebuildable dependency links may require the project's package manager to reinstall dependencies; offline operation after restore is not guaranteed. Malformed JSONL is retained but may affect the named conversation. A red missing project path means that source project never entered the snapshot. `warning` does not mean zero impact, and `partial` is not a complete copy. New classification does not rewrite old manifests.
 
-Full restic project backup includes readable regular files, Git/worktree metadata, dependencies and sensitive project files; Codex data has separate safety exclusions. A ReHome `.rehome` package includes selected content with its own security exclusions, including `.git`, and is not an encrypted restic repository. The two formats are not interchangeable.
+Full restic project backup includes readable regular files, Git/worktree metadata, dependencies and sensitive project files; links whose resolved targets remain inside the project root are materialized as regular files, while external links must be selected separately and cyclic/unavailable targets are reported as partial. Codex data has separate safety exclusions. A ReHome `.rehome` package includes selected content with its own security exclusions, including `.git`, and is not an encrypted restic repository. The two formats are not interchangeable.
 
 ## Standard restic inspection
 

@@ -1,8 +1,8 @@
 use rehome_desktop_lib::core::{
     local_discovery::{discover_local_candidates, LocalScanRequest},
     restic::{
-        backup_local, file_fingerprint, list_local_snapshots, restore_local, BackupIssueKind,
-        BackupManifest, LocalBackupRequest,
+        backup_local, file_fingerprint, list_local_snapshots, restore_local, BackupManifest,
+        LocalBackupRequest,
     },
 };
 use std::{
@@ -196,13 +196,37 @@ fn junction(link: &Path, target: &Path) {
         .unwrap();
     assert!(
         output.status.success(),
-        "could not create synthetic junction"
+        "could not create synthetic junction: {} {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
     );
 }
 
 #[cfg(windows)]
 #[test]
-fn counts_do_not_follow_junctions_and_missing_entries_are_partial() {
+fn internal_project_junction_is_counted_and_fingerprint_changes_with_target() {
+    use rehome_desktop_lib::core::local_discovery::count_project_files;
+    let root = tempdir().unwrap();
+    let project = root.path().join("project");
+    let target = project.join("target");
+    write(&project, "regular", b"synthetic");
+    write(&target, "linked.txt", b"synthetic-before");
+    junction(&project.join("alias"), &target);
+
+    let candidate = count_project_files(vec![project.clone()]).remove(0);
+    assert_eq!(candidate.file_count, 3);
+    assert!(candidate.file_count_complete);
+    assert_eq!(candidate.skipped_entries, 0);
+
+    let before = file_fingerprint(&project).expect("internal junction is safe to fingerprint");
+    write(&target, "linked.txt", b"synthetic-after");
+    assert_ne!(before, file_fingerprint(&project).unwrap());
+    fs::remove_dir(project.join("alias")).unwrap();
+}
+
+#[cfg(windows)]
+#[test]
+fn external_and_cyclic_project_junctions_are_partial_without_following_outside() {
     use rehome_desktop_lib::core::local_discovery::count_project_files;
     let root = tempdir().unwrap();
     let project = root.path().join("project");
@@ -210,21 +234,18 @@ fn counts_do_not_follow_junctions_and_missing_entries_are_partial() {
     write(&project, "regular", b"synthetic");
     write(&outside, "must-not-count", b"synthetic");
     junction(&project.join("escape"), &outside);
-    let counts = count_project_files(vec![
-        project.clone(),
-        project.join("escape"),
-        project.join("escape/subdir"),
-    ]);
-    assert_eq!(counts[0].file_count, 1);
-    for item in counts {
-        assert!(!item.file_count_complete);
-        assert!(item.skipped_entries > 0);
-    }
+    junction(&project.join("cycle"), &project);
+
+    let candidate = count_project_files(vec![project.clone()]).remove(0);
+    assert_eq!(candidate.file_count, 1);
+    assert!(!candidate.file_count_complete);
+    assert!(candidate.skipped_entries >= 2);
     assert!(
         file_fingerprint(&project).is_err(),
-        "cannot reuse a complete snapshot after a junction appears"
+        "external or cyclic links must prevent complete snapshot reuse"
     );
     fs::remove_dir(project.join("escape")).unwrap();
+    fs::remove_dir(project.join("cycle")).unwrap();
 }
 
 #[cfg(windows)]
@@ -366,7 +387,17 @@ fn bundled_restic_partial_sources_never_reuse_a_complete_snapshot() {
     write(&project, "locked", b"synthetic-locked");
     write(root.path(), "outside/never-follow", b"synthetic-outside");
     fs::create_dir_all(project.join("node_modules")).unwrap();
+    write(
+        &project,
+        "node_modules/dependency-target/dependency.js",
+        b"synthetic-dependency",
+    );
     fs::create_dir_all(project.join(".local-audit").join("fixtures")).unwrap();
+    write(
+        &project,
+        ".local-audit/fixtures/reparse-target/artifact.txt",
+        b"synthetic-test-artifact",
+    );
     fs::create_dir(root.path().join("codex")).unwrap();
     let dependency_redirect = project.join("node_modules").join("dependency-link");
     let audit_redirect = project
@@ -384,8 +415,17 @@ fn bundled_restic_partial_sources_never_reuse_a_complete_snapshot() {
     let complete = backup_local(request.clone(), &executable).unwrap();
     assert!(complete.complete);
     junction(&project.join("escape"), &root.path().join("outside"));
-    junction(&dependency_redirect, &root.path().join("outside"));
-    junction(&audit_redirect, &root.path().join("outside"));
+    junction(
+        &dependency_redirect,
+        &project.join("node_modules").join("dependency-target"),
+    );
+    junction(
+        &audit_redirect,
+        &project
+            .join(".local-audit")
+            .join("fixtures")
+            .join("reparse-target"),
+    );
     let lock = fs::OpenOptions::new()
         .read(true)
         .share_mode(0)
@@ -404,13 +444,6 @@ fn bundled_restic_partial_sources_never_reuse_a_complete_snapshot() {
         .missing
         .iter()
         .any(|issue| issue.path.ends_with("escape")));
-    assert!(partial.manifest.notices.iter().any(|issue| {
-        issue.path.ends_with("dependency-link")
-            && issue.kind == BackupIssueKind::RebuildableDependency
-    }));
-    assert!(partial.manifest.notices.iter().any(|issue| {
-        issue.path.ends_with("reparse") && issue.kind == BackupIssueKind::TestArtifact
-    }));
     assert!(!partial.manifest.missing.iter().any(|issue| {
         issue.path.ends_with("dependency-link") || issue.path.ends_with("reparse")
     }));
@@ -431,15 +464,17 @@ fn bundled_restic_partial_sources_never_reuse_a_complete_snapshot() {
         .path();
     assert!(restored_project.join("accessible").is_file());
     assert!(!restored_project.join("escape").exists());
-    assert!(!restored_project
+    assert!(restored_project
         .join("node_modules")
         .join("dependency-link")
-        .exists());
-    assert!(!restored_project
+        .join("dependency.js")
+        .is_file());
+    assert!(restored_project
         .join(".local-audit")
         .join("fixtures")
         .join("reparse")
-        .exists());
+        .join("artifact.txt")
+        .is_file());
     assert!(!restored_project.join("locked").exists());
     drop(lock);
     fs::remove_dir(project.join("escape")).unwrap();

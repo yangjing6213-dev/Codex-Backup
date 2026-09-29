@@ -131,4 +131,17 @@ describe("BackupResultSummary", () => {
     expect(screen.getByRole("status", { name: "Restore completed with items to review" })).toHaveClass("warning");
     expect(screen.getByText(/Reinstall dependencies/)).toBeInTheDocument();
   });
+
+  it("explains that an external project link must be added separately", () => {
+    renderSummary(manifest({
+      missing: [issue({
+        path: "F:/Projects/app/linked-assets",
+        kind: "external_project_link",
+      })],
+      integrity_status: "partial",
+    }));
+
+    expect(screen.getByText(/项目外部链接目标未自动纳入备份/)).toBeInTheDocument();
+    expect(screen.getByText(/将链接目标作为单独项目添加后重试/)).toBeInTheDocument();
+  });
 });
