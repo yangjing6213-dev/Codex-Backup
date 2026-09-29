@@ -4,7 +4,7 @@
 
 ## 1. What is this repository?
 
-ENHE Codex Backup is an independent Windows x64 local-first backup, restore, and offline migration utility. It preserves Codex data and projects without requiring cloud configuration. Version 0.1.11 repairs persistent language switching and removes the unchanged Windows scheduler as a prerequisite for saving language preferences. It is not an official OpenAI or ReHome product.
+ENHE Codex Backup is an independent Windows x64 local-first backup, restore, and offline migration utility. It preserves Codex data and projects without requiring cloud configuration. Version 0.1.12 isolates the Windows backup engine from the GUI process and preserves both ends of long diagnostics so unexpected termination-signal failures can be diagnosed. It is not an official OpenAI or ReHome product.
 
 ## 2. Who is it for?
 
@@ -48,7 +48,7 @@ Projects includes a Request administrator permission for restricted folders opti
 
 ## 6. Installation
 
-1. Open [GitHub Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) for actually published versions. The 0.1.11 assets are the [Windows x64 installer](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.11/ENHE.Codex.Backup_0.1.11_x64-setup.exe) and [SHA-256 checksum](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.11/ENHE.Codex.Backup_0.1.11_x64-setup.exe.sha256). The installer is unsigned; verify its SHA-256 before installation.
+1. Open [GitHub Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) for actually published versions. After publication, the 0.1.12 assets will be the [Windows x64 installer](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.12/ENHE.Codex.Backup_0.1.12_x64-setup.exe) and [SHA-256 checksum](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.12/ENHE.Codex.Backup_0.1.12_x64-setup.exe.sha256). The installer is unsigned; verify its SHA-256 before installation.
 2. Compare the installer SHA-256 with the sidecar in PowerShell.
 3. Run the installer for the Windows current user.
 4. Confirm the local data location on first launch; cloud may remain off.
@@ -118,13 +118,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
 ```
 
-The scripts pin and verify the Windows amd64 release archives for restic 0.19.1 and rclone 1.75.1. Version-specific build and replacement-installation evidence is recorded in [STATUS](docs/STATUS.md) and [installer verification](docs/verification/installer-latest.md). Installed 0.1.11 language switching, restart persistence and English page navigation passed with a synthetic profile. This package is unsigned and has no auto-updater; full native backup/restore, real-account continuation and second-device acceptance remain unverified.
+The scripts pin and verify the Windows amd64 release archives for restic 0.19.1 and rclone 1.75.1. Version-specific build and replacement-installation evidence is recorded in [STATUS](docs/STATUS.md) and [installer verification](docs/verification/installer-latest.md). The 0.1.12 package is unsigned and has no auto-updater; full native backup/restore, real-account continuation and second-device acceptance remain unverified.
 
 See [COMPATIBILITY](docs/COMPATIBILITY.md), [UPSTREAM](docs/UPSTREAM.md), and [ACCEPTANCE](docs/ACCEPTANCE.md) for the compatibility and verification boundaries.
 
 ## 11. Version
 
-Current version: `0.1.11`. The sidebar language button switches and saves the preference for the next launch. In Settings, choose a language and click Save settings at the bottom. Unchanged Windows scheduler settings no longer block language saves. Backup scope and migration algorithms are unchanged. See the [changelog](CHANGELOG.md). After verification, the release will contain only the unsigned Windows x64 installer and SHA-256 sidecar, retaining previous releases. See [STATUS](docs/STATUS.md) for actual verification and publication state. Live OneDrive, second-device and real-account continuation remain unverified.
+Current version: `0.1.12`. The Windows backup engine is isolated from inherited console control events, long diagnostics preserve their beginning and end, and exit 130/context-canceled failures receive specific recovery guidance. Backup scope and migration algorithms are unchanged. See the [changelog](CHANGELOG.md). After verification, the release will contain only the unsigned Windows x64 installer and SHA-256 sidecar, retaining previous releases. See [STATUS](docs/STATUS.md) for actual verification and publication state. Live OneDrive, second-device and real-account continuation remain unverified.
 
 ## 12. Related projects
 
@@ -154,4 +154,4 @@ This project is one tool in the personal generation system I built with AI. If y
 
 This project retains the upstream repository's MIT license. Bundled components and versions are recorded in [THIRD_PARTY](docs/THIRD_PARTY.md).
 
-The 0.1.11 installer includes license texts for offline reading under `resources/licenses` in the application directory. The license materials are technical redistribution evidence, not legal advice.
+The 0.1.12 installer includes license texts for offline reading under `resources/licenses` in the application directory. The license materials are technical redistribution evidence, not legal advice.

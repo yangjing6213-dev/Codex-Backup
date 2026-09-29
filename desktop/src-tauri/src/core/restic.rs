@@ -4,13 +4,15 @@ use chrono::{SecondsFormat, Utc};
 use rusqlite::{backup::Backup, Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::{
     collections::BTreeMap,
     ffi::OsString,
     fs::{self, File},
     io::{self, Read},
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
     time::Duration,
 };
 use tempfile::{Builder, NamedTempFile};
@@ -23,6 +25,10 @@ const PAYLOAD_ROOT: &str = "enhe-payload";
 const SQLITE_SIDECAR_ROOT: &str = ".enhe-sqlite-sidecars";
 const RESTIC_TAG: &str = "enhe-codex-backup";
 const HASH_BUFFER_BYTES: usize = 64 * 1024;
+#[cfg(windows)]
+const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct LocalBackupRequest {
@@ -1311,6 +1317,14 @@ fn run_restic_with_password_in_dir(
     let mut command = Command::new(executable);
     command.current_dir(working_directory);
     command.args(prepared);
+    // A GUI backup must not inherit console control events from the process
+    // that launched the app. Restic treats SIGINT/SIGTERM as a cancellation
+    // request and exits with code 130, even when the user never clicked
+    // cancel. Keep stdin detached as well because all required input is
+    // supplied through the temporary password file.
+    command.stdin(Stdio::null());
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW);
     let output = command
         .output()
         .map_err(|error| engine_unavailable(executable, error))?;
@@ -1633,13 +1647,12 @@ fn backup_engine_failed(
     };
     let char_count = collapsed.chars().count();
     let detail = if char_count > 600 {
-        format!(
-            "…{}",
-            collapsed
-                .chars()
-                .skip(char_count.saturating_sub(599))
-                .collect::<String>()
-        )
+        let head = collapsed.chars().take(280).collect::<String>();
+        let tail = collapsed
+            .chars()
+            .skip(char_count.saturating_sub(315))
+            .collect::<String>();
+        format!("{head} … {tail}")
     } else {
         collapsed
     };
@@ -1984,6 +1997,19 @@ mod tests {
         let error = super::backup_engine_failed(Some(1), delayed_failure.as_bytes(), password_file);
         assert_eq!(error.code, ErrorCode::BackupPasswordRequired);
         assert!(error.message.contains("wrong password or no key found"));
+    }
+
+    #[test]
+    fn keeps_the_beginning_of_long_engine_errors_for_root_cause_diagnostics() {
+        let password_file = std::path::Path::new(r"C:\Temp\secret-password.txt");
+        let stderr = format!(
+            "unable to refresh lock in time; source read failed{}",
+            " warning".repeat(120)
+        );
+        let error = super::backup_engine_failed(Some(130), stderr.as_bytes(), password_file);
+
+        assert!(error.message.contains("unable to refresh lock in time"));
+        assert!(error.message.contains("warning"));
     }
 
     #[test]

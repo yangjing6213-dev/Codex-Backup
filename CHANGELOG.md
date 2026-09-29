@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-09-29
+
+- Isolate the Windows restic backup process from inherited console control events and standard input so an unexpected termination signal cannot cancel a GUI backup through the parent process.
+- Preserve both the beginning and end of long restic diagnostics so lock, I/O, or cancellation causes remain visible instead of being truncated to the tail only.
+- Explain exit 130, termination-signal, and context-canceled backup failures with a specific cause and recovery action in both Chinese and English.
+- Keep backup scope, migration behavior, project-file inclusion, and the unsigned Windows x64 package unchanged.
+
 ## [0.1.11] - 2026-09-28
 
 - Persist sidebar language changes in application settings so English remains selected after restart.

@@ -221,6 +221,20 @@ describe("errorMessage", () => {
     expect(restore).not.toContain("本地备份未完整完成");
   });
 
+  it("explains an unexpected restic termination and gives a recovery step", () => {
+    const message = errorMessage(
+      {
+        code: "backup_failed",
+        message: "backup engine failed (exit 130): signal terminated received, cleaning up Fatal: unable to save snapshot: context canceled",
+      },
+      (key) => key,
+    );
+
+    expect(message).toContain("原因：备份引擎收到了终止信号");
+    expect(message).toContain("解决方法：请先重试");
+    expect(message).toContain("技术详情：backup engine failed (exit 130)");
+  });
+
   it.each([
     ["codex_app_server_unavailable", "Codex 验证服务不可用", "安装"],
     ["codex_authentication_required", "Codex 需要登录", "登录"],

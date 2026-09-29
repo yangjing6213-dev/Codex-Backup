@@ -1,6 +1,6 @@
 # ENHE Codex Backup User Guide
 
-This guide covers 0.1.11 (2026-09-28). Local build or installation does not prove GitHub publication or real-account continuation. See [STATUS](STATUS.md) for the evidence boundary.
+This guide covers 0.1.12 (2026-09-29). Local build or installation does not prove GitHub publication or real-account continuation. See [STATUS](STATUS.md) for the evidence boundary.
 
 ## Switching interface language
 

@@ -1,6 +1,17 @@
 # Acceptance mapping
 
-Checkpoint: 2026-09-28; **0.1.11 locally packaged, installed and scoped native language checks PASS**. See [STATUS](STATUS.md) and [installer verification](verification/installer-latest.md). Publication follows successful GitHub Actions for the pushed commit; actual published versions are listed on GitHub Releases.
+Checkpoint: 2026-09-29; **0.1.12 locally checked and packaged; replacement installation BLOCKED by the isolated environment's protected install path**. See [STATUS](STATUS.md) and [installer verification](verification/installer-latest.md). Publication follows successful GitHub Actions for the pushed commit; actual published versions are listed on GitHub Releases.
+
+## Current 0.1.12 backup-engine termination acceptance
+
+| Check | Result | Boundary |
+| --- | --- | --- |
+| Backup termination regression | PASS | Windows process-launch flags, long-diagnostic retention, and bilingual exit-130/context-canceled guidance are covered by Rust/frontend regression tests; the original native signal source is not reproduced in this sandbox. |
+| Frontend checks | PASS | 6 files, 101 tests; direct TypeScript and Vite production build passed. The canonical pnpm wrapper was blocked by no-TTY module cleanup protection. |
+| Rust checks | PASS | Rust formatting plus locked offline tests passed in an isolated writable temp/app-data environment; no real profile or account data was used. |
+| License and installer checks | PASS | Version/docs/icon/license contracts passed; NSIS bundle includes required notices and LGPL source/relinking materials. Package is unsigned. |
+| Current-user replacement installation | BLOCKED | Old uninstaller and new installer returned 0, but the protected installed executable remained 0.1.11. No backup/configuration data was removed. |
+| Native backup/restore and live acceptance | NOT_RUN | No real Codex profile, account, cloud service, personal migration package or second device was used. |
 
 ## Current 0.1.11 language repair acceptance
 

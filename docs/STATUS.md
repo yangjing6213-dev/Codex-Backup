@@ -1,6 +1,16 @@
 # Current status
 
-Source checkpoint: 2026-09-28. Current version: **0.1.11; language fix, local checks, package, replacement installation and scoped native language verification PASS**. See [installer evidence](verification/installer-latest.md) for the exact artifact. Publication is gated on GitHub Actions for the pushed commit; [GitHub Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) is the authority for published assets.
+Source checkpoint: 2026-09-29. Current version: **0.1.12; unexpected restic termination handling, direct frontend/Rust checks, license checks and package PASS**. The current-user replacement installation is **BLOCKED** in this isolated environment: the old 0.1.11 uninstaller and 0.1.12 installer both returned 0, but the protected installed executable remained 0.1.11. See [installer evidence](verification/installer-latest.md) for the exact artifact. Publication is gated on GitHub Actions for the pushed commit; [GitHub Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) is the authority for published assets.
+
+## 0.1.12 unexpected backup-engine termination handling
+
+- Windows restic launches now detach standard input and create an independent no-console process group, reducing the chance that a GUI backup inherits a parent console control event that restic interprets as cancellation.
+- Long restic diagnostics retain both the beginning and end, so lock-refresh and I/O causes are not hidden by tail-only truncation. Exit 130, termination-signal and context-canceled details receive specific bilingual cause/remedy guidance.
+- Direct frontend checks PASS: 6 test files, 101 tests, TypeScript and Vite production build. Canonical `verify.ps1` could not run its pnpm wrappers because the sandbox has no TTY for module-directory cleanup; the equivalent direct checks passed.
+- Rust formatting and the full locked offline suite PASS in an isolated writable test environment: 127 library tests and all integration tests passed; only the repository's pre-existing opt-in tests remain ignored. No real Codex profile or credentials were used.
+- Bundled license/source/relinking checks PASS. The unsigned Windows x64 installer is 51,287,600 bytes with SHA-256 `3cdd2ab195f5680f2a288e3ab8251d87de13043d1d88da2bfbee3a9f55a5b8aa`; the matching sidecar was generated and the NSIS license inclusion check passed.
+- The 0.1.11 installed process was stopped before installation attempts. Its uninstaller did not remove the protected installation directory, and the 0.1.12 installer could not replace it under the current sandbox permissions. Backup repositories, Codex data and configuration were not deleted or modified.
+- Native backup/restore, real-account continuation, second-device and cloud acceptance remain NOT_RUN. The process-isolation change addresses the observed termination path but cannot prove which external component sent the original signal without a native reproduction.
 
 ## 0.1.11 persistent language switching
 

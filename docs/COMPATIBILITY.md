@@ -4,8 +4,8 @@ This matrix separates implemented format intent from checks actually run in the 
 
 | Component | Declared scope | Current result |
 | --- | --- | --- |
-| Application | ENHE Codex Backup 0.1.11, Windows 11 x64 | Fresh verification, NSIS build, replacement installation and scoped native language/navigation checks PASS; see STATUS and installer verification. Full native backup/restore and live-account acceptance remain NOT_RUN. |
-| Windows | Windows 11 x64, current user | Authorized 0.1.10 uninstall/0.1.11 install passed. Registry, installed version and preserved configuration hashes verified; synthetic native Chinese/English switching and restart persistence PASS. |
+| Application | ENHE Codex Backup 0.1.12, Windows 11 x64 | Direct frontend/Rust checks, license checks and unsigned NSIS build PASS. Replacement installation is BLOCKED by the isolated protected install path; full native backup/restore and live-account acceptance remain NOT_RUN. |
+| Windows | Windows 11 x64, current user | The existing 0.1.11 process was stopped; its uninstaller and the 0.1.12 installer returned 0 but the protected installed executable remained 0.1.11. No user backup/configuration data was deleted. |
 | WebView2 | Tauri desktop runtime dependency | Presence on a clean target device is NOT_RUN. The installer documentation must retain an official WebView2 installation path if the target lacks it. |
 | restic | 0.19.1 Windows amd64, encrypted local repository | Real temporary-repository init, backup, check, snapshot listing, and restore passed in `docs/verification/local-restic-acceptance.md`; Rust tests and release wiring compile passed. |
 | rclone | 1.75.1 Windows amd64, OneDrive adapter | Binary version, official archive hash, and adapter tests verified; live authorization remains NOT_RUN. |

@@ -576,7 +576,14 @@ export function errorMessage(error: unknown, translate?: (key: string) => string
     if (key) {
       const translated = translate(key);
       const detail = "message" in error ? String((error as { message: unknown }).message) : "";
-      const guidance = localizedErrorGuidance[code];
+      const interruptedBackup = code === "backup_failed"
+        && /(exit\s+130|signal\s+(?:interrupt|terminated)\s+received|context\s+canceled)/i.test(detail);
+      const guidance = interruptedBackup
+        ? {
+            cause: "原因：备份引擎收到了终止信号，因此主动取消了本次快照保存。",
+            solution: "解决方法：请先重试；应用已隔离备份引擎与界面进程。若仍失败，请关闭占用项目或备份目录的程序，并保留技术详情，不要删除备份仓库。",
+          }
+        : localizedErrorGuidance[code];
       if (guidance) {
         return [
           translated,

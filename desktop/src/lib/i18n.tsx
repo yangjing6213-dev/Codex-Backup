@@ -345,6 +345,8 @@ const english: Record<string, string> = {
   "解决方法：请输入创建该仓库时使用的恢复密码后重试。": "Solution: Enter the recovery password used to create this repository and try again.",
   "原因：备份引擎未能完成操作。": "Cause: The backup engine could not complete the operation.",
   "解决方法：请检查备份目录权限和剩余空间，确认恢复密码后重试。": "Solution: Check the backup-folder permissions and free space, confirm the recovery password, and try again.",
+  "原因：备份引擎收到了终止信号，因此主动取消了本次快照保存。": "Cause: The backup engine received a termination signal and canceled saving this snapshot.",
+  "解决方法：请先重试；应用已隔离备份引擎与界面进程。若仍失败，请关闭占用项目或备份目录的程序，并保留技术详情，不要删除备份仓库。": "Solution: Retry first; the app now isolates the backup engine from the UI process. If it still fails, close programs using the projects or backup folder, keep the technical details, and do not delete the backup repository.",
   "原因：所选路径可能存在目录重叠、路径越界、格式无效或不支持的名称。": "Cause: A selected path may overlap another folder, escape its allowed root, use an invalid format, or contain an unsupported name.",
   "解决方法：请重新选择互不重叠的绝对本地目录；若仍失败，请根据技术详情修正路径。": "Solution: Choose non-overlapping absolute local folders. If the problem continues, correct the path using the technical details.",
   "原因：目标磁盘没有足够空间完成操作。": "Cause: The destination disk does not have enough free space to complete the operation.",

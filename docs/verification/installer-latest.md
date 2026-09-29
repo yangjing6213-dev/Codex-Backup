@@ -1,6 +1,24 @@
 # Windows installer verification
 
-Generated: 2026-09-28. The final 0.1.11 artifact was packaged, installed after uninstalling the current-user 0.1.10 application, and verified with a synthetic profile. The package is unsigned. GitHub publication requires successful Actions for the pushed commit; consult [Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) for published assets.
+Generated: 2026-09-29. The final 0.1.12 artifact was packaged and its checksum, license payload and desktop icon contracts were verified. The package is unsigned. Current-user replacement installation is BLOCKED in the isolated environment because the protected old installation remained at 0.1.11 after both uninstaller and installer returned 0. GitHub publication requires successful Actions for the pushed commit; consult [Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) for published assets.
+
+## Latest 0.1.12 package and replacement-install attempt
+
+| Item | Result |
+| --- | --- |
+| Target/version | Windows x64 / 0.1.12; build metadata and installer package name verified |
+| Candidate filename | `ENHE Codex Backup_0.1.12_x64-setup.exe` |
+| Release filename | `ENHE.Codex.Backup_0.1.12_x64-setup.exe` |
+| Size | 51,287,600 bytes |
+| SHA-256 | `3cdd2ab195f5680f2a288e3ab8251d87de13043d1d88da2bfbee3a9f55a5b8aa` |
+| Package/checksum/licenses | PASS; direct Tauri build exit 0, sidecar matches, bundled notices/source/relinking materials and generated NSIS inclusion checks passed |
+| Code signing | NotSigned; unsigned |
+| Current-user uninstall/install | BLOCKED; old 0.1.11 process stopped, uninstaller exit 0 but did not remove protected files, installer exit 0 but installed executable remained 0.1.11 |
+| Existing settings preservation | NOT_RECHECKED; no application-data deletion option or backup-folder cleanup was used |
+| Native launch/visual test | NOT_RUN; the new executable was not confirmed installed |
+| Scope boundary | Native backup/restore, real account, second device and cloud NOT_RUN |
+
+Only this installer and its matching SHA-256 sidecar are intended as release assets. Source, README, changelog and verification notes are committed normally; local audit logs/screenshots are not published. The prior installer and older releases are retained.
 
 ## Latest 0.1.11 package and replacement installation
 
