@@ -9,8 +9,8 @@ Generated: 2026-09-29. The final 0.1.12 artifact was packaged and its checksum, 
 | Target/version | Windows x64 / 0.1.12; build metadata and installer package name verified |
 | Candidate filename | `ENHE Codex Backup_0.1.12_x64-setup.exe` |
 | Release filename | `ENHE.Codex.Backup_0.1.12_x64-setup.exe` |
-| Size | 51,287,600 bytes |
-| SHA-256 | `3cdd2ab195f5680f2a288e3ab8251d87de13043d1d88da2bfbee3a9f55a5b8aa` |
+| Size | 51,295,450 bytes |
+| SHA-256 | `8859c4ba3f3f829133430096e5d3f2419e52081695d14b85142cad5864e879ed` |
 | Package/checksum/licenses | PASS; direct Tauri build exit 0, sidecar matches, bundled notices/source/relinking materials and generated NSIS inclusion checks passed |
 | Code signing | NotSigned; unsigned |
 | Current-user uninstall/install | BLOCKED; old 0.1.11 process stopped, uninstaller exit 0 but did not remove protected files, installer exit 0 but installed executable remained 0.1.11 |
