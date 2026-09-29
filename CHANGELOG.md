@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-09-29
+
+- Keep global notices in a dedicated normal-flow stack so export, import and migration-history pages no longer overlap the persistent return control while tasks or settings notices are visible.
+- Add a regression test for the shared migration-page status layout and refresh the unsigned Windows x64 package metadata to 0.1.14.
+
 ## [0.1.13] - 2026-09-29
 
 - Follow Windows junctions, symbolic links and supported filesystem redirects when their resolved targets remain inside the selected project root, and materialize those targets as ordinary files in the encrypted backup.

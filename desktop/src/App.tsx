@@ -408,7 +408,7 @@ function AppContent() {
       <aside className="sidebar">
         <button className="brand" type="button" onClick={() => setView("overview")} aria-label={t("ENHE Codex Backup")}>
           <img className="brand-mark" src="/app-icon.png" alt="" />
-          <span className="brand-copy"><small className="brand-version">v0.1.13</small><strong>ENHE</strong><small>Codex Backup</small></span>
+          <span className="brand-copy"><small className="brand-version">v0.1.14</small><strong>ENHE</strong><small>Codex Backup</small></span>
         </button>
 
         <nav className="navigation" aria-label={t("主导航")}>
@@ -468,9 +468,11 @@ function AppContent() {
           )}
         </header>
 
-        {notice && <div className="notice" role="status">{notice}<button type="button" onClick={() => setNotice(null)} aria-label={t("关闭")}>×</button></div>}
-        {error && <div className="global-error" role="alert"><span>{error}</span>{codexScanFailed && <button className="text-button" type="button" onClick={() => void chooseCodexHome()}>{t("选择 Codex 数据位置")}</button>}</div>}
-        {activeOperations > 0 && <div className="notice" role="status"><span><LoaderCircle className="spin" aria-hidden="true" /> {t("任务进行中，切换页面不会中断；请勿退出应用。")}</span><button type="button" onClick={() => setView("backups")}>{t("查看进行中的任务")}</button></div>}
+        {(notice || error || activeOperations > 0) && <div className="global-status-stack" data-testid="global-status-stack">
+          {notice && <div className="notice" role="status">{notice}<button type="button" onClick={() => setNotice(null)} aria-label={t("关闭")}>×</button></div>}
+          {error && <div className="global-error" role="alert"><span>{error}</span>{codexScanFailed && <button className="text-button" type="button" onClick={() => void chooseCodexHome()}>{t("选择 Codex 数据位置")}</button>}</div>}
+          {activeOperations > 0 && <div className="notice" role="status"><span><LoaderCircle className="spin" aria-hidden="true" /> {t("任务进行中，切换页面不会中断；请勿退出应用。")}</span><button type="button" onClick={() => setView("backups")}>{t("查看进行中的任务")}</button></div>}
+        </div>}
 
         {view === "overview" && (
           <OverviewPage headingRef={headingRef} inventory={inventory} localDiscovery={localDiscovery} config={config} scheduler={scheduler} localScanState={localScanState} codexScanFailed={codexScanFailed} loading={loading} backupStatus={backupStatus} migrationStatus={migrationStatus} onNavigate={setView} />
@@ -1425,7 +1427,7 @@ function SettingsPage({ headingRef, config, scheduler, onSave, onNotice, onError
         </div>}
       </section>
 
-      <section className="settings-footer"><button className="primary-button" type="button" onClick={() => void onSave(draft)}>{t("保存设置")}</button><span>{t("当前版本")} 0.1.13</span></section>
+      <section className="settings-footer"><button className="primary-button" type="button" onClick={() => void onSave(draft)}>{t("保存设置")}</button><span>{t("当前版本")} 0.1.14</span></section>
     </div>
   );
 }

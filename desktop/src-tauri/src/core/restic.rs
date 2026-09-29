@@ -824,14 +824,13 @@ fn stage_tree(
                 ));
                 return Ok(false);
             }
-            let sidecar_base_exists = if policy == SourcePolicy::Codex
-                && is_sqlite_sidecar(&entry.source)
-            {
-                sqlite_base_exists(&entry.source)
-                    .map_err(|error| io::Error::other(error.message))?
-            } else {
-                false
-            };
+            let sidecar_base_exists =
+                if policy == SourcePolicy::Codex && is_sqlite_sidecar(&entry.source) {
+                    sqlite_base_exists(&entry.source)
+                        .map_err(|error| io::Error::other(error.message))?
+                } else {
+                    false
+                };
             let target = if sidecar_base_exists {
                 destination.join(SQLITE_SIDECAR_ROOT).join(relative)
             } else {

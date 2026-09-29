@@ -4,7 +4,7 @@
 
 ## 一、这个仓库是什么？
 
-ENHE Codex Backup 是一个独立的 Windows x64 本地优先 Codex 项目和数据备份、恢复和离线迁移工具。无需云端配置即可备份。0.1.13 会跟随仍位于项目根目录内的链接目标，并将其物化为普通文件；项目外部链接必须单独选择，避免扫描或备份范围被静默扩大。
+ENHE Codex Backup 是一个独立的 Windows x64 本地优先 Codex 项目和数据备份、恢复和离线迁移工具。无需云端配置即可备份。0.1.14 会跟随仍位于项目根目录内的链接目标，并将其物化为普通文件；项目外部链接必须单独选择，避免扫描或备份范围被静默扩大。
 
 它不是 OpenAI 或 ReHome 官方产品。云端默认关闭；OneDrive/rclone 只在用户完成配置并主动执行测试或上传时使用。“迁移并接入 Codex”的联网验证是独立选项，必须另行同意发送所选对话上下文，可能产生模型用量；关闭云端备份不等于禁止该验证联网。
 
@@ -54,7 +54,7 @@ Codex 数据位置：C:\Users\<用户>\.codex
 
 ## 六、安装方法
 
-1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases) 查看实际已发布版本。0.1.13 发布后资产为 [Windows x64 安装包](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.13/ENHE.Codex.Backup_0.1.13_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.13/ENHE.Codex.Backup_0.1.13_x64-setup.exe.sha256)。安装包未进行代码签名；安装前请核对 SHA-256 校验值。
+1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases) 查看实际已发布版本。0.1.14 发布后资产为 [Windows x64 安装包](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.14/ENHE.Codex.Backup_0.1.14_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.14/ENHE.Codex.Backup_0.1.14_x64-setup.exe.sha256)。安装包未进行代码签名；安装前请核对 SHA-256 校验值。
 2. 使用 PowerShell 计算安装包 SHA-256，并与校验文件比对。
 3. 运行安装包，按 Windows 当前用户范围完成安装。
 4. 首次启动后确认本机数据位置；云端保持关闭即可完成本地备份。
@@ -116,7 +116,7 @@ tests/                      隔离测试与文档契约测试
 
 ## 十一、版本说明
 
-当前版本：`0.1.13`。项目备份会安全跟随项目根目录内的 junction、符号链接和文件系统重定向，并把目标物化为普通文件；项目根目录外的链接、循环、失效或不可读目标会给出明确的部分结果和处理建议。详见 [版本更新说明](CHANGELOG.md)。新版检查通过后发布未签名 Windows x64 安装包及 SHA-256 文件，保留旧版本。实际检查与发布状态见 [STATUS](docs/STATUS.md)；真实 OneDrive、第二设备和真实会话续接仍未验证。
+当前版本：`0.1.14`。项目备份会安全跟随项目根目录内的 junction、符号链接和文件系统重定向，并把目标物化为普通文件；项目根目录外的链接、循环、失效或不可读目标会给出明确的部分结果和处理建议。导出、导入和迁移记录页面的全局提示已改为独立占位，避免与返回按钮重叠。详见 [版本更新说明](CHANGELOG.md)。新版检查通过后发布未签名 Windows x64 安装包及 SHA-256 文件，保留旧版本。实际检查与发布状态见 [STATUS](docs/STATUS.md)；真实 OneDrive、第二设备和真实会话续接仍未验证。
 
 ## 十二、相关项目
 
@@ -146,4 +146,4 @@ ReHome：本项目内置其适用的离线迁移能力，但完整本地备份�
 
 本项目沿用上游仓库的 MIT 许可；内置组件、版本和来源见 [THIRD_PARTY](docs/THIRD_PARTY.md)。
 
-0.1.13 安装包随附许可与第三方声明文件，安装后可在程序目录的 `resources/licenses` 文件夹离线查看；许可材料是技术再分发证据，不构成法律意见。
+0.1.14 安装包随附许可与第三方声明文件，安装后可在程序目录的 `resources/licenses` 文件夹离线查看；许可材料是技术再分发证据，不构成法律意见。

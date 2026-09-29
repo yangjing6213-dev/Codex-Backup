@@ -4,8 +4,8 @@ This matrix separates implemented format intent from checks actually run in the 
 
 | Component | Declared scope | Current result |
 | --- | --- | --- |
-| Application | ENHE Codex Backup 0.1.13 candidate, Windows 11 x64 | Internal project-link traversal is implemented; Rust/frontend checks, license checks, package and replacement installation remain NOT_RUN in this checkpoint. |
-| Windows | Windows 11 x64, current user | Previous 0.1.12 replacement evidence remains historical; no 0.1.13 installer has been installed or launched yet. No user backup/configuration data was deleted by this candidate work. |
+| Application | ENHE Codex Backup 0.1.14 candidate, Windows 11 x64 | Internal project-link traversal and migration-page layout fix are implemented; full frontend suite remains blocked by the local jsdom dependency graph. |
+| Windows | Windows 11 x64, current user | Previous 0.1.13 replacement evidence remains historical; the 0.1.14 installer must be installed and launched before native UI acceptance. No user backup/configuration data should be deleted by this candidate work. |
 | WebView2 | Tauri desktop runtime dependency | Presence on a clean target device is NOT_RUN. The installer documentation must retain an official WebView2 installation path if the target lacks it. |
 | restic | 0.19.1 Windows amd64, encrypted local repository | Real temporary-repository init, backup, check, snapshot listing, and restore passed in `docs/verification/local-restic-acceptance.md`; Rust tests and release wiring compile passed. |
 | rclone | 1.75.1 Windows amd64, OneDrive adapter | Binary version, official archive hash, and adapter tests verified; live authorization remains NOT_RUN. |

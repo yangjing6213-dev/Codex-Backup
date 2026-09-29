@@ -1,6 +1,12 @@
 # Current status
 
-Source checkpoint: 2026-09-29. Current candidate version: **0.1.13; internal project-link traversal implemented and packaged locally**. Rust and direct frontend build checks pass; the full Vitest suite is blocked by a missing local jsdom dependency, and the canonical pnpm wrapper cannot complete in this checkout. Replacement installation and publication have not been performed. Publication is gated on all local checks and GitHub Actions for the pushed commit; [GitHub Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) is the authority for published assets.
+Source checkpoint: 2026-09-30. Current candidate version: **0.1.14; migration-page global notice overlap fix implemented and packaged**. Direct TypeScript and Vite build checks pass; the full Vitest suite is blocked by a missing local jsdom dependency, and the canonical pnpm wrapper cannot complete in this checkout. Current-user replacement installation is blocked because the old 0.1.11 install path returns access denied to the uninstaller, silent installer and direct executable replacement; no application data was deleted. GitHub publication is still pending. Publication is gated on GitHub Actions for the pushed commit; [GitHub Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) is the authority for published assets.
+
+## 0.1.14 migration-page layout and 0.1.13 project-link semantics
+
+- Global notice and error messages now render in a dedicated normal-flow stack. The export, import and migration-history return control follows the stack instead of being pulled over it by negative margins.
+- The regression test covers the shared status-stack/return-control ordering. Other global notice pages use the same layout.
+- Verification status: **PARTIAL** — Rust tests, direct TypeScript/Vite checks, package, SHA-256, license materials and real NSIS shortcut fixture pass. Full Vitest and native replacement installation remain blocked by the local environment; GitHub publication is not run.
 
 ## 0.1.13 internal project-link backup semantics
 
@@ -8,7 +14,7 @@ Source checkpoint: 2026-09-29. Current candidate version: **0.1.13; internal pro
 - External, cyclic, missing and unreadable link targets are kept out of silent traversal and are reported with an actionable partial-result category. Codex data safety exclusions remain unchanged.
 - Verification status: **PARTIAL** — the Rust suite, TypeScript typecheck, Vite production build, package, SHA-256, license materials and real NSIS shortcut fixture pass. The full Vitest suite and canonical pnpm wrapper remain blocked by the incomplete local dependency graph. Native replacement installation and publication are not run.
 - Rust evidence: 130 library tests and all integration tests pass with the project-local locked offline toolchain; only pre-existing opt-in tests remain ignored.
-- Package evidence: unsigned Windows x64 NSIS installer, 51,291,939 bytes, SHA-256 `a67ef04af506b0f84478c9377cba941af78d0abf89c3c25b280311008d7b443c`; matching sidecar and generated NSIS license inclusion pass.
+- Package evidence: unsigned Windows x64 NSIS installer, 51,295,894 bytes, SHA-256 `8c5b26369aca005cf36aa38ca46d414ad6b228746dda95a5aec12b2b431d7aae`; matching sidecar and generated NSIS license inclusion pass.
 
 ## 0.1.12 unexpected backup-engine termination handling
 

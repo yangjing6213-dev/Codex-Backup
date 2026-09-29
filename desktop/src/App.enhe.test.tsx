@@ -546,6 +546,21 @@ describe("ENHE Codex Backup shell", () => {
     expect(screen.getByRole("tab", { name: "本地备份" })).toHaveAttribute("aria-selected", "true");
   });
 
+  it("keeps global status notices in flow before migration return controls", async () => {
+    const user = userEvent.setup();
+    api.runLocalBackup.mockImplementation(() => new Promise(() => undefined));
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "前往备份与迁移" }));
+    await user.type(screen.getByLabelText("恢复密码"), "synthetic-password");
+    await user.click(screen.getByRole("button", { name: "开始本地备份" }));
+    await user.click(screen.getByRole("tab", { name: "导出 ReHome 迁移包" }));
+
+    const statusStack = screen.getByTestId("global-status-stack");
+    const returnButton = screen.getByRole("button", { name: "返回本地备份" });
+    expect(statusStack.compareDocumentPosition(returnButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(statusStack).toHaveClass("global-status-stack");
+  });
+
   it("keeps an in-flight backup and its result across navigation without resetting settings", async () => {
     const user = userEvent.setup();
     let finish!: (value: unknown) => void;
@@ -689,7 +704,7 @@ describe("ENHE Codex Backup shell", () => {
     expect(screen.getByRole("button", { name: "前往操作说明" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "前往关于作者" })).toBeInTheDocument();
     expect(screen.getAllByText("云端备份已关闭").length).toBeGreaterThan(0);
-    expect(screen.getByText("v0.1.13")).toBeInTheDocument();
+    expect(screen.getByText("v0.1.14")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Codex 数据备份&迁移" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "开始本地备份" })).toBeInTheDocument();
   });
