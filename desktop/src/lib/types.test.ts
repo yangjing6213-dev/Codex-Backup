@@ -180,6 +180,18 @@ describe("backup result contracts", () => {
 
 describe("errorMessage", () => {
   it.each([
+    ["operation_in_progress", "已有备份或恢复正在运行", "等待当前任务结束", "another backup is running"],
+    ["backup_lock_unavailable", "无法访问备份任务锁", "检查应用数据目录权限", "could not open worker lock: access denied"],
+    ["scheduler_unavailable", "自动备份计划任务不可用", "设置", "Windows Task Scheduler rejected the ENHE task"],
+  ])("explains %s with the correct remedy and technical detail", (code, title, remedy, detail) => {
+    const message = errorMessage({ code, message: detail }, key => key);
+    expect(message).toContain(title);
+    expect(message).toContain(remedy);
+    expect(message).toContain(`技术详情：${detail}`);
+    if (code !== "scheduler_unavailable") expect(message).not.toContain("计划任务不可用");
+  });
+
+  it.each([
     ["zh-CN", "原因：对话识别或临时分支续聊验证未完成。", "解决方法：检查联网同意、所选对话、模型服务和网络；确认 Codex 版本支持临时分支。若启用了 MCP 或其他集成，请在 Codex 中手动检查并处理，或明确选择“仅恢复文件”。处理后重新预览，不会自动改用仅恢复文件。"],
     ["en", "Cause: Conversation recognition or continuation on a temporary branch did not complete.", "Solution: Check online consent, the selected conversation, model service and network. Confirm the Codex version supports temporary branches. If MCP or other integrations are enabled, check them and resolve any issues manually in Codex, or explicitly choose “Restore files only”. Resolve the issue and preview again; file-only restore is not started automatically."],
   ])("conditionally suggests integration remedies using the real %s translation", (locale, cause, solution) => {

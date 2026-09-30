@@ -1,6 +1,21 @@
 # Acceptance mapping
 
-Checkpoint: 2026-09-29; **0.1.14 migration-page layout candidate is implemented and will be re-packaged; the full frontend suite remains blocked by the local jsdom dependency graph until dependencies are restored**. See [STATUS](STATUS.md). Publication follows successful GitHub Actions for the pushed commit; actual published versions are listed on GitHub Releases.
+Checkpoint: 2026-09-30; **0.1.15 source, package, replacement installation and synthetic installed-runtime checks pass**. See [STATUS](STATUS.md). Publication follows successful GitHub Actions for the pushed commit; actual published versions are listed on GitHub Releases.
+
+## Current 0.1.15 worker-lock acceptance
+
+| Check | Result | Boundary |
+| --- | --- | --- |
+| Abandoned and live lock handling | PASS | Nine Windows tests cover abandoned/live ownership, hard links, path replacement, empty legacy initialization, partial modern markers and obviously reused PIDs. Ownership checks fail closed on unknown process state. |
+| Async and cross-process exclusion | PASS | Existing async tests verify backup/restore/list responsiveness and CLI exclusion; the bundled-engine backup/list/restore round trip was separately enabled and passed. |
+| Canonical verification and frontend | PASS | All 11 checks pass, including 106 frontend and 414 Rust tests (nine existing opt-in tests ignored), build, version, docs, format, licenses and isolated restic acceptance. |
+| Independent review | PASS | Final scoped Windows lock review and independent nine-test rerun pass; Unix and unavailable dynamic scenarios are not claimed. |
+| Package, licenses and checksum | PASS | Final unsigned Windows x64 installer and SHA-256 match; installed notices, LGPL source/relinking materials, runtimes and real NSIS shortcut fixture verified. |
+| Current-user replacement and synthetic native runtime | PASS | Registry/file/product versions 0.1.15; legacy-lock retry, repeat backup and synthetic file restoration pass. Real application files remain present; no user-data deletion selected. |
+| Native window click-through | NOT_RUN | App approval timed out; startup window title was discovered, but visual clicks are not verified. |
+| GitHub Actions and Release | NOT_RUN | Ordinary fast-forward push and exact-commit CI precede publication. |
+
+The following sections preserve historical checkpoints.
 
 ## Current 0.1.14 migration-page layout acceptance
 

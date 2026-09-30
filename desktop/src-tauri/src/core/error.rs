@@ -9,6 +9,8 @@ pub enum ErrorCode {
     BackupRepositoryInvalid,
     BackupPasswordRequired,
     BackupFailed,
+    OperationInProgress,
+    BackupLockUnavailable,
     UnsafePath,
     ConfigInvalid,
     AdminScanUnavailable,

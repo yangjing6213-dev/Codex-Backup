@@ -90,6 +90,27 @@ impl Fixture {
             .with_file_name("backup-worker.lock")
     }
 
+    fn lock_is_held(&self) -> bool {
+        fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(self.lock_path())
+            .is_ok_and(|file| matches!(file.try_lock(), Err(fs::TryLockError::WouldBlock)))
+    }
+
+    fn assert_lock_released(&self) {
+        if !self.lock_path().exists() {
+            return;
+        }
+        let file = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(self.lock_path())
+            .unwrap();
+        file.try_lock()
+            .expect("completed or failed operation leaked lock ownership");
+    }
+
     fn gated_engine(&self) {
         // A real child process waits for the command future to yield. The timeout
         // makes an inline/blocking regression fail instead of hanging the suite.
@@ -140,7 +161,7 @@ exit 23
                         while !entered.exists() && Instant::now() < deadline {
                             std::thread::sleep(Duration::from_millis(10));
                         }
-                        lock_during_work = Some(entered.exists() && self.lock_path().exists());
+                        lock_during_work = Some(entered.exists() && self.lock_is_held());
                     }
                     fs::write(&release, "runtime remained responsive").unwrap();
                     Poll::Pending
@@ -161,10 +182,7 @@ exit 23
             Some(mutating),
             "mutation lock must cover the running engine"
         );
-        assert!(
-            !self.lock_path().exists(),
-            "failed operation leaked its lock"
-        );
+        self.assert_lock_released();
     }
 }
 
@@ -221,33 +239,47 @@ fn backup_restore_and_sync_worker_share_the_mutation_lock() {
     let lock = fixture.lock_path();
     fs::create_dir_all(lock.parent().unwrap()).unwrap();
     fs::write(&lock, "another synthetic worker").unwrap();
+    let file = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&lock)
+        .unwrap();
+    file.try_lock().unwrap();
 
     assert_eq!(
         tauri::async_runtime::block_on(run_local_backup(fixture.backup()))
             .unwrap_err()
             .code,
-        ErrorCode::SchedulerUnavailable
+        ErrorCode::OperationInProgress
     );
     assert_eq!(
         tauri::async_runtime::block_on(restore_local_backup(fixture.restore()))
             .unwrap_err()
             .code,
-        ErrorCode::SchedulerUnavailable
+        ErrorCode::OperationInProgress
     );
     assert_eq!(
         run_due_backup().unwrap_err().code,
-        ErrorCode::SchedulerUnavailable
+        ErrorCode::OperationInProgress
     );
-    assert_eq!(
-        fs::read_to_string(&lock).unwrap(),
-        "another synthetic worker"
-    );
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_enhe-codex-backup"))
+        .arg("--run-due")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&output.stderr)
+        .contains("another backup or restore is already running"));
     // Read-only listing is allowed while a mutator holds the application lock.
     assert_eq!(
         tauri::async_runtime::block_on(list_local_backups(fixture.list()))
             .unwrap_err()
             .code,
         ErrorCode::BackupEngineUnavailable
+    );
+    drop(file);
+    assert_eq!(
+        fs::read_to_string(&lock).unwrap(),
+        "another synthetic worker"
     );
 }
 
@@ -262,7 +294,7 @@ fn errors_are_preserved_and_release_the_mutation_lock() {
             .code,
         ErrorCode::BackupPasswordRequired
     );
-    assert!(!fixture.lock_path().exists());
+    fixture.assert_lock_released();
 
     let mut restore = fixture.restore();
     restore.recovery_password.clear();
@@ -272,9 +304,9 @@ fn errors_are_preserved_and_release_the_mutation_lock() {
             .code,
         ErrorCode::BackupPasswordRequired
     );
-    assert!(!fixture.lock_path().exists());
+    fixture.assert_lock_released();
     assert_eq!(run_due_backup().unwrap_err().code, ErrorCode::ConfigInvalid);
-    assert!(!fixture.lock_path().exists());
+    fixture.assert_lock_released();
 
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_enhe-codex-backup"))
         .arg("--run-due")
@@ -282,7 +314,7 @@ fn errors_are_preserved_and_release_the_mutation_lock() {
         .unwrap();
     assert_eq!(output.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&output.stderr).contains("scheduled backup is disabled"));
-    assert!(!fixture.lock_path().exists());
+    fixture.assert_lock_released();
 }
 
 #[test]
@@ -305,7 +337,7 @@ fn bundled_restic_round_trip_through_async_commands() {
     tauri::async_runtime::block_on(async {
         let snapshot = run_local_backup(fixture.backup()).await.unwrap();
         assert!(snapshot.complete);
-        assert!(!fixture.lock_path().exists());
+        fixture.assert_lock_released();
         let snapshots = list_local_backups(fixture.list()).await.unwrap();
         assert_eq!(snapshots.len(), 1);
         assert_eq!(snapshots[0].restic_snapshot_id, snapshot.restic_snapshot_id);
@@ -325,7 +357,7 @@ fn bundled_restic_round_trip_through_async_commands() {
             fs::read_to_string(project.join("README.md")).unwrap(),
             "synthetic project"
         );
-        assert!(!fixture.lock_path().exists());
+        fixture.assert_lock_released();
 
         // Missing selected content must still produce a partial snapshot.
         let mut request = fixture.backup();
@@ -335,7 +367,7 @@ fn bundled_restic_round_trip_through_async_commands() {
         let partial = run_local_backup(request).await.unwrap();
         assert!(!partial.complete);
         assert!(!partial.manifest.missing.is_empty());
-        assert!(!fixture.lock_path().exists());
+        fixture.assert_lock_released();
         let snapshots = list_local_backups(fixture.list()).await.unwrap();
         let listed = snapshots
             .iter()

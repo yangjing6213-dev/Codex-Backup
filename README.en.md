@@ -4,7 +4,7 @@
 
 ## 1. What is this repository?
 
-ENHE Codex Backup is an independent Windows x64 local-first backup, restore, and offline migration utility. It preserves Codex data and projects without requiring cloud configuration. Version 0.1.14 safely follows link targets that remain inside the selected project root and materializes them as regular files; links outside the root must be selected separately so the backup scope never expands silently. It is not an official OpenAI or ReHome product.
+ENHE Codex Backup is an independent Windows x64 local-first backup, restore, and offline migration utility. It preserves Codex data and projects without requiring cloud configuration. Version 0.1.15 recovers valid abandoned worker locks and distinguishes active operations, lock-access failures and scheduled-task failures. Safe internal project-link backups and migration-page layout fixes are retained. It is not an official OpenAI or ReHome product.
 
 ## 2. Who is it for?
 
@@ -48,7 +48,7 @@ Projects includes a Request administrator permission for restricted folders opti
 
 ## 6. Installation
 
-1. Open [GitHub Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) for actually published versions. After publication, the 0.1.14 assets will be the [Windows x64 installer](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.14/ENHE.Codex.Backup_0.1.14_x64-setup.exe) and [SHA-256 checksum](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.14/ENHE.Codex.Backup_0.1.14_x64-setup.exe.sha256). The installer is unsigned; verify its SHA-256 before installation.
+1. Open [GitHub Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) for actually published versions. After publication, the 0.1.15 assets will be the [Windows x64 installer](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.15/ENHE.Codex.Backup_0.1.15_x64-setup.exe) and [SHA-256 checksum](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.15/ENHE.Codex.Backup_0.1.15_x64-setup.exe.sha256). The installer is unsigned; verify its SHA-256 before installation.
 2. Compare the installer SHA-256 with the sidecar in PowerShell.
 3. Run the installer for the Windows current user.
 4. Confirm the local data location on first launch; cloud may remain off.
@@ -118,13 +118,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
 ```
 
-The scripts pin and verify the Windows amd64 release archives for restic 0.19.1 and rclone 1.75.1. Version-specific build and replacement-installation evidence is recorded in [STATUS](docs/STATUS.md) and [installer verification](docs/verification/installer-latest.md). The 0.1.14 package is unsigned and has no auto-updater; full native backup/restore, real-account continuation and second-device acceptance remain unverified.
+The scripts pin and verify the Windows amd64 release archives for restic 0.19.1 and rclone 1.75.1. Version-specific build and replacement-installation evidence is recorded in [STATUS](docs/STATUS.md) and [installer verification](docs/verification/installer-latest.md). The 0.1.15 package is unsigned and has no auto-updater; real-account continuation and second-device acceptance remain unverified.
 
 See [COMPATIBILITY](docs/COMPATIBILITY.md), [UPSTREAM](docs/UPSTREAM.md), and [ACCEPTANCE](docs/ACCEPTANCE.md) for the compatibility and verification boundaries.
 
 ## 11. Version
 
-Current version: `0.1.14`. Project backup follows safe links inside the selected root and materializes their targets as regular files; external, cyclic, missing or unreadable link targets receive explicit partial-result guidance. Global status notices now reserve their own layout space on migration pages. See the [changelog](CHANGELOG.md). After verification, the release will contain only the unsigned Windows x64 installer and SHA-256 sidecar, retaining previous releases. See [STATUS](docs/STATUS.md) for actual verification and publication state. Live OneDrive, second-device and real-account continuation remain unverified.
+Current version: `0.1.15`. Worker ownership is protected by an exclusive process-held file lock that is released on exit, not removed because of task age. Valid legacy locks are recovered only after their owner is confirmed inactive. Active operations, lock-access failures and scheduled-task failures have separate bilingual causes, remedies and technical details. Do not manually delete a lock held by a running operation. Safe internal project-link backups and migration-page layout fixes are retained. See the [changelog](CHANGELOG.md). After verification, the release will contain only the unsigned Windows x64 installer and SHA-256 sidecar, retaining previous releases. See [STATUS](docs/STATUS.md) for actual verification and publication state. Live OneDrive, second-device and real-account continuation remain unverified.
 
 ## 12. Related projects
 
@@ -154,4 +154,4 @@ This project is one tool in the personal generation system I built with AI. If y
 
 This project retains the upstream repository's MIT license. Bundled components and versions are recorded in [THIRD_PARTY](docs/THIRD_PARTY.md).
 
-The 0.1.14 installer includes license texts for offline reading under `resources/licenses` in the application directory. The license materials are technical redistribution evidence, not legal advice.
+The 0.1.15 installer includes license texts for offline reading under `resources/licenses` in the application directory. The license materials are technical redistribution evidence, not legal advice.

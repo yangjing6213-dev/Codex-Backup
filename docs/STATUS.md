@@ -1,6 +1,18 @@
 # Current status
 
-Source checkpoint: 2026-09-30. Current candidate version: **0.1.14; migration-page global notice overlap fix implemented and packaged**. Direct TypeScript and Vite build checks pass; the full Vitest suite is blocked by a missing local jsdom dependency, and the canonical pnpm wrapper cannot complete in this checkout. Current-user replacement installation is blocked because the old 0.1.11 install path returns access denied to the uninstaller, silent installer and direct executable replacement; no application data was deleted. GitHub publication is still pending. Publication is gated on GitHub Actions for the pushed commit; [GitHub Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) is the authority for published assets.
+Source checkpoint: 2026-09-30. Current version: **0.1.15; worker-lock recovery and accurate backup-error guidance**. Canonical verification, independent review, final packaging and current-user replacement installation pass. Installed 0.1.15 completed synthetic legacy-lock recovery, repeated backup and file-restore checks. Normal-user diagnosis confirmed an abandoned 0.1.11 lock, not a user-directory permission defect. Publication is gated on GitHub Actions for the pushed commit; [GitHub Releases](https://github.com/yangjing6213-dev/Codex-Backup/releases) is the authority for published assets.
+
+## 0.1.15 worker-lock recovery
+
+- Replace create/delete and 24-hour age-based cleanup with an exclusive OS-held file lock. Process exit releases ownership while the marker file can remain safely for reuse.
+- Confirm legacy owner-process state and creation time before reusing an old marker; live, empty or unverified legacy ownership is not overwritten. Incomplete modern-marker initialization is recoverable without truncating the legacy evidence, and normal reuse does not rewrite the marker.
+- Report active-operation and lock-access errors separately from scheduled-task failures, with bilingual cause, solution and sanitized technical details.
+- Verification: **PASS for Windows source/package/installed-runtime checks** — all 11 canonical checks pass; 106 frontend and 414 Rust tests pass, with nine pre-existing opt-in tests ignored. The bundled-engine async round trip was separately enabled and passed. Independent scoped review, nine Windows lock tests, real NSIS shortcut fixture, license/source/relinking materials and SHA-256 checks pass.
+- Final unsigned installer: 51,294,115 bytes; SHA-256 `3a02fcc311221177c43554a2b5594863d4909b3216f48a8790527311948a2f42`. Installed registry/file/product versions are 0.1.15; executable differs from the build only at the documented three-byte Tauri `UNK` to `NSS` bundle marker, and installed runtime/license resources match exactly. Old-program removal preserved all three application files by hash; the files remain present with their original modification times after installation. No application-data or backup-folder deletion was selected.
+- Installed synthetic runtime: legacy abandoned lock converted while preserving its ownership JSON; two successful backup invocations reuse the unchanged complete snapshot; restored README, `.env` and synthetic Codex instructions match the source. Cloud stays off and no system task is created.
+- Boundaries: native window click-through **NOT_RUN** because app approval timed out. Real-profile backup, account continuation, second-device, cloud and Unix acceptance are not established. GitHub Actions and Release verification occur after the ordinary push; local readiness is not a publication claim.
+
+Historical checkpoints below record earlier attempts, not the current verification result.
 
 ## 0.1.14 migration-page layout and 0.1.13 project-link semantics
 

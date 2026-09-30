@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$expectedVersion = "0.1.14"
+$expectedVersion = "0.1.15"
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 
 $package = Get-Content -LiteralPath (Join-Path $projectRoot "desktop\package.json") -Raw | ConvertFrom-Json
@@ -35,7 +35,7 @@ foreach ($requiredText in @("brand-version`">v$expectedVersion", "当前版本`"
 }
 
 $changelog = Get-Content -LiteralPath (Join-Path $projectRoot "CHANGELOG.md") -Raw
-if (-not $changelog.Contains("## [$expectedVersion] - 2026-09-29")) {
+if (-not $changelog.Contains("## [$expectedVersion] - 2026-09-30")) {
     throw "CHANGELOG.md is missing the $expectedVersion release section."
 }
 

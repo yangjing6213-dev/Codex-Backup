@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.1.15] - 2026-09-30
+
+- Replace age-based worker-lock deletion with a process-held exclusive file lock. A terminated worker releases ownership automatically, while a running backup or restore remains protected regardless of elapsed time.
+- Recover valid abandoned locks left by older versions after confirming their owner process is no longer running; keep active or unverified legacy ownership protected.
+- Distinguish operation-in-progress, backup-lock access and scheduled-task failures with bilingual cause, remedy and technical detail instead of reporting manual-backup failures as unavailable scheduled tasks.
+- Add isolated lock-lifetime, cross-process exclusion and error-message regression coverage. Preserve existing application configuration, backup repositories and cloud opt-in behavior.
+
 ## [0.1.14] - 2026-09-29
 
 - Keep global notices in a dedicated normal-flow stack so export, import and migration-history pages no longer overlap the persistent return control while tasks or settings notices are visible.

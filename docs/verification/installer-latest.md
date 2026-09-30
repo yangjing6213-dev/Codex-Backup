@@ -1,6 +1,36 @@
 # Windows installer verification
 
-Generated: 2026-09-30. The local 0.1.14 candidate contains the migration-page notice-stack overlap fix on top of the internal project-link traversal change. Rust tests, direct TypeScript/Vite checks, package, checksum, bundled-license and real NSIS icon fixture passed. Full Vitest remains blocked by the incomplete local jsdom dependency graph (`@asamuzakjp/css-color` is missing). The existing 0.1.11 installation could not be replaced by the silent installer or direct file copy because the protected install path returned access denied; no application data was deleted.
+Generated: 2026-09-30. The final 0.1.15 worker-lock fix has passed source checks, package checks, current-user replacement installation and synthetic installed-runtime backup/restore. Earlier environment-blocked checkpoints below are historical, not the current result. Release publication still requires successful GitHub Actions for the pushed commit.
+
+## Latest 0.1.15 package and replacement installation
+
+| Item | Result |
+| --- | --- |
+| Target/version | Windows x64 / 0.1.15; registry and installed file/product versions confirmed |
+| Candidate filename | `ENHE Codex Backup_0.1.15_x64-setup.exe` |
+| Release filename | `ENHE.Codex.Backup_0.1.15_x64-setup.exe` |
+| Size | 51,294,115 bytes |
+| SHA-256 | `3a02fcc311221177c43554a2b5594863d4909b3216f48a8790527311948a2f42` |
+| Package/checksum/licenses | PASS; canonical package exit 0, matching checksum, exact bundled notices/source/relinking materials and installed runtime/resource hashes |
+| Source verification | PASS; all 11 canonical checks, 106 frontend and 414 Rust tests; nine existing opt-in tests ignored, bundled-restic async round trip separately passed |
+| Independent review | PASS; Windows lock source and nine lock tests independently checked |
+| History/worktree secret scan | PASS; Gitleaks 8.30.1 found zero findings; generic inventory matches reviewed as variables, synthetic fixtures and retained upstream public license contacts |
+| Code signing | NotSigned; unsigned |
+| Current-user uninstall/install | PASS; 0.1.11 removed, 0.1.15 installed; no application-data deletion or backup-folder cleanup |
+| Installed executable SHA-256 | `46738b97c2a71780587591c08b2663f081efcbf8fa1ae544a4fd8e2cbd4c83d6` |
+| Executable equivalence | PASS; exact same length, only three bytes differ at the Tauri `UNK` to `NSS` bundle-type marker |
+| Settings preservation | PASS before installation: three application files unchanged by hash after uninstall. After installation: all three remain with original modification times; no post-install comparison with the pre-uninstall hashes was retained. |
+| Installed synthetic runtime | PASS; abandoned legacy lock recovered, repeat invocation reuses unchanged complete snapshot, restored README / `.env` / synthetic Codex file hashes match |
+| Shortcut fixture | PASS; real NSIS fixture verifies icon refresh and preserves the no-shortcut preference |
+| Native window click-through | NOT_RUN; new window title discovered, but app-approval timeout prevented screenshot/click verification |
+| Isolation and limits | Cloud off, synthetic profile only, no system task created. Real account, real-profile backup, second-device, cloud and Unix not verified. |
+| GitHub publication | NOT_RUN at this local checkpoint; successful exact-commit Actions and asset verification required |
+
+Only this installer and its SHA-256 sidecar are intended release assets. Older releases and installers are retained; local audit reports, fixture credentials and personal data are excluded.
+
+## Historical 0.1.14 checkpoint
+
+The 0.1.14 candidate contained the migration-page overlap and internal-project-link changes, but replacement installation could not be verified in the isolated execution identity. The normal-user 0.1.15 diagnosis corrected that environment boundary; this historical entry is not evidence of a real-user ACL defect.
 
 ## Latest 0.1.14 package
 
@@ -133,7 +163,7 @@ The published Release contains only this installer and its `.sha256` sidecar; no
 | Code signing | NotSigned; unsigned |
 | Uninstall/install/startup | NOT_RUN by current instruction; previously installed executable remains unchanged |
 | Installer extraction/native UI | NOT_RUN; compilation and generated inclusion instructions are not an installed-file or pixel-level verification |
-| Technical publication readiness | READY; the pinned SDDL discrepancy is handled through the documented conservative LGPL path, with corresponding source, relinking instructions and build materials included. This is not a legal certification; exact user authorization is still required. See [third-party review](../THIRD_PARTY.md#017-lgpl-source-and-relinking-material) |
+| Technical publication readiness | READY; the pinned SDDL discrepancy is handled through the documented conservative LGPL path, with corresponding source, relinking instructions and build materials included. This is not a legal certification; exact user authorization is still required. See [third-party review](../THIRD_PARTY.md#018-lgpl-source-and-relinking-material) |
 
 The earlier package is retained locally. No commit, push, tag, release or asset upload was performed. The output bundle path below now contains the final local candidate; historical installation proof is bound to the earlier hash, not that reused path.
 

@@ -493,10 +493,12 @@ const localizedErrorKeys: Record<string, string> = {
   backup_repository_invalid: "备份仓库无效，请选择新的空目录或有效仓库。",
   backup_password_required: "恢复密码错误或缺失，无法打开仓库。",
   backup_failed: "本地备份未完整完成；原始项目文件未被修改。",
+  operation_in_progress: "已有备份或恢复正在运行，本次操作尚未开始。",
+  backup_lock_unavailable: "无法访问备份任务锁，本次操作尚未开始。",
   unsafe_path: "路径不符合安全要求，请重新选择本地目录。",
   config_invalid: "设置无效，请检查字段后重试。",
   admin_scan_unavailable: "管理员扫描未完成，请检查 Windows UAC 提示。",
-  scheduler_unavailable: "计划任务不可用，本地手动备份仍可继续。",
+  scheduler_unavailable: "自动备份计划任务不可用。",
   cloud_disabled: "云端备份已关闭，未执行远端操作。",
   cloud_configuration: "云端配置不完整，请完成 OneDrive 配置后重试。",
   cloud_unavailable: "云端操作失败，本地备份不受影响。",
@@ -518,6 +520,18 @@ const localizedErrorKeys: Record<string, string> = {
 };
 
 const localizedErrorGuidance: Record<string, { cause: string; solution: string }> = {
+  operation_in_progress: {
+    cause: "原因：其他备份或恢复任务正在使用应用的备份任务锁。",
+    solution: "解决方法：等待当前任务结束后重试；如果打开了旧版应用，请先关闭旧版。不要删除运行中任务的锁文件。",
+  },
+  backup_lock_unavailable: {
+    cause: "原因：应用无法读取或写入备份任务锁，或无法确认旧版任务是否已退出。",
+    solution: "解决方法：关闭旧版应用后重试，检查应用数据目录权限；若仍失败，请保留技术详情，不要删除备份仓库。",
+  },
+  scheduler_unavailable: {
+    cause: "原因：Windows 未能读取、创建或删除自动备份计划任务。",
+    solution: "解决方法：在“设置”中检查自动备份配置和 Windows 任务计划程序状态。手动备份可在没有其他备份或恢复任务运行时使用。",
+  },
   backup_engine_unavailable: {
     cause: "原因：应用无法启动随安装包提供的 restic。",
     solution: "解决方法：请重新安装应用；若仍失败，请保留技术详情。",
