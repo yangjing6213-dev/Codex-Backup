@@ -1,5 +1,7 @@
 # Codex Backup
 
+![Codex Backup 中文项目封面](docs/assets/project-covers/codex-backup-cover-zh-CN-v04.png)
+
 [English](README.en.md) · [中文使用说明](docs/USER_GUIDE.zh-CN.md) · [离线恢复说明](docs/OFFLINE_RESTORE.zh-CN.md)
 
 ## 一、这个仓库是什么？

@@ -1,5 +1,7 @@
 # ENHE Codex Backup
 
+![ENHE Codex Backup English cover](docs/assets/project-covers/cover-2x1-v02.png)
+
 [中文](README.md) · [English user guide](docs/USER_GUIDE.en.md)
 
 ## 1. What is this repository?
