@@ -4,6 +4,8 @@
 
 ## 1. What is this repository?
 
+[![Tauri](https://img.shields.io/badge/tauri-%2324C8DB.svg?style=for-the-badge&logo=tauri&logoColor=%23FFFFFF)](https://tauri.app/) [![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/) [![React](https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB)](https://react.dev/) [![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![Vite](https://img.shields.io/badge/vite-%23646CFF.svg?style=for-the-badge&logo=vite&logoColor=white)](https://vite.dev/) [![MIT License](https://img.shields.io/github/license/yangjing6213-dev/Codex-Backup?style=for-the-badge)](https://github.com/yangjing6213-dev/Codex-Backup/blob/main/LICENSE)
+
 ENHE Codex Backup is an independent Windows x64 local-first backup, restore, and offline migration utility. It preserves Codex data and projects without requiring cloud configuration. Version 0.1.15 recovers valid abandoned worker locks and distinguishes active operations, lock-access failures and scheduled-task failures. Safe internal project-link backups and migration-page layout fixes are retained. It is not an official OpenAI or ReHome product.
 
 ## 2. Who is it for?
