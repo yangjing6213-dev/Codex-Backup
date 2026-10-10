@@ -41,6 +41,31 @@ ENHE Codex Backup 是一个独立的 Windows x64 本地优先 Codex 项目和数
 
 它把“资料备份”和“设备迁移”放在同一个本地优先工具中，减少对云端账号和网络的依赖；同时保留 Git/worktree 和未提交工作，降低 AI 编程项目交接时只备份成品文件而丢失上下文的风险。
 
+
+### 从工作上下文到恢复后继续
+
+以下图片按从准备备份到恢复后继续工作的顺序排列。恢复后能否继续原工作，还取决于目标设备环境和 Codex 当前状态。
+
+#### 1. 携带工作上下文
+
+<img src="docs/assets/codex-backup-value/01-carry-work-context.png" alt="携带工作上下文的插图" width="720">
+
+#### 2. 确认备份范围
+
+<img src="docs/assets/codex-backup-value/02-confirm-backup-scope.png" alt="确认项目与资料备份范围的插图" width="720">
+
+#### 3. 加密保存并核验
+
+<img src="docs/assets/codex-backup-value/03-save-and-verify.png" alt="加密保存并核验备份内容的插图" width="720">
+
+#### 4. 恢复到新目录
+
+<img src="docs/assets/codex-backup-value/04-restore-to-new-directory.png" alt="恢复到新目录且不改动原资料的插图" width="720">
+
+#### 5. 重新接入并继续
+
+<img src="docs/assets/codex-backup-value/05-reconnect-and-continue.png" alt="完成接入检查后继续工作的插图" width="720">
+
 ## 五、示例效果
 
 启动后应用会先读取已保存设置，自动尝试 Codex 数据位置，并显示项目与对话统计。之后在本机固定磁盘后台发现项目候选；无权限目录会安全跳过并汇总：
