@@ -957,6 +957,22 @@ mod tests {
         command
     }
 
+    // Let the synthetic shell start before measuring protocol or cleanup deadlines.
+    fn ready_fake_transport(
+        script: &str,
+        home: &Path,
+        cwd: &Path,
+    ) -> Result<StdioTransport, RehomeError> {
+        let script =
+            format!("[Console]::WriteLine('synthetic-ready'); [Console]::Out.Flush(); {script}");
+        let mut transport = StdioTransport::spawn(fake_command(&script, home, cwd))?;
+        assert_eq!(
+            transport.receive_line(Duration::from_secs(30))?.trim(),
+            "synthetic-ready"
+        );
+        Ok(transport)
+    }
+
     fn child_handle(transport: &StdioTransport) -> OwnedHandle {
         transport.child.as_handle().try_clone_to_owned().unwrap()
     }
@@ -990,7 +1006,7 @@ mod tests {
                     } else {
                         "$null = [Console]::ReadLine(); [Console]::WriteLine('SENSITIVE malformed'); [Console]::Out.Flush(); Start-Sleep -Seconds 60"
                     };
-                    let transport = StdioTransport::spawn(fake_command(script, home, cwd))?;
+                    let transport = ready_fake_transport(script, home, cwd)?;
                     *launched.borrow_mut() = Some((
                         home.to_path_buf(),
                         cwd.to_path_buf(),
@@ -1188,10 +1204,7 @@ mod tests {
             None,
             |home, cwd| {
                 // The finite lifetime also bounds the RED run of the old blocking writer.
-                let transport = StdioTransport::spawn(fake_command(
-                "[Console]::WriteLine('ready'); [Console]::Out.Flush(); Start-Sleep -Seconds 15",
-                home, cwd,
-            ))?;
+                let transport = ready_fake_transport("Start-Sleep -Seconds 15", home, cwd)?;
                 *launched.borrow_mut() = Some((
                     home.to_path_buf(),
                     cwd.to_path_buf(),
@@ -1200,7 +1213,6 @@ mod tests {
                 Ok(transport)
             },
             |transport, _| {
-                assert_eq!(transport.receive_line(REQUEST_TIMEOUT)?.trim(), "ready");
                 *request_started.borrow_mut() = Some(Instant::now());
                 let result = Client::new(transport).request(
                     "synthetic/backpressure",
@@ -1299,14 +1311,20 @@ mod tests {
     #[test]
     fn overflowing_reader_queue_never_leaves_a_blocked_sender() {
         let directory = tempfile::tempdir().unwrap();
-        let mut transport = StdioTransport::spawn(fake_command(
-            "1..1000 | ForEach-Object { [Console]::WriteLine('{}') }; [Console]::Out.Flush(); Start-Sleep -Seconds 60",
+        // Start flooding only after readiness is consumed, otherwise it can overflow first.
+        let mut transport = ready_fake_transport(
+            "$null = [Console]::ReadLine(); 1..1000 | ForEach-Object { [Console]::WriteLine('{}') }; [Console]::Out.Flush(); Start-Sleep -Seconds 60",
             directory.path(), directory.path(),
-        )).unwrap();
+        ).unwrap();
+        transport.send_line("start", REQUEST_TIMEOUT).unwrap();
         let deadline = Instant::now() + REQUEST_TIMEOUT;
         while !transport.overflow.load(Ordering::Acquire) && Instant::now() < deadline {
             thread::sleep(Duration::from_millis(10));
         }
+        assert!(
+            transport.overflow.load(Ordering::Acquire),
+            "synthetic producer did not fill the reader queue"
+        );
         assert_eq!(
             transport.receive_line(REQUEST_TIMEOUT).unwrap_err().message,
             "Codex App Server exceeded the output backlog limit"
