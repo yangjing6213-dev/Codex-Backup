@@ -8,7 +8,7 @@ $English = Get-Content -LiteralPath $EnglishPath -Raw -Encoding UTF8
 
 if (-not $Chinese.Contains("[English](README.en.md)")) { throw "Chinese README does not link to README.en.md" }
 if (-not $English.Contains("](README.md)")) { throw "English README does not link to README.md" }
-foreach ($Phrase in @("# ENHE Codex Backup", "docs/USER_GUIDE.zh-CN.md", "docs/OFFLINE_RESTORE.zh-CN.md", "docs/STATUS.md")) {
+foreach ($Phrase in @("# Codex Backup", "docs/USER_GUIDE.zh-CN.md", "docs/OFFLINE_RESTORE.zh-CN.md", "docs/STATUS.md")) {
     if (-not $Chinese.Contains($Phrase)) { throw "Chinese README is missing: $Phrase" }
 }
 foreach ($Phrase in @("Backups & Migration", "cloud off by default", "complete local backup", "docs/USER_GUIDE.en.md", "docs/OFFLINE_RESTORE.en.md")) {
