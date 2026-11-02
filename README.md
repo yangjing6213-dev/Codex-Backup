@@ -1,21 +1,45 @@
 # Codex Backup
 
-![Codex Backup 中文项目封面](docs/assets/project-covers/codex-backup-cover-zh-CN-v04.png)
+> 在 Windows 本机备份 Codex 项目与工作资料，并在需要时检查、恢复或离线迁移。
+
+![Rust](https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white) ![Tauri](https://img.shields.io/badge/Tauri-24C8DB?style=flat-square&logo=tauri&logoColor=white) ![React](https://img.shields.io/badge/React-61DAFB?style=flat-square&logo=react&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white) ![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white) [![MIT](https://img.shields.io/badge/MIT-yellowgreen?style=flat-square)](LICENSE)
+
+
+![项目封面](assets/portfolio-promo-2026-11-02/cover-zh.jpg)
+
+英文封面与配图：[English cover](assets/portfolio-promo-2026-11-02/cover-en.jpg) · [English overview](assets/portfolio-promo-2026-11-02/overview-en.jpg)
+
 
 [English](README.en.md) · [中文使用说明](docs/USER_GUIDE.zh-CN.md) · [离线恢复说明](docs/OFFLINE_RESTORE.zh-CN.md)
 
-## 一、这个仓库是什么？
-
-[![Tauri](https://img.shields.io/badge/tauri-%2324C8DB.svg?style=for-the-badge&logo=tauri&logoColor=%23FFFFFF)](https://tauri.app/) [![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/) [![React](https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB)](https://react.dev/) [![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![Vite](https://img.shields.io/badge/vite-%23646CFF.svg?style=for-the-badge&logo=vite&logoColor=white)](https://vite.dev/) [![MIT License](https://img.shields.io/github/license/yangjing6213-dev/Codex-Backup?style=for-the-badge)](https://github.com/yangjing6213-dev/Codex-Backup/blob/main/LICENSE)
-
-
-
+## 一、这个项目是什么？
 
 Codex Backup 是一个独立的 Windows x64 本地优先 Codex 项目和数据备份、恢复和离线迁移工具。无需云端配置即可备份。0.1.15 修复异常退出后残留任务锁阻止备份的问题，并分别说明任务正在运行、锁访问失败和自动备份计划任务失败；项目内部链接备份和迁移页面布局修复继续保留。
 
 它不是 OpenAI 或 ReHome 官方产品。云端默认关闭；OneDrive/rclone 只在用户完成配置并主动执行测试或上传时使用。“迁移并接入 Codex”的联网验证是独立选项，必须另行同意发送所选对话上下文，可能产生模型用量；关闭云端备份不等于禁止该验证联网。
 
-## 二、适合谁用？
+## 二、先看效果
+### 项目流程图（概念示意）
+
+![项目流程概念示意](assets/portfolio-promo-2026-11-02/overview-zh.jpg)
+
+> AI 概念插画：展示项目思路，不代表真实软件界面、运行数据或实际结果。
+
+启动后应用会先读取已保存设置，自动尝试 Codex 数据位置，并显示项目与对话统计。之后在本机固定磁盘后台发现项目候选；无权限目录会安全跳过并汇总：
+
+```text
+Codex 数据位置：C:\Users\<用户>\.codex
+本地备份目录：%LOCALAPPDATA%\ENHE\Codex Backup\backups
+已发现项目：demo（.git、package.json）
+对话：按 Codex sessions / archived_sessions 统计
+云端备份：已关闭；本地备份不产生远端调用
+```
+
+候选项目只会展示并等待用户勾选，不会把整个磁盘内容自动纳入备份。路径字段旁的文件夹按钮会打开 Windows 原生选择窗口；取消不会改变原值。
+
+项目页提供“扫描受限目录时申请管理员权限”选项。只有用户勾选并点击“以管理员权限重新扫描”时才会弹出 Windows UAC；普通扫描不会被中断。
+
+## 三、适合谁用？
 
 ### 1、特别适合
 
@@ -31,7 +55,7 @@ Codex Backup 是一个独立的 Windows x64 本地优先 Codex 项目和数据�
 - 需要官方 OpenAI 支持、账号恢复或真实会话续接保证的人。
 - 需要 macOS、Linux 或未验证 Windows 版本安装包的人。
 
-## 三、它会产出什么？
+## 四、你会得到什么？
 
 - 加密、去重、可校验的 restic 本地快照。
 - 包含 Git、worktree、未提交修改、Codex 对话、索引、技能、插件和交接资料的完整备份载荷。
@@ -39,10 +63,9 @@ Codex Backup 是一个独立的 Windows x64 本地优先 Codex 项目和数据�
 - 适用的 ReHome `.rehome` 离线迁移包。
 - Windows x64 NSIS 安装包及 SHA-256 校验文件（在构建工具链可用时生成）。
 
-## 四、具有什么价值？
+## 五、它能帮你解决什么问题？
 
 它把“资料备份”和“设备迁移”放在同一个本地优先工具中，减少对云端账号和网络的依赖；同时保留 Git/worktree 和未提交工作，降低 AI 编程项目交接时只备份成品文件而丢失上下文的风险。
-
 
 ### 从工作上下文到恢复后继续
 
@@ -68,23 +91,7 @@ Codex Backup 是一个独立的 Windows x64 本地优先 Codex 项目和数据�
 
 <img src="docs/assets/codex-backup-value/05-reconnect-and-continue.png" alt="完成接入检查后继续工作的插图" width="720">
 
-## 五、示例效果
-
-启动后应用会先读取已保存设置，自动尝试 Codex 数据位置，并显示项目与对话统计。之后在本机固定磁盘后台发现项目候选；无权限目录会安全跳过并汇总：
-
-```text
-Codex 数据位置：C:\Users\<用户>\.codex
-本地备份目录：%LOCALAPPDATA%\ENHE\Codex Backup\backups
-已发现项目：demo（.git、package.json）
-对话：按 Codex sessions / archived_sessions 统计
-云端备份：已关闭；本地备份不产生远端调用
-```
-
-候选项目只会展示并等待用户勾选，不会把整个磁盘内容自动纳入备份。路径字段旁的文件夹按钮会打开 Windows 原生选择窗口；取消不会改变原值。
-
-项目页提供“扫描受限目录时申请管理员权限”选项。只有用户勾选并点击“以管理员权限重新扫描”时才会弹出 Windows UAC；普通扫描不会被中断。
-
-## 六、安装方法
+## 六、安装与快速开始
 
 1. 前往 [GitHub Releases 安装包下载页](https://github.com/yangjing6213-dev/Codex-Backup/releases) 查看实际已发布版本。0.1.15 发布后资产为 [Windows x64 安装包](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.15/ENHE.Codex.Backup_0.1.15_x64-setup.exe) 和 [SHA-256 校验文件](https://github.com/yangjing6213-dev/Codex-Backup/releases/download/v0.1.15/ENHE.Codex.Backup_0.1.15_x64-setup.exe.sha256)。安装包未进行代码签名；安装前请核对 SHA-256 校验值。
 2. 使用 PowerShell 计算安装包 SHA-256，并与校验文件比对。
@@ -99,7 +106,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
 ```
 
-## 七、如何使用
+## 七、如何使用？
 
 1. 打开“项目”，点击“选择项目根目录”选择 `F:\Projects`，再点击“重新扫描”。结果按磁盘分组；“本次扫描发现”列出根目录直属文件夹，“已保存或手动目录”单独保留历史选择。核对项目文件夹名称和后台统计出的全部普通文件数量，再勾选需要备份的项目；“选择全部本次扫描项目”可一次纳入当前结果。
 2. 打开“数据”，确认 Codex 数据位置；再到“设置”确认本地备份目录。点击字段旁的文件夹按钮即可选择路径。
@@ -138,7 +145,7 @@ scripts/                    环境引导、验证、本地验收和打包脚本
 tests/                      隔离测试与文档契约测试
 ```
 
-## 十、注意事项
+## 十、注意事项与常见问题
 
 - 完整备份不会照搬 ReHome 对 `.git` 的排除规则，会保留 Git 数据和相关 worktree 资料。
 - 从 0.1.3 起，完整本地项目备份包含项目中所有可读取的普通文件，包括隐藏文件、依赖、构建产物、`.env`、私钥和 Token；Codex 数据位置仍独立排除已知登录凭据等高风险数据。敏感项目文件只进入加密的 restic 仓库，请使用独立强密码并禁止把恢复结果公开或提交到 GitHub。
@@ -175,9 +182,3 @@ ReHome：本项目内置其适用的离线迁移能力，但完整本地备份�
 ## 十四、继续探索
 
 这个项目是我用 AI 搭建的个人生成系统里的一个工具。如果你也在用 AI 做内容、知识库、工作流或产品化，可以登录 [www.enhe-tech.com.cn](https://www.enhe-tech.com.cn/) 查看更多资料。
-
-## 许可证
-
-本项目沿用上游仓库的 MIT 许可；内置组件、版本和来源见 [THIRD_PARTY](docs/THIRD_PARTY.md)。
-
-0.1.15 安装包随附许可与第三方声明文件，安装后可在程序目录的 `resources/licenses` 文件夹离线查看；许可材料是技术再分发证据，不构成法律意见。

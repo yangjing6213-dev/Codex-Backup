@@ -1,12 +1,18 @@
 # ENHE Codex Backup
 
-![ENHE Codex Backup English cover](docs/assets/project-covers/cover-2x1-v02.png)
+> Back up Codex projects and work context on Windows, then review, restore or migrate the copy offline.
+
+![Rust](https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white) ![Tauri](https://img.shields.io/badge/Tauri-24C8DB?style=flat-square&logo=tauri&logoColor=white) ![React](https://img.shields.io/badge/React-61DAFB?style=flat-square&logo=react&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white) ![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white) [![MIT](https://img.shields.io/badge/MIT-yellowgreen?style=flat-square)](LICENSE)
+
+
+![Project cover](assets/portfolio-promo-2026-11-02/cover-en.jpg)
+
+中文封面与配图：[封面](assets/portfolio-promo-2026-11-02/cover-zh.jpg) · [配图](assets/portfolio-promo-2026-11-02/overview-zh.jpg)
+
 
 [中文](README.md) · [English user guide](docs/USER_GUIDE.en.md)
 
 ## 1. What is this repository?
-
-[![Tauri](https://img.shields.io/badge/tauri-%2324C8DB.svg?style=for-the-badge&logo=tauri&logoColor=%23FFFFFF)](https://tauri.app/) [![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/) [![React](https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB)](https://react.dev/) [![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![Vite](https://img.shields.io/badge/vite-%23646CFF.svg?style=for-the-badge&logo=vite&logoColor=white)](https://vite.dev/) [![MIT License](https://img.shields.io/github/license/yangjing6213-dev/Codex-Backup?style=for-the-badge)](https://github.com/yangjing6213-dev/Codex-Backup/blob/main/LICENSE)
 
 ENHE Codex Backup is an independent Windows x64 local-first backup, restore, and offline migration utility. It preserves Codex data and projects without requiring cloud configuration. Version 0.1.15 recovers valid abandoned worker locks and distinguishes active operations, lock-access failures and scheduled-task failures. Safe internal project-link backups and migration-page layout fixes are retained. It is not an official OpenAI or ReHome product.
 
@@ -37,6 +43,11 @@ ENHE Codex Backup is an independent Windows x64 local-first backup, restore, and
 It puts data backup and device migration into one local-first workflow, reducing dependence on cloud accounts and networks while preserving Git/worktree context and uncommitted work.
 
 ## 5. Example result
+### Workflow illustration (concept only)
+
+![Project workflow concept illustration](assets/portfolio-promo-2026-11-02/overview-en.jpg)
+
+> AI-generated concept illustration: workflow only, not a real interface, runtime data, or result.
 
 ```text
 Codex data location: C:\Users\<user>\.codex
